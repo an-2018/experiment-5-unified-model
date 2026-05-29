@@ -42,6 +42,10 @@ import pandas as pd
 # Audio processing
 import librosa
 
+# Zip extraction
+import zipfile
+import shutil
+
 # Visualization
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -50,6 +54,9 @@ import seaborn as sns
 
 # Progress
 from tqdm import tqdm
+
+# Deep learning models (imported at module level for thread safety)
+from transformers import AutoTokenizer, RobertaModel, WavLMModel
 
 # Project root
 WORK_DIR = Path("/home/anilson/thesis/thesis-experiment-5-unified-model")
@@ -62,12 +69,15 @@ FEATURES_ROOT.mkdir(parents=True, exist_ok=True)
 FLAGS_DIR.mkdir(parents=True, exist_ok=True)
 ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Dataset paths
-DAIC_RAW = Path("/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/daic/raw")
+# Dataset paths (relative via symlinks)
+DAIC_RAW = WORK_DIR / "data" / "daic"
 DAIC_PROCESSED = DAIC_RAW / "processed"
-DAIC_METADATA = Path("/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/daic/metadata.csv")
-MOSEI_PATH = Path("/home/anilson/projects/mosei-dataset/data/CMU-MOSEI")
-FI_RAW = Path("/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/fi/raw")
+DAIC_METADATA = DAIC_RAW.resolve().parent / "metadata.csv"
+MOSEI_PATH = WORK_DIR / "data" / "mosei"
+FI_RAW = WORK_DIR / "data" / "fi"
+
+# Temp extraction directory for DAIC zip contents
+DAIC_EXTRACT_DIR = WORK_DIR / "data" / ".extracted" / "daic"
 
 # Encoder configurations
 ENCODER_CONFIGS = {
@@ -101,6 +111,10 @@ class MultimodalSample:
     # Modality mask: (text, audio, video)
     modality_mask: tuple[bool, bool, bool] = (True, True, True)
 
+    # Pre-extracted features (for datasets like MOSEI with no raw data)
+    # Each entry: modality -> {"features": np.ndarray, "pooled_features": np.ndarray}
+    pre_extracted: Optional[dict] = None
+
     # Labels
     depression_binary: Optional[int] = None
     phq8_score: Optional[float] = None
@@ -115,6 +129,152 @@ class FeatureManifest:
     features_root: str = str(FEATURES_ROOT)
     datasets: dict = field(default_factory=dict)
     samples: list = field(default_factory=list)
+
+
+# =============================================================================
+# DAIC ZIP EXTRACTION HELPERS
+# =============================================================================
+
+class DAICZipExtractor:
+    """Extract raw data from DAIC participant zip files without using pre-extracted
+    features from the processed/ directory."""
+
+    def __init__(self, raw_path: Path = DAIC_RAW, extract_dir: Path = DAIC_EXTRACT_DIR):
+        self.raw_path = raw_path
+        self.extract_dir = extract_dir
+
+    def _zip_path(self, participant_id: str) -> Path:
+        return self.raw_path / f"{participant_id}_P.zip"
+
+    def get_transcript_text(self, participant_id: str) -> str:
+        """Read transcript CSV from zip and return concatenated participant speech."""
+        zpath = self._zip_path(participant_id)
+        if not zpath.exists():
+            return ""
+
+        try:
+            with zipfile.ZipFile(zpath, 'r') as z:
+                csv_name = f"{participant_id}_TRANSCRIPT.csv"
+                if csv_name not in z.namelist():
+                    return ""
+                with z.open(csv_name) as f:
+                    df = pd.read_csv(f, sep='\t')
+                # Concatenate only Participant utterances (not the interviewer "Ellie")
+                participant_utterances = df[df['speaker'].str.lower() == 'participant']['value'].tolist()
+                if not participant_utterances:
+                    # Fall back to all utterances if no participant speech found
+                    participant_utterances = df['value'].tolist()
+                # Convert any non-string values (NaN, float, etc.) to empty string
+                cleaned = []
+                for u in participant_utterances:
+                    if isinstance(u, str):
+                        cleaned.append(u)
+                    elif isinstance(u, (int, float)) and not (u != u):  # not NaN
+                        cleaned.append(str(int(u)) if isinstance(u, int) else str(u))
+                    else:
+                        cleaned.append('')
+                participant_utterances = cleaned
+                return " ".join(participant_utterances)
+        except Exception as e:
+            print(f"Warning: Error reading transcript for {participant_id}: {e}")
+            return ""
+
+    def extract_audio(self, participant_id: str) -> Optional[str]:
+        """Extract audio WAV from zip to extract_dir. Returns path or None."""
+        zpath = self._zip_path(participant_id)
+        if not zpath.exists():
+            return None
+
+        out_dir = self.extract_dir / participant_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{participant_id}_AUDIO.wav"
+
+        if out_path.exists():
+            return str(out_path)
+
+        try:
+            with zipfile.ZipFile(zpath, 'r') as z:
+                wav_name = f"{participant_id}_AUDIO.wav"
+                if wav_name not in z.namelist():
+                    return None
+                z.extract(wav_name, out_dir)
+                # Rename if extracted with path prefix
+                extracted = out_dir / wav_name
+                if extracted.exists():
+                    shutil.move(str(extracted), str(out_path))
+            return str(out_path) if out_path.exists() else None
+        except Exception as e:
+            print(f"Warning: Error extracting audio for {participant_id}: {e}")
+            return None
+
+    def get_clnf_features(self, participant_id: str) -> Optional[np.ndarray]:
+        """Extract and parse CLNF AU + gaze + pose features from zip.
+        Returns [T, 35] numpy array matching OpenFace AU format."""
+        zpath = self._zip_path(participant_id)
+        if not zpath.exists():
+            return None
+
+        cache_path = self.extract_dir / participant_id / f"{participant_id}_clnf.npy"
+        if cache_path.exists():
+            return np.load(cache_path)
+
+        try:
+            with zipfile.ZipFile(zpath, 'r') as z:
+                # Parse AU intensities
+                au_name = f"{participant_id}_CLNF_AUs.txt"
+                pose_name = f"{participant_id}_CLNF_pose.txt"
+                gaze_name = f"{participant_id}_CLNF_gaze.txt"
+
+                aus = self._parse_clnf_txt(z, au_name) if au_name in z.namelist() else None
+                pose = self._parse_clnf_txt(z, pose_name) if pose_name in z.namelist() else None
+                gaze = self._parse_clnf_txt(z, gaze_name) if gaze_name in z.namelist() else None
+
+            # Combine into one array
+            arrays = []
+            if aus is not None:
+                # CLNF has 17+ AUs, keep first 17
+                aus = aus[:, :17] if aus.shape[1] >= 17 else np.pad(aus, ((0,0), (0, 17-aus.shape[1])))
+                arrays.append(aus)
+            if pose is not None:
+                arrays.append(pose)
+            if gaze is not None:
+                arrays.append(gaze)
+
+            if not arrays:
+                return None
+
+            # Concatenate to [T, ~35] (17 AUs + 6 pose + 8 gaze = 31; pad to 35)
+            features = np.concatenate(arrays, axis=1)
+            if features.shape[1] < 35:
+                features = np.pad(features, ((0,0), (0, 35 - features.shape[1])))
+            elif features.shape[1] > 35:
+                features = features[:, :35]
+
+            # Cache the result
+            self.extract_dir.mkdir(parents=True, exist_ok=True)
+            (self.extract_dir / participant_id).mkdir(parents=True, exist_ok=True)
+            np.save(cache_path, features)
+
+            return features
+
+        except Exception as e:
+            print(f"Warning: Error extracting CLNF for {participant_id}: {e}")
+            return None
+
+    def _parse_clnf_txt(self, z: zipfile.ZipFile, name: str) -> Optional[np.ndarray]:
+        """Parse a CLNF text file from zip into numpy array."""
+        try:
+            with z.open(name) as f:
+                lines = f.read().decode('utf-8').strip().splitlines()
+            # Skip header if present
+            if lines and not lines[0][0].isdigit() and not lines[0][0] == '-':
+                lines = lines[1:]
+            if not lines:
+                return None
+            data = np.array([list(map(float, line.split(','))) for line in lines if line.strip()])
+            return data if data.size > 0 else None
+        except Exception:
+            return None
 
 
 # =============================================================================
@@ -238,14 +398,12 @@ class TextPreprocessor:
     """RoBERTa-based text tokenization and embedding extraction."""
 
     def __init__(self, max_length: int = 512, device: str = "cuda"):
-        from transformers import RobertaTokenizer, RobertaModel
-
         self.max_length = max_length
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
 
         print(f"Loading RoBERTa tokenizer and model on {self.device}...")
         model_name = "roberta-base"
-        self.tokenizer = RobertaTokenizer.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = RobertaModel.from_pretrained(model_name).to(self.device)
         self.model.eval()
 
@@ -316,7 +474,6 @@ class AudioPreprocessor:
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
 
         if encoder == "wavlm":
-            from transformers import WavLMModel
             print(f"Loading WavLM model on {self.device}...")
             self.wavlm = WavLMModel.from_pretrained(
                 "microsoft/wavlm-base"
@@ -394,8 +551,8 @@ class AudioPreprocessor:
 
     def _extract_wavlm(self, y: np.ndarray, sr: int) -> dict[str, torch.Tensor]:
         """Extract WavLM embeddings."""
-        # Convert to tensor
-        waveform = torch.tensor(y).unsqueeze(0).to(self.device)
+        # Convert to tensor (WavLM expects float32)
+        waveform = torch.tensor(y, dtype=torch.float32).unsqueeze(0).to(self.device)
 
         # Extract features
         with torch.no_grad():
@@ -421,46 +578,60 @@ class AudioPreprocessor:
         """
         features_list = []
 
-        # MFCCs (20 coefficients)
+        # MFCCs (20 coefficients) — use as reference for frame count
         mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
-        features_list.append(mfcc)
+        n_frames = mfcc.shape[1]
+        features_list.append(mfcc.T)  # [T, 20]
 
         # Delta MFCCs
         delta_mfcc = librosa.feature.delta(mfcc)
-        features_list.append(delta_mfcc)
+        features_list.append(delta_mfcc.T)  # [T, 20]
 
-        # Spectral features
+        # Spectral features — ensure same frame count
         spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
-        features_list.append(spectral_centroid)
+        feat = spectral_centroid.T  # [T, 1]
+        if feat.shape[0] != n_frames:
+            feat = np.tile(feat.mean(axis=0, keepdims=True), (n_frames, 1)) if feat.shape[0] > 0 else np.zeros((n_frames, 1))
+        features_list.append(feat)
 
         spectral_bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr)
-        features_list.append(spectral_bandwidth)
+        feat = spectral_bandwidth.T
+        if feat.shape[0] != n_frames:
+            feat = np.tile(feat.mean(axis=0, keepdims=True), (n_frames, 1)) if feat.shape[0] > 0 else np.zeros((n_frames, 1))
+        features_list.append(feat)
 
         spectral_contrast = librosa.feature.spectral_contrast(y=y, sr=sr)
-        features_list.append(spectral_contrast)
+        feat = spectral_contrast.T  # [T, n_bands]
+        if feat.shape[0] != n_frames:
+            feat = np.tile(feat.mean(axis=0, keepdims=True), (n_frames, 1)) if feat.shape[0] > 0 else np.zeros((n_frames, 7))
+        features_list.append(feat)
 
         spectral_rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
-        features_list.append(spectral_rolloff)
+        feat = spectral_rolloff.T
+        if feat.shape[0] != n_frames:
+            feat = np.tile(feat.mean(axis=0, keepdims=True), (n_frames, 1)) if feat.shape[0] > 0 else np.zeros((n_frames, 1))
+        features_list.append(feat)
 
-        # Prosody features
-        f0, voiced_flag, voiced_probs = librosa.pyin(y, fmin=50, fmax=500, sr=sr)
+        # Prosody features — use fast YIN pitch estimator instead of slow pyin
+        f0 = librosa.yin(y, fmin=50, fmax=500, sr=sr)
         f0_filled = np.nan_to_num(f0, nan=np.nanmedian(f0))
-        prosody = np.array([
-            np.nanmean(f0_filled),
-            np.nanstd(f0_filled),
-            np.nanmedian(f0_filled),
-            np.sum(voiced_flag) / len(voiced_flag) if len(voiced_flag) > 0 else 0
-        ]).reshape(1, -1)
+        # Pad or trim f0 to match n_frames
+        if len(f0_filled) > n_frames:
+            f0_filled = f0_filled[:n_frames]
+        elif len(f0_filled) < n_frames:
+            f0_filled = np.pad(f0_filled, (0, n_frames - len(f0_filled)), mode='edge')
+        prosody = f0_filled.reshape(-1, 1)  # [T, 1]
         features_list.append(prosody)
 
         # Zero crossing rate
         zcr = librosa.feature.zero_crossing_rate(y)
-        features_list.append(zcr)
+        feat = zcr.T
+        if feat.shape[0] != n_frames:
+            feat = np.tile(feat.mean(axis=0, keepdims=True), (n_frames, 1)) if feat.shape[0] > 0 else np.zeros((n_frames, 1))
+        features_list.append(feat)
 
         # Concatenate all features
-        # Each feature has shape [n_features, T]
-        # We need to transpose to [T, n_features]
-        features = np.vstack(features_list).T  # [T, dim]
+        features = np.concatenate(features_list, axis=1)  # [T, ~88]
 
         # Handle NaN/Inf
         features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
@@ -503,22 +674,26 @@ class VideoPreprocessor:
     def extract_from_path(self, video_path: str, sample_id: str) -> dict[str, torch.Tensor]:
         """Extract video features from file path.
 
+        Supports:
+        - Regular file paths (mp4, avi) for ViT/OpenFace
+        - clnf://{participant_id} for DAIC CLNF tracking data
+
         Returns dict with:
         - features: [T, dim] time-series features
         - pooled_features: [dim*2] mean + std pooled
         """
-        if not os.path.exists(video_path):
-            dim = 768 if self.encoder == "vit" else 35
-            return {
-                "features": torch.zeros(1, dim),
-                "pooled_features": torch.zeros(dim * 2)
-            }
-
         try:
             if self.encoder == "openface":
-                return self._extract_openface(video_path, sample_id)
+                # Handle DAIC CLNF from zip
+                if video_path and video_path.startswith("clnf://"):
+                    participant_id = video_path.replace("clnf://", "")
+                    return self._extract_openface_from_clnf(participant_id)
+                # Handle regular video file
+                if video_path and os.path.exists(video_path):
+                    return self._extract_openface(video_path, sample_id)
             elif self.encoder == "vit":
-                return self._extract_vit(video_path, sample_id)
+                if video_path and os.path.exists(video_path):
+                    return self._extract_vit(video_path, sample_id)
 
         except Exception as e:
             print(f"Warning: Error extracting video for {sample_id}: {e}")
@@ -528,14 +703,16 @@ class VideoPreprocessor:
                 "pooled_features": torch.zeros(dim * 2)
             }
 
-    def _extract_openface(self, video_path: str, sample_id: str) -> dict[str, torch.Tensor]:
-        """Extract OpenFace AU features.
+        # Fallback: zeros
+        dim = 768 if self.encoder == "vit" else 35
+        return {
+            "features": torch.zeros(1, dim),
+            "pooled_features": torch.zeros(dim * 2)
+        }
 
-        For pre-extracted DAIC data, use vis_au.npy directly.
-        For raw video, would need to run OpenFace CLI.
-        """
-        # Check if pre-extracted AU features exist
-        # DAIC processed data has {id}_vis_au.npy
+    def _extract_openface(self, video_path: str, sample_id: str) -> dict[str, torch.Tensor]:
+        """Extract OpenFace AU features from pre-extracted vis_au.npy or raw video."""
+        # Check if pre-extracted AU features exist (from DAIC processed dir)
         au_path = Path(video_path).parent / f"{sample_id}_vis_au.npy"
 
         if au_path.exists():
@@ -555,7 +732,27 @@ class VideoPreprocessor:
                 "pooled_features": torch.tensor(pooled, dtype=torch.float32)
             }
 
-        # For MOSEI/FI or raw video, return zeros (OpenFace CLI not run)
+        return {
+            "features": torch.zeros(1, 35),
+            "pooled_features": torch.zeros(70)
+        }
+
+    def _extract_openface_from_clnf(self, participant_id: str) -> dict[str, torch.Tensor]:
+        """Extract OpenFace-like features from DAIC CLNF tracking data in zip."""
+        extractor = DAICZipExtractor()
+        clnf_data = extractor.get_clnf_features(participant_id)
+
+        if clnf_data is not None and clnf_data.shape[0] > 0:
+            # Temporal mean + std pooling
+            mean_feat = np.mean(clnf_data, axis=0)
+            std_feat = np.std(clnf_data, axis=0)
+            pooled = np.concatenate([mean_feat, std_feat])
+
+            return {
+                "features": torch.tensor(clnf_data, dtype=torch.float32),
+                "pooled_features": torch.tensor(pooled, dtype=torch.float32)
+            }
+
         return {
             "features": torch.zeros(1, 35),
             "pooled_features": torch.zeros(70)
@@ -640,16 +837,20 @@ class VideoPreprocessor:
 # =============================================================================
 
 class DAICLoader:
-    """Load DAIC-WOZ dataset."""
+    """Load DAIC-WOZ dataset from raw zip files.
 
-    def __init__(self, raw_path: Path = DAIC_RAW, processed_path: Path = DAIC_PROCESSED,
-                 metadata_path: Path = DAIC_METADATA):
+    Extracts text transcripts, audio WAV, and CLNF video tracking data
+    directly from participant zip archives — does NOT use pre-extracted
+    features from the processed/ directory.
+    """
+
+    def __init__(self, raw_path: Path = DAIC_RAW, metadata_path: Path = DAIC_METADATA):
         self.raw_path = raw_path
-        self.processed_path = processed_path
         self.metadata_path = metadata_path
+        self.zip_extractor = DAICZipExtractor(raw_path)
 
     def load(self, split: str = "train") -> list[MultimodalSample]:
-        """Load DAIC samples for a given split."""
+        """Load DAIC samples for a given split, extracting raw data from zips."""
         df = pd.read_csv(self.metadata_path)
 
         # Filter by split
@@ -657,21 +858,34 @@ class DAICLoader:
 
         samples = []
         for _, row in split_df.iterrows():
-            participant_id = row['id']
+            participant_id = str(int(row['id'])) if isinstance(row['id'], (int, float)) else str(row['id'])
 
-            # Check for processed data
-            audio_path = self.processed_path / f"{participant_id}_audio_cov.npy"
-            text_path = self.processed_path / f"{participant_id}_text.npy"
+            # Check if zip exists
+            zip_path = self.raw_path / f"{participant_id}_P.zip"
+            if not zip_path.exists():
+                print(f"Warning: No zip found for {participant_id}, skipping")
+                continue
+
+            # Extract transcript text from zip (raw CSV → RoBERTa)
+            transcript_text = self.zip_extractor.get_transcript_text(participant_id)
+
+            # Extract audio WAV from zip (raw → WavLM/eGeMAPS)
+            audio_path = self.zip_extractor.extract_audio(participant_id)
+
+            # For video, DAIC has CLNF tracking data (OpenFace-like) in zips.
+            # We pass a sentinel path so the OpenFace encoder knows to read CLNF features.
+            # The actual CLNF reading happens inside VideoPreprocessor._extract_openface_from_clnf().
+            video_path = f"clnf://{participant_id}"  # Special scheme to trigger CLNF extraction
 
             sample = MultimodalSample(
                 sample_id=participant_id,
                 dataset="daic",
                 split=split,
                 subject_id=participant_id,
-                text=str(text_path) if text_path.exists() else None,
-                audio_path=str(self.raw_path / f"{participant_id}_AUDIO.wav") if (self.raw_path / f"{participant_id}_AUDIO.wav").exists() else str(audio_path),
-                video_path=str(self.raw_path / f"{participant_id}_VIDEO.wav"),  # or processed
-                modality_mask=(True, True, True),
+                text=transcript_text,  # Raw transcript string, not a file path
+                audio_path=audio_path,  # Extracted WAV path or None
+                video_path=video_path,  # Special CLNF sentinel
+                modality_mask=(bool(transcript_text.strip()), audio_path is not None, True),
                 depression_binary=int(row['label_dep_binary']),
                 phq8_score=float(row['label_dep_score'])
             )
@@ -682,7 +896,14 @@ class DAICLoader:
 
 
 class MOSEILoader:
-    """Load CMU-MOSEI dataset."""
+    """Load CMU-MOSEI dataset.
+
+    MOSEI has only pre-extracted features (no raw data available).
+    We store them in our cache format with native MOSEI dimensions:
+    - text: [50, 300] GloVe embeddings
+    - audio: [50, 74] COVAREP features
+    - vision: [50, 35] Facet features (matches OpenFace dim!)
+    """
 
     def __init__(self, mosei_path: Path = MOSEI_PATH):
         self.mosei_path = mosei_path
@@ -705,18 +926,48 @@ class MOSEILoader:
         samples = []
         labels = np.array(split_data['labels']).squeeze()
 
+        # MOSEI features are already extracted: [N, T, dim]
+        text_feats = np.array(split_data['text'])      # [N, 50, 300]
+        audio_feats = np.array(split_data['audio'])    # [N, 50, 74]
+        vision_feats = np.array(split_data['vision'])  # [N, 50, 35]
+
         for i in range(len(labels)):
             sample_id = f"mosei_{split}_{i:05d}"
+
+            # Build pre-extracted features for this sample
+            pre_extracted = {}
+
+            # Text: [50, 300] → pooled to [600]
+            txt = torch.tensor(text_feats[i], dtype=torch.float32)
+            pre_extracted["text"] = {
+                "embedding": txt,
+                "pooled_embedding": torch.cat([txt.mean(dim=0), txt.std(dim=0)])
+            }
+
+            # Audio: [50, 74] → pooled to [148]
+            aud = torch.tensor(audio_feats[i], dtype=torch.float32)
+            pre_extracted["audio"] = {
+                "features": aud,
+                "pooled_features": torch.cat([aud.mean(dim=0), aud.std(dim=0)])
+            }
+
+            # Vision: [50, 35] → pooled to [70] (matches OpenFace dim)
+            vis = torch.tensor(vision_feats[i], dtype=torch.float32)
+            pre_extracted["video"] = {
+                "features": vis,
+                "pooled_features": torch.cat([vis.mean(dim=0), vis.std(dim=0)])
+            }
 
             sample = MultimodalSample(
                 sample_id=sample_id,
                 dataset="mosei",
                 split=split,
-                subject_id=f"mosei_subject_{i}",  # MOSEI doesn't provide subject IDs in the same way
-                text=None,  # Will use pre-extracted text features
-                audio_path=None,  # Will use pre-extracted audio features
-                video_path=None,  # Will use pre-extracted video features
+                subject_id=f"mosei_subject_{i}",
+                text=None,
+                audio_path=None,
+                video_path=None,
                 modality_mask=(True, True, True),
+                pre_extracted=pre_extracted,
                 sentiment_score=float(labels[i])
             )
             samples.append(sample)
@@ -726,7 +977,7 @@ class MOSEILoader:
 
 
 class FILoader:
-    """Load ChaLearn First Impressions dataset."""
+    """Load ChaLearn First Impressions dataset from raw videos."""
 
     def __init__(self, fi_raw_path: Path = FI_RAW):
         self.fi_raw_path = fi_raw_path
@@ -746,13 +997,14 @@ class FILoader:
                 annotations = pickle.load(f, encoding='latin-1')
         else:
             annotations = pd.read_csv(ann_path)
+            # FI test CSV uses 'interview' instead of 'openness'
+            if 'openness' not in annotations.columns and 'interview' in annotations.columns:
+                annotations['openness'] = annotations['interview']
 
         samples = []
-        # FI dataset has: extraversion, neuroticism, agreeableness, conscientiousness, interview
-        # Note: 'openness' is NOT available in FI - using 'interview' as provided
-        traits = ['extraversion', 'neuroticism', 'agreeableness', 'conscientiousness', 'interview']
+        traits = ['extraversion', 'neuroticism', 'agreeableness', 'conscientiousness', 'openness', 'interview']
 
-        # Get list of clip IDs
+        # Get list of clip IDs (keys are video filenames like 'J4GQm9j0JZ0.003.mp4')
         if split != "test":
             clip_ids = list(annotations[traits[0]].keys())
         else:
@@ -767,18 +1019,30 @@ class FILoader:
             else:
                 personality = {trait: float(annotations.iloc[clip_id][trait]) for trait in traits}
 
-            # Find video/audio paths
+            # Find video/audio paths — FI stores videos in {split}/videos/ subdirectory
             if split == "train":
-                video_dir = self.fi_raw_path / "train"
+                video_dir = self.fi_raw_path / "train" / "videos"
             elif split == "val":
-                video_dir = self.fi_raw_path / "val"
+                video_dir = self.fi_raw_path / "val" / "videos"
             else:
-                video_dir = self.fi_raw_path / "test"
+                video_dir = self.fi_raw_path / "test" / "videos"
 
-            # FI clips are named like 1.mp4, 2.mp4, etc.
-            video_path = video_dir / f"{clip_id}.mp4" if isinstance(clip_id, int) else video_dir / clip_id
-            if not video_path.exists():
-                video_path = video_dir / f"{clip_id}.avi" if isinstance(clip_id, int) else video_dir / clip_id.replace('.mp4', '.avi')
+            # Clip IDs are already filenames (e.g., 'J4GQm9j0JZ0.003.mp4')
+            if isinstance(clip_id, int):
+                video_path = video_dir / f"{clip_id}.mp4"
+                if not video_path.exists():
+                    video_path = video_dir / f"{clip_id}.avi"
+            else:
+                video_path = video_dir / clip_id
+                if not video_path.exists():
+                    # Try .avi fallback
+                    video_path = video_dir / clip_id.replace('.mp4', '.avi')
+
+            video_path_str = str(video_path) if video_path.exists() else None
+
+            # Audio is embedded in video — set audio_path to the same video path
+            # AudioPreprocessor can read audio from video via librosa
+            audio_path_str = video_path_str
 
             sample = MultimodalSample(
                 sample_id=sample_id,
@@ -786,8 +1050,8 @@ class FILoader:
                 split=split,
                 subject_id=sample_id,  # FI clips don't have subject IDs
                 text=None,  # FI has no text transcript
-                audio_path=None,  # Audio embedded in video
-                video_path=str(video_path) if video_path.exists() else None,
+                audio_path=audio_path_str,  # Audio extracted from video
+                video_path=video_path_str,
                 modality_mask=(False, True, True),  # No text
                 personality_traits=personality
             )
@@ -869,21 +1133,35 @@ class PreprocessingPipeline:
         """
         cache_paths = {}
 
+        # Handle pre-extracted features (e.g., MOSEI with no raw data)
+        if sample.pre_extracted is not None:
+            for encoder in encoders:
+                if encoder == "text" and "text" in sample.pre_extracted:
+                    features = sample.pre_extracted["text"]
+                    cache_path = self._get_cache_path(sample, "text", "roberta")
+                    torch.save(features, cache_path)
+                    cache_paths["text"] = cache_path
+                elif encoder.startswith("audio_") and "audio" in sample.pre_extracted:
+                    features = sample.pre_extracted["audio"]
+                    audio_encoder = encoder.replace("audio_", "")
+                    cache_path = self._get_cache_path(sample, "audio", audio_encoder)
+                    torch.save(features, cache_path)
+                    cache_paths[f"audio_{audio_encoder}"] = cache_path
+                elif encoder.startswith("video_") and "video" in sample.pre_extracted:
+                    features = sample.pre_extracted["video"]
+                    video_encoder = encoder.replace("video_", "")
+                    cache_path = self._get_cache_path(sample, "video", video_encoder)
+                    torch.save(features, cache_path)
+                    cache_paths[f"video_{video_encoder}"] = cache_path
+            return cache_paths
+
         for encoder in encoders:
             if encoder.startswith("text"):
                 # Text processing
                 text_proc = self._get_text_processor()
 
-                # Load text content
-                if sample.text and os.path.exists(sample.text):
-                    # It's a path to pre-extracted features
-                    text_data = np.load(sample.text)
-                    if text_data.ndim > 1:
-                        text_str = " ".join([str(x) for x in text_data.flatten()[:500]])
-                    else:
-                        text_str = " ".join([str(x) for x in text_data[:500]])
-                else:
-                    text_str = sample.text or ""
+                # Load text content (now provided as raw string by loaders)
+                text_str = sample.text or ""
 
                 # Check text quality
                 self.lq_detector.check_text_quality(text_str, sample.sample_id, sample.dataset)
@@ -932,10 +1210,14 @@ class PreprocessingPipeline:
                     )
 
                 # Extract features
-                if sample.video_path and os.path.exists(sample.video_path):
+                # Handle both regular file paths and clnf:// scheme
+                video_available = (
+                    sample.video_path is not None and
+                    (sample.video_path.startswith("clnf://") or os.path.exists(sample.video_path))
+                )
+                if video_available:
                     features = video_proc.extract_from_path(sample.video_path, sample.sample_id)
                 else:
-                    # Use pre-extracted features if available
                     features = {
                         "features": torch.zeros(1, 768 if video_encoder == "vit" else 35),
                         "pooled_features": torch.zeros(1536 if video_encoder == "vit" else 70)
@@ -1053,7 +1335,7 @@ class PreprocessingPipeline:
 # VISUALIZATION GENERATION
 # =============================================================================
 
-def generate_visualizations(manifest_path: Path, output_dir: Path):
+def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefix: str = ""):
     """Generate Phase 2 visualization figures.
 
     Creates all 7+ required figures:
@@ -1064,6 +1346,9 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
     5. UMAP of video embeddings
     6. Feature statistics heatmap
     7. Low-quality sample report
+
+    If dataset_prefix is non-empty, filenames include it to avoid overwrites
+    (e.g., phase_02_spectrograms_daic.png).
     """
     sns.set_style("whitegrid")
     plt.rcParams.update({
@@ -1075,6 +1360,9 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
     })
 
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Dataset colors consistent across all UMAP plots
+    dataset_colors = {'daic': 'steelblue', 'mosei': 'purple', 'fi': 'green'}
 
     # Load manifest
     with open(manifest_path, 'r') as f:
@@ -1122,11 +1410,10 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
 
     plt.suptitle("Audio Spectrograms (eGeMAPS/WavLM features)")
     plt.tight_layout()
-    plt.savefig(output_dir / "phase_02_spectrograms.png", bbox_inches='tight')
-    plt.close()
+    suffix = f"_{dataset_prefix}" if dataset_prefix else ""
+    plt.savefig(output_dir / f"phase_02_spectrograms{suffix}.png", bbox_inches='tight')
 
-    # Figure 2: OpenFace AU time-series (DAIC only, first 60s)
-    print("Generating: phase_02_au_timeseries.png")
+    print(f"Generating: phase_02_au_timeseries{suffix}.png")
     fig, axes = plt.subplots(3, 1, figsize=(12, 8))
 
     daic_samples = [s for s in manifest['samples'] if s['dataset'] == 'daic'][:3]
@@ -1153,11 +1440,11 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
     axes[-1].set_xlabel("Time (frames at 5fps)")
     plt.suptitle("OpenFace Action Unit Time-Series (DAIC Sessions)")
     plt.tight_layout()
-    plt.savefig(output_dir / "phase_02_au_timeseries.png", bbox_inches='tight')
+    plt.savefig(output_dir / f"phase_02_au_timeseries{suffix}.png", bbox_inches='tight')
     plt.close()
 
     # Figure 3: UMAP of text embeddings
-    print("Generating: phase_02_umap_text.png")
+    print("Generating: phase_02_umap_text{suffix}.png")
     try:
         import umap
         has_umap = True
@@ -1198,7 +1485,6 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
             reducer = TSNE(n_components=2, random_state=42, perplexity=30)
             projection = reducer.fit_transform(embeddings_array)
 
-        dataset_colors = {'daic': 'steelblue', 'mosei': 'purple', 'fi': 'green'}
         for dataset in ['daic', 'mosei', 'fi']:
             mask = [l == dataset for l in text_labels]
             if sum(mask) > 0:
@@ -1210,18 +1496,18 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
         ax.set_ylabel("UMAP 2")
         ax.legend()
         plt.tight_layout()
-        plt.savefig(output_dir / "phase_02_umap_text.png", bbox_inches='tight')
+        plt.savefig(output_dir / f"phase_02_umap_text{suffix}.png", bbox_inches='tight')
         plt.close()
     else:
         # Create placeholder
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "Insufficient text embeddings for UMAP", ha='center', va='center')
         ax.set_title("UMAP of Text Embeddings")
-        plt.savefig(output_dir / "phase_02_umap_text.png", bbox_inches='tight')
+        plt.savefig(output_dir / f"phase_02_umap_text{suffix}.png", bbox_inches='tight')
         plt.close()
 
     # Figure 4: UMAP of audio embeddings
-    print("Generating: phase_02_umap_audio.png")
+    print("Generating: phase_02_umap_audio{suffix}.png")
     audio_embeddings = []
     audio_labels = []
 
@@ -1265,17 +1551,17 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
         ax.set_ylabel("UMAP 2")
         ax.legend()
         plt.tight_layout()
-        plt.savefig(output_dir / "phase_02_umap_audio.png", bbox_inches='tight')
+        plt.savefig(output_dir / f"phase_02_umap_audio{suffix}.png", bbox_inches='tight')
         plt.close()
     else:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "Insufficient audio embeddings for UMAP", ha='center', va='center')
         ax.set_title("UMAP of Audio Embeddings")
-        plt.savefig(output_dir / "phase_02_umap_audio.png", bbox_inches='tight')
+        plt.savefig(output_dir / f"phase_02_umap_audio{suffix}.png", bbox_inches='tight')
         plt.close()
 
     # Figure 5: UMAP of video embeddings
-    print("Generating: phase_02_umap_video.png")
+    print(f"Generating: phase_02_umap_video{suffix}.png")
     video_embeddings = []
     video_labels = []
 
@@ -1321,17 +1607,17 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
         ax.set_ylabel("UMAP 2")
         ax.legend()
         plt.tight_layout()
-        plt.savefig(output_dir / "phase_02_umap_video.png", bbox_inches='tight')
+        plt.savefig(output_dir / f"phase_02_umap_video{suffix}.png", bbox_inches='tight')
         plt.close()
     else:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "Insufficient video embeddings for UMAP", ha='center', va='center')
         ax.set_title("UMAP of Video Embeddings")
-        plt.savefig(output_dir / "phase_02_umap_video.png", bbox_inches='tight')
+        plt.savefig(output_dir / f"phase_02_umap_video{suffix}.png", bbox_inches='tight')
         plt.close()
 
     # Figure 6: Feature statistics table heatmap
-    print("Generating: phase_02_feature_stats.png")
+    print(f"Generating: phase_02_feature_stats{suffix}.png")
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Compute mean/std for each dataset/modality combination
@@ -1369,11 +1655,11 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
     ax.axis('off')
     ax.set_title("Feature Extraction Statistics (Mean/Std of Pooled Features)", pad=20)
     plt.tight_layout()
-    plt.savefig(output_dir / "phase_02_feature_stats.png", bbox_inches='tight')
+    plt.savefig(output_dir / f"phase_02_feature_stats{suffix}.png", bbox_inches='tight')
     plt.close()
 
     # Figure 7: Low-quality sample report
-    print("Generating: phase_02_low_quality_report.png")
+    print(f"Generating: phase_02_low_quality_report{suffix}.png")
     flags_path = FLAGS_DIR / "low_quality_samples.json"
     if flags_path.exists():
         with open(flags_path, 'r') as f:
@@ -1406,14 +1692,14 @@ def generate_visualizations(manifest_path: Path, output_dir: Path):
         ax.set_title(f"Low-Quality Samples by Reason and Dataset (Total: {len(flags)})")
         ax.legend()
         plt.tight_layout()
-        plt.savefig(output_dir / "phase_02_low_quality_report.png", bbox_inches='tight')
+        plt.savefig(output_dir / f"phase_02_low_quality_report{suffix}.png", bbox_inches='tight')
         plt.close()
     else:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "No low-quality samples flagged", ha='center', va='center')
         ax.set_title("Low-Quality Sample Report")
         ax.axis('off')
-        plt.savefig(output_dir / "phase_02_low_quality_report.png", bbox_inches='tight')
+        plt.savefig(output_dir / f"phase_02_low_quality_report{suffix}.png", bbox_inches='tight')
         plt.close()
 
     print(f"Generated 7 visualization figures in {output_dir}")
@@ -1497,10 +1783,11 @@ def main():
     flags_path = pipeline.lq_detector.save_flags()
     print(f"Saved flags to: {flags_path}")
 
-    # Generate visualizations
+    # Generate visualizations (with dataset prefix to avoid overwrites)
     if args.visualize:
         print("\n--- Generating visualizations ---")
-        generate_visualizations(manifest_path, ARTIFACTS_DIR)
+        viz_prefix = args.dataset if args.dataset != "all" else ""
+        generate_visualizations(manifest_path, ARTIFACTS_DIR, dataset_prefix=viz_prefix)
 
     print("\n" + "=" * 60)
     print("PHASE 2 COMPLETE")

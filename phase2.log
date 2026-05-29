@@ -1,0 +1,347 @@
+============================================================
+PHASE 2: Preprocessing and Feature Extraction
+============================================================
+Dataset: all
+Encoder: all
+Split: all
+Parallel workers: 16
+Device: cuda
+
+
+--- Processing daic/train ---
+Loaded 107 DAIC train samples
+Processing 107 daic/train samples with encoders: ['text', 'audio_egemaps', 'audio_wavlm', 'video_openface', 'video_vit']
+daic/train:   0%|          | 0/107 [00:00<?, ?it/s]daic/train:   1%|          | 1/107 [00:00<00:56,  1.87it/s]Error processing 313: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 315: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 316: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 317: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 318: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 319: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 325: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 320: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 321: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 322: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Error processing 324: cannot import name 'AutoTokenizer' from 'transformers' (/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/transformers/__init__.py)
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+Loading RoBERTa tokenizer and model on cuda...
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 3100.49it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A
+Loading weights:  58%|█████▊    | 115/197 [00:00<00:00, 1145.79it/s][ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 1249.86it/s]
+
+
+Loading weights:  68%|██████▊   | 133/197 [00:00<00:00, 1326.83it/s][A[ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 1381.04it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A
+Loading weights:  35%|███▍      | 68/197 [00:00<00:00, 186.08it/s][A
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 430.76it/s]
+
+
+Loading weights:  86%|████████▋ | 170/197 [00:00<00:00, 1699.53it/s][A[ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 1810.53it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+eGeMAPS extraction using librosa spectral features (openSMILE not available)
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A
+
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A[A
+
+
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A[A[A
+
+
+
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A[A[A[A
+
+
+
+
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A[A[A[A[A
+
+
+
+
+
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A[A[A[A[A[ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 3895.46it/s]
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A
+
+
+
+
+
+
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A[A[A[A[A[A[A
+
+
+
+
+
+
+
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[A[A[A[A[A[A[A[ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 2774.69it/s]
+Loading weights: 100%|██████████| 197/197 [00:00<00:00, 2611.23it/s]
+
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][A[ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 3100.25it/s]
+Loading weights: 100%|██████████| 197/197 [00:00<00:00, 2315.87it/s]
+Loading weights: 100%|██████████| 197/197 [00:00<00:00, 2488.23it/s]
+Loading weights: 100%|██████████| 197/197 [00:00<00:00, 2746.00it/s]
+Loading weights: 100%|██████████| 197/197 [00:00<00:00, 4265.39it/s]
+Loading weights: 100%|██████████| 197/197 [00:00<00:00, 2988.54it/s]
+Loading weights: 100%|██████████| 197/197 [00:00<00:00, 3609.32it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+Loading weights: 100%|██████████| 197/197 [00:00<00:00, 2882.20it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+Warning: Error extracting audio for 340: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 18729 and the array at index 6 has size 4
+Loading WavLM model on cuda...
+
+Loading weights:   0%|          | 0/248 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 248/248 [00:00<00:00, 3234.65it/s]
+daic/train:  11%|█         | 12/107 [03:32<28:40, 18.11s/it]daic/train:  12%|█▏        | 13/107 [03:36<26:06, 16.66s/it]daic/train:  13%|█▎        | 14/107 [03:37<22:27, 14.48s/it]daic/train:  14%|█▍        | 15/107 [05:07<41:01, 26.76s/it]daic/train:  15%|█▍        | 16/107 [05:55<46:33, 30.69s/it]

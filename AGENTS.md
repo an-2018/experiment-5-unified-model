@@ -15,6 +15,7 @@ Defined in `.opencode/agents/`:
 - `@graph-moe-architect` — Phases 6-7 (KNN graph, GraphSAGE/GAT routing, joint training)
 - `@llm-domain-specialist` — Phases 8-9 (LLM encoders, teacher features, domain adaptation)
 - `@evaluation-xai-engineer` — Phases 10-12 (statistics, calibration, XAI)
+- `@qa-validator` — validates every phase implementation against acceptance criteria, best practices, and anti-mock checks; requires 100% pass rate before a phase is considered complete
 
 ## Package Manager
 

@@ -1,0 +1,35 @@
+============================================================
+PHASE 2: Preprocessing and Feature Extraction
+============================================================
+Dataset: all
+Encoder: all
+Split: all
+Parallel workers: 1
+Device: cpu
+
+
+--- Processing daic/train ---
+Loaded 107 DAIC train samples
+Processing 107 daic/train samples with encoders: ['text', 'audio_egemaps', 'audio_wavlm', 'video_openface', 'video_vit']
+daic/train:   0%|          | 0/107 [00:00<?, ?it/s]Loading RoBERTa tokenizer and model on cpu...
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 11707.30it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.layer_norm.weight | UNEXPECTED | 
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+pooler.dense.bias         | MISSING    | 
+pooler.dense.weight       | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+eGeMAPS extraction using librosa spectral features (openSMILE not available)
+Loading WavLM model on cpu...
+
+Loading weights:   0%|          | 0/248 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 248/248 [00:00<00:00, 58434.21it/s]
+daic/train:   1%|          | 1/107 [05:33<9:49:24, 333.63s/it]daic/train:   2%|▏         | 2/107 [09:09<7:42:10, 264.10s/it]

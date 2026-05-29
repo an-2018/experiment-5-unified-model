@@ -1,0 +1,696 @@
+nohup: ignoring input
+============================================================
+PHASE 2: Preprocessing and Feature Extraction
+============================================================
+Dataset: all
+Encoder: all
+Split: all
+Parallel workers: 1
+Device: cuda
+
+
+--- Processing daic/train ---
+Loaded 107 DAIC train samples
+Processing 107 daic/train samples with encoders: ['text', 'audio_egemaps', 'audio_wavlm', 'video_openface', 'video_vit']
+daic/train:   0%|          | 0/107 [00:00<?, ?it/s]Loading RoBERTa tokenizer and model on cuda...
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 14650.84it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+pooler.dense.weight       | MISSING    | 
+pooler.dense.bias         | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+eGeMAPS extraction using librosa spectral features (openSMILE not available)
+Warning: Error extracting audio for 303: 
+Loading WavLM model on cuda...
+
+Loading weights:   0%|          | 0/248 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 248/248 [00:00<00:00, 38895.69it/s]
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   1%|          | 1/107 [00:05<10:20,  5.85s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   2%|▏         | 2/107 [00:06<04:23,  2.51s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   3%|▎         | 3/107 [31:46<25:06:53, 869.36s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   4%|▎         | 4/107 [31:47<15:03:23, 526.25s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   5%|▍         | 5/107 [31:47<9:32:11, 336.58s/it] /home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   6%|▌         | 6/107 [31:47<6:14:06, 222.24s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   7%|▋         | 7/107 [31:48<4:09:28, 149.69s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   7%|▋         | 8/107 [31:48<2:48:30, 102.13s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   8%|▊         | 9/107 [43:25<8:51:32, 325.43s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:   9%|▉         | 10/107 [43:26<6:03:47, 225.02s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  10%|█         | 11/107 [55:51<10:14:38, 384.15s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  11%|█         | 12/107 [55:51<7:03:17, 267.34s/it] /home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  12%|█▏        | 13/107 [55:51<4:52:02, 186.41s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  13%|█▎        | 14/107 [55:51<3:21:44, 130.16s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  14%|█▍        | 15/107 [55:51<2:19:29, 90.97s/it] /home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  15%|█▍        | 16/107 [55:51<1:36:31, 63.64s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  16%|█▌        | 17/107 [55:52<1:06:50, 44.56s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  17%|█▋        | 18/107 [55:52<46:18, 31.22s/it]  /home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  18%|█▊        | 19/107 [55:52<32:06, 21.90s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  19%|█▊        | 20/107 [55:52<22:17, 15.38s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  20%|█▉        | 21/107 [55:52<15:29, 10.81s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  21%|██        | 22/107 [55:53<10:47,  7.62s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  21%|██▏       | 23/107 [55:53<07:32,  5.38s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  22%|██▏       | 24/107 [1:12:45<7:05:26, 307.54s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  23%|██▎       | 25/107 [1:12:45<4:54:16, 215.32s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  24%|██▍       | 26/107 [1:12:45<3:23:32, 150.78s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+daic/train:  25%|██▌       | 27/107 [1:12:46<2:20:47, 105.60s/it]/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:147: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)
+/home/anilson/thesis/thesis-experiment-5-unified-model/scripts/phase02_preprocess.py:348: UserWarning: PySoundFile failed. Trying audioread instead.
+  y, sr = librosa.load(audio_path, sr=16000)
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/librosa/core/audio.py:184: FutureWarning: librosa.core.audio.__audioread_load
+	Deprecated as of librosa version 0.10.0.
+	It will be removed in librosa version 1.0.
+  y, sr_native = __audioread_load(path, offset, duration, dtype)

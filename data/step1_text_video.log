@@ -1,0 +1,6 @@
+usage: phase02_preprocess.py [-h] [--dataset {daic,mosei,fi,all}]
+                             [--encoder {egemaps,wavlm,openface,vit,roberta,all}]
+                             [--split {train,val,test,all}]
+                             [--parallel PARALLEL] [--visualize]
+                             [--device DEVICE]
+phase02_preprocess.py: error: argument --encoder: invalid choice: 'roberta,openface,vit' (choose from egemaps, wavlm, openface, vit, roberta, all)

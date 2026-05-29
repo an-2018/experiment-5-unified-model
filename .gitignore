@@ -35,6 +35,10 @@ pip-delete-this-directory.txt
 # Data (large — not committed)
 data/features/
 data/flags/
+data/.extracted/
+data/daic
+data/fi
+data/mosei
 logs/
 artifacts/figures/*.png
 artifacts/figures/*.pdf

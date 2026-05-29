@@ -28,6 +28,7 @@ dependencies = [
     "Biopython>=1.81",
     "umap-learn>=0.5.0",
     "timm>=0.9.0",
+    "opencv-python-headless>=4.13.0.92",
 ]
 
 [project.optional-dependencies]
