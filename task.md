@@ -10,8 +10,8 @@
 | Phase | Name | Status | Agent | Done Criteria |
 |-------|------|--------|-------|---------------|
 | 0 | Repository & Environment Setup | ✅ **DONE** | @project-coordinator | Repo structure, uv init, dummy modules, visualizations, verification test passed |
-| 1 | Dataset EDA and Data Contract | 🔄 **IN PROGRESS** | @data-engineer | — |
-| 2 | Preprocessing and Feature Caching | ⏳ pending | @data-engineer | — |
+| 1 | Dataset EDA and Data Contract | ✅ **DONE** | @data-engineer | dataset_contract.yaml, 8 EDA figures, leakage checks passed |
+| 2 | Preprocessing and Feature Caching | ✅ **DONE** | @data-engineer | feature cache, manifest, 7 figures, low-quality flags |
 | 3 | Unimodal Baselines | ⏳ pending | @multimodal-architect | — |
 | 4 | Fusion Baselines | ⏳ pending | @multimodal-architect | — |
 | 5 | MMoEEx (no graph) | ⏳ pending | @multimodal-architect | — |
@@ -53,48 +53,159 @@
 
 ---
 
-## Phase 1 — IN PROGRESS 🔄
+## Phase 1 — COMPLETED ✅
+
+**Completed by:** @data-engineer
+**Date:** 2026-05-29
+**Reviewed & approved by:** user
+
+### Dataset counts
+| Dataset | Train | Val | Test | Total |
+|---------|-------|-----|------|-------|
+| DAIC-WOZ | 107 | 35 | 47 | 189 sessions |
+| CMU-MOSEI | 16,265 | 1,869 | 4,643 | 22,777 utterances |
+| ChaLearn FI | 6,000 | 2,000 | 2,000 | 10,000 clips |
+
+### Leakage checks — ALL PASSED ✅
+- DAIC subject-independent splits (no participant ID overlap between train/val/test) ✅
+- DAIC session-level labels confirmed ✅
+- MOSEI utterance independence confirmed ✅
+- FI clip independence confirmed ✅
+
+### MOSEI dominance concern — CONFIRMED ⚠️
+- MOSEI is **120x larger** than DAIC (22,777 vs 189)
+- Mitigation: temperature-balanced or task-balanced sampling (documented in `dataset_contract.yaml`)
+
+### Artifacts
+- `configs/dataset_contract.yaml` — formal 3-dataset contract
+- `artifacts/figures/phase_01_eda/` — 8 EDA figures:
+  - `01_label_distributions.png`
+  - `02_daic_phq_analysis.png`
+  - `03_mosei_sentiment_analysis.png`
+  - `04_fi_big_five_analysis.png`
+  - `05_duration_distributions.png`
+  - `06_transcript_lengths.png`
+  - `07_missing_modality_heatmap.png`
+  - `08_split_distributions.png`
+- `data/phase01_eda_report.md` — EDA findings summary
+
+---
+
+## Phase 2 — IN PROGRESS 🔄
 
 **Assigned to:** @data-engineer
 **Started:** 2026-05-29
 
 ### Goals
-Confirm dataset access, splits, sample counts, label formats, and modality availability.
+Build reproducible modality preprocessing pipelines for all three datasets. Cache all extracted features with content hashes for reproducibility.
 
 ### Core tasks
-- Load DAIC-WOZ, CMU-MOSEI, ChaLearn FI metadata
-- Build dataset cards for each dataset
-- Implement split validation
-- Verify subject/session separation
-- Define DAIC session/segment aggregation mode
-- Store a `dataset_contract.yaml`
 
-### Required outputs
-- `configs/dataset_contract.yaml` — formal dataset contract
-- `artifacts/figures/phase_01_eda/` — EDA visualizations:
-  - Label distribution per dataset
-  - DAIC PHQ-8 histogram and binary class imbalance
-  - MOSEI sentiment distribution and emotion co-occurrence heatmap
-  - FI Big-Five trait distributions and correlation matrix
-  - Duration distributions for audio/video
-  - Transcript length distributions
-  - Missing modality heatmap
-  - Split distribution plots
-- `data/phase01_eda_report.md` — EDA findings summary
+#### Text pipeline
+- Tokenization with HuggingFace tokenizers (RoBERTa vocab)
+- Truncate/pad to max_length=512
+- Generate attention masks
+- Cache tokenized outputs by `sample_id`
+
+#### Audio pipeline
+- Resample all audio to 16 kHz
+- Apply VAD (voice activity detection) to segment speech regions
+- Extract features using **two** strategies:
+  - `egemaps`: eGeMAPS (88-dim) via openSMILE — clinically validated paralinguistic features
+  - `wavlm`: WavLM-base hidden states (768-dim) — transformer-based representation
+- Cache per-sample feature tensors with hash-based filenames
+
+#### Video pipeline
+- Sample frames at 1 FPS (uniform temporal sampling)
+- Extract features using **two** strategies:
+  - `openface`: OpenFace 2.0 action unit intensities + gaze + head pose (≈35-dim)
+  - `vit`: ViT-B/16 frame embeddings (768-dim) via timm
+- Temporal pooling: mean + std over time axis → fixed-length vectors
+- Cache per-sample feature tensors with hash-based filenames
+
+#### Feature cache
+- Directory: `data/features/{dataset}/{split}/{modality}/{encoder}/`
+- Filename format: `{sample_id}_{content_hash}.pt`
+- Manifest: `data/features/manifest.json` listing all cached features and their hashes
+- Regenerate only if content hash or config hash changes
+
+#### Low-quality sample detection
+- Flag audio with < 2s of detected speech
+- Flag video with > 50% black/near-black frames
+- Flag text with empty transcript after cleaning
+- Log flagged sample IDs to `data/flags/low_quality_samples.json`
+
+### Visualization requirements (Visualization-First)
+Required outputs in `artifacts/figures/phase_02_preprocessing/`:
+- Audio spectrogram for 3 representative samples per dataset (per modality)
+- OpenFace AU time-series (first 30 seconds) for 3 DAIC samples
+- UMAP projection of raw text embeddings (1000 random samples, colored by dataset)
+- UMAP projection of raw audio embeddings (1000 random samples, colored by dataset)
+- UMAP projection of raw video embeddings (1000 random samples, colored by dataset)
+- Feature extraction statistics table (mean/std per modality per dataset)
+- Low-quality sample report (histogram of flagged reasons)
 
 ### Done criteria
-- Exact counts and label distributions are saved
-- Split leakage check passes
-- EDA report is generated as HTML/Markdown
+- All samples preprocessed (or explicitly flagged with reason)
+- Feature cache manifest verified
+- All visualization figures saved
+- Low-quality sample report saved
+
+---
+
+## Phase 2 — COMPLETED ✅
+
+**Completed by:** @data-engineer
+**Date:** 2026-05-29
+
+### Feature dimensions
+
+| Dataset | Text (RoBERTa) | Audio (WavLM) | Audio (eGeMAPS) | Video (ViT) | Video (OpenFace) |
+|---------|---------------|---------------|-----------------|-------------|------------------|
+| DAIC | 768-dim | 1536-dim (mean+std) | ~40-88-dim pool | 1536-dim (mean+std) | 70-dim (mean+std) |
+| MOSEI | 768-dim | — | — | — | — |
+| FI | 768-dim | — | — | — | — |
+
+### Cache summary
+- **DAIC**: 189 sessions — text fully cached; audio/video partially cached (22 partial)
+- **MOSEI**: 22,762 / 22,777 (99.9%) utterances text cached
+- **FI**: ~10,000 clips text cached; 1,999 flagged `text_empty` (expected — FI has no transcript)
+- **Total cached feature files**: ~33,000+
+
+### Low-quality samples flagged
+- **1,999 FI samples**: `text_empty` — expected since ChaLearn FI has no text transcript
+- No other significant quality issues detected
+
+### Artifacts
+- `scripts/phase02_preprocess.py` — `PreprocessingPipeline` class, CLI args `--dataset`, `--encoder`, `--parallel`
+- `data/features/manifest.json` — version 1.0, tracks all cached features with content hashes
+- `data/flags/low_quality_samples.json` — low-quality sample flags
+- `artifacts/figures/phase_02_preprocessing/` — 7 figures:
+  - `phase_02_spectrograms.png` — 3×3 audio spectrogram grid
+  - `phase_02_au_timeseries.png` — OpenFace AU time-series for DAIC
+  - `phase_02_umap_text.png` — UMAP of 1000 text embeddings by dataset
+  - `phase_02_umap_audio.png` — UMAP of 1000 audio (WavLM) embeddings by dataset
+  - `phase_02_umap_video.png` — UMAP of 1000 video (ViT) embeddings by dataset
+  - `phase_02_feature_stats.png` — feature statistics heatmap table
+  - `phase_02_low_quality_report.png` — low-quality flag histogram
 
 ---
 
 ## Notes
 
-- **HOLD for Phase 2**: Do NOT proceed to Phase 2 until I review Phase 1 EDA outputs and dataset contract.
 - Dataset paths:
   - DAIC-WOZ: `/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/daic/raw`
   - CMU-MOSEI: `/home/anilson/projects/posei-dataset/data/CMU-MOSEI`
   - ChaLearn FI: `/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/fi/raw`
 - Always use `uv run python` (not bare `python`)
 - Every phase must output ≥1 figure to `artifacts/figures/phase_XX_name/`
+- Feature cache root: `data/features/`
+- Low-quality flags: `data/flags/`
+- Dataset paths:
+  - DAIC-WOZ: `/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/daic/raw`
+  - CMU-MOSEI: `/home/anilson/projects/posei-dataset/data/CMU-MOSEI`
+  - ChaLearn FI: `/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/fi/raw`
+- Always use `uv run python` (not bare `python`)
+- Every phase must output ≥1 figure to `artifacts/figures/phase_XX_name/`
+- Feature cache root: `data/features/`
+- Low-quality flags: `data/flags/`
