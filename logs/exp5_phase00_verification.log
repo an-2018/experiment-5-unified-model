@@ -1,0 +1,5 @@
+2026-05-29 12:11:02,596 | INFO     | config | model = dummy
+2026-05-29 12:11:02,596 | INFO     | config | batch_size = 4
+2026-05-29 12:11:02,596 | INFO     | config | seed = 42
+2026-05-29 12:11:02,596 | INFO     | [step=0] dummy_metric = 0.95
+2026-05-29 12:11:02,596 | INFO     | artifact | type=test | path=/path/to/artifact

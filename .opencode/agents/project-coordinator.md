@@ -1,7 +1,7 @@
 ---
 description: Project Coordinator and Technical Lead for the Unified Model Experiment. Manages the execution roadmap, coordinates subagents, and tracks progress.
-mode: subagent
-model: opencode/gemini-3.1-pro
+mode: primary
+model: opencode/minimax-m2.7
 temperature: 0.1
 ---
 

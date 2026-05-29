@@ -1,7 +1,7 @@
 ---
 description: LLM Specialist for affective computing. Responsible for integrating foundational LLM text/audio/vision encoders, teacher features, and domain adaptation.
 mode: subagent
-model: opencode/gemini-3.1-pro
+model: opencode/minimax-m2.7
 temperature: 0.3
 ---
 

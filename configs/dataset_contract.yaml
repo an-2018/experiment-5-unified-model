@@ -1,0 +1,115 @@
+version: '1.0'
+description: Dataset contract for Unified Multimodal Graph-Gated MoE Experiment
+datasets:
+  daic:
+    name: DAIC-WOZ
+    full_name: Distress Analysis Interview Corpus - Wizard of Oz
+    unit: session
+    evaluation_unit: participant
+    split_key: participant_id
+    labels:
+      depression_binary:
+        type: binary
+        threshold: 10
+        description: PHQ-8 >= 10 indicates depression
+      phq8_score:
+        type: continuous
+        range:
+        - 0
+        - 24
+        description: Patient Health Questionnaire-8 scores
+    num_train: 107
+    num_val: 35
+    num_test: 47
+    total: 189
+    modality_available:
+    - audio
+    - video
+    - text
+    notes:
+    - Sessions are at participant level - single long interview
+    - All modalities available for all participants
+    - 'Subject-independent splits verified: no participant overlap between splits'
+    - Binary label derived from PHQ-8 >= 10 threshold
+  mosei:
+    name: CMU-MOSEI
+    full_name: CMU Multimodal Opinion Sentiment and Emotion Intensity
+    unit: utterance
+    evaluation_unit: utterance
+    labels:
+      sentiment:
+        type: continuous
+        range:
+        - -3
+        - 3
+        description: Sentiment score from -3 (very negative) to +3 (very positive)
+    num_train: 16265
+    num_val: 1869
+    num_test: 4643
+    total: 22777
+    modality_available:
+    - audio
+    - video
+    - text
+    dominance_concern:
+      enabled: true
+      ratio_to_daic: 120.51322751322752
+      recommendation: Use temperature-balanced sampling or task-balanced sampling
+        during training
+    notes:
+    - Utterance-level data - much smaller than session-level DAIC
+    - All modalities available for all utterances
+    - 'Pre-extracted features: audio (74-dim), video (35-dim), text (300-dim)'
+    - MOSEI dominates by 13k vs DAIC 170 sessions - sampling strategy critical
+  fi:
+    name: ChaLearn FI
+    full_name: ChaLearn First Impressions
+    unit: clip
+    evaluation_unit: clip
+    labels:
+      openness:
+        type: continuous
+        range:
+        - 0
+        - 1
+      conscientiousness:
+        type: continuous
+        range:
+        - 0
+        - 1
+      extraversion:
+        type: continuous
+        range:
+        - 0
+        - 1
+      agreeableness:
+        type: continuous
+        range:
+        - 0
+        - 1
+      neuroticism:
+        type: continuous
+        range:
+        - 0
+        - 1
+    num_train: 6000
+    num_val: 2000
+    num_test: 2000
+    total: 10000
+    modality_available:
+    - video
+    - audio
+    - text
+    notes:
+    - Personality traits are APPARENT personality, not clinical depression measure
+    - Do NOT confuse apparent personality with clinical depression
+    - All five traits are auxiliary supervision for the primary depression task
+leakage_checks:
+  daic_subject_independent: true
+  daic_no_segment_cross_contamination: true
+  mosei_subject_ids_available: true
+  fi_no_identity_overlap: true
+sampling_recommendations:
+  mosei_dominance_mitigation: temperature_balanced_sampling
+  daic_mosei_balance: task_balanced_sampling
+  fi_weight: medium_priority

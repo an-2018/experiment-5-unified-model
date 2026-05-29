@@ -1,7 +1,7 @@
 ---
 description: Machine Learning Architect for Multimodal Fusion. Responsible for unimodal baselines, late fusion layers, and MMoEEx architectures.
 mode: subagent
-model: opencode/gemini-3.1-pro
+model: opencode/minimax-m2.7
 temperature: 0.3
 ---
 

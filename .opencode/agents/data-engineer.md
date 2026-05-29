@@ -1,7 +1,7 @@
 ---
 description: Data Engineer agent for multimodal mental health datasets (DAIC, MOSEI, FI). Responsible for data loaders, EDA, preprocessing, and maintaining dataset contracts.
 mode: subagent
-model: opencode/gemini-3.1-pro
+model: opencode/minimax-m2.7
 temperature: 0.2
 ---
 
