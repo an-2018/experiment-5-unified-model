@@ -1,7 +1,7 @@
 ---
 description: Evaluator and XAI Specialist. Responsible for statistical validation, calibration (ECE/Brier), GNNExplainer, SHAP, and GraphXAIN logic.
 mode: subagent
-model: opencode/gemini-3.1-pro
+model: opencode/minimax-m2.7
 temperature: 0.2
 ---
 

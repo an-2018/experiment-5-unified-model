@@ -1,7 +1,7 @@
 ---
 description: Graph Neural Network Expert. Responsible for KNN graph construction, GraphSAGE/GAT routing, and joint multitask training integration.
 mode: subagent
-model: opencode/gemini-3.1-pro
+model: opencode/minimax-m2.7
 temperature: 0.3
 ---
 
