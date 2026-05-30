@@ -11,14 +11,22 @@ import torch.nn as nn
 class Expert(nn.Module):
     """Single MLP expert with residual connection."""
 
-    def __init__(self, input_dim: int, hidden_dim: int = 256, output_dim: int = 256):
+    def __init__(self, input_dim: int, hidden_dim: int = 256, output_dim: int = 256, init_scale: float = 0.01):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.GELU(),
+            nn.Dropout(0.1),
             nn.Linear(hidden_dim, output_dim),
         )
         self.skip = nn.Linear(input_dim, output_dim) if input_dim != output_dim else nn.Identity()
+        self.init_scale = init_scale
+        self._init_weights()
+
+    def _init_weights(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p, gain=self.init_scale)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x) + self.skip(x)
@@ -66,6 +74,30 @@ class MMoEEx(nn.Module):
     def get_task_weights(self) -> torch.Tensor:
         """Returns exp(-log_weights) for multi-task loss weighting."""
         return torch.exp(-self.log_task_weights)
+
+    def joint_forward(self, x: torch.Tensor) -> dict[int, torch.Tensor]:
+        """Run all 4 task gates in one forward pass for analysis.
+
+        Returns dict of task_id -> expert mixture output [batch, expert_dim].
+        """
+        results = {}
+        for task_id in range(len(self.gates)):
+            results[task_id] = self.forward(x, task_id)
+        return results
+
+    def get_routing_weights(self, x: torch.Tensor) -> torch.Tensor:
+        """Return routing weights for all tasks [num_tasks, batch, num_experts]."""
+        all_weights = []
+        for task_id in range(len(self.gates)):
+            gate_logits = self.gates[task_id](x)
+            weights = torch.softmax(gate_logits, dim=-1)  # [batch, num_experts]
+            all_weights.append(weights)
+        return torch.stack(all_weights, dim=0)  # [num_tasks, batch, num_experts]
+
+    def reset_gate_weights(self):
+        """Reset gate weights to uniform distribution for fair routing."""
+        for gate in self.gates:
+            nn.init.zeros_(gate.weight)
 
 
 class GraphGatedRouter(nn.Module):

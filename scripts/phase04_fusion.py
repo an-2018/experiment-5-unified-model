@@ -8,10 +8,13 @@ Combines text, audio, video modalities with learned fusion.
 Usage:
     uv run python scripts/phase04_fusion.py --dataset daic --fusion gated
     uv run python scripts/phase04_fusion.py --dataset daic --fusion lmf
+    uv run python scripts/phase04_fusion.py --dataset daic --fusion cross_attention
     uv run python scripts/phase04_fusion.py --dataset mosei --fusion gated
     uv run python scripts/phase04_fusion.py --dataset mosei --fusion lmf
+    uv run python scripts/phase04_fusion.py --dataset mosei --fusion cross_attention
     uv run python scripts/phase04_fusion.py --dataset fi --fusion gated
     uv run python scripts/phase04_fusion.py --dataset fi --fusion lmf
+    uv run python scripts/phase04_fusion.py --dataset fi --fusion cross_attention
     uv run python scripts/phase04_fusion.py --dataset all --fusion all
 
 Outputs:
@@ -45,11 +48,11 @@ FI_DATA = ROOT / "data" / "fi"
 # Config
 # ---------------------------------------------------------------------------
 # Per-dataset hidden dims: DAIC is tiny (107 train), FI is moderate (6000), MOSEI is large (16k)
-HIDDEN_DIM = {"daic": 32, "mosei": 64, "fi": 256}
+HIDDEN_DIM = {"daic": 16, "mosei": 64, "fi": 256}
 RANK = 4           # Low rank for LMF
 BATCH_SIZE = {"daic": 8, "mosei": 64, "fi": 64}  # Smaller for DAIC to avoid batch=all-majority-class
 EPOCHS_DEFAULT = 200   # More epochs for small datasets (early stopping will cut)
-LR_DEFAULT = 3e-4  # Lower LR to prevent collapse on small datasets
+LR_DEFAULT = 1e-4  # Very low LR to prevent collapse on small datasets
 PATIENCE = 20
 
 MODALITY_FEATURE_MAP = {
@@ -399,19 +402,23 @@ class FusionClassifier(nn.Module):
         elif fusion_type == "lmf":
             from models.fusion import LowRankMultimodalFusion
             self.fusion = LowRankMultimodalFusion(text_dim, audio_dim, video_dim, hidden_dim, rank=RANK)
+        elif fusion_type == "cross_attention":
+            from models.fusion import CrossAttentionFusion
+            self.fusion = CrossAttentionFusion(text_dim, audio_dim, video_dim, hidden_dim, num_heads=4)
         else:
             raise ValueError(f"Unknown fusion: {fusion_type}")
 
+        # Stronger dropout for small DAIC dataset to prevent overfitting
         self.head = nn.Sequential(
-            nn.Dropout(0.4),
+            nn.Dropout(0.5),
             nn.Linear(hidden_dim, 32),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
             nn.Linear(32, 2),
         )
 
     def forward(self, text, audio, video, mask):
-        fused = self.fusion(text, audio, video, tuple(mask.tolist()))
+        fused = self.fusion(text, audio, video, mask)
         return self.head(fused)
 
 
@@ -432,6 +439,9 @@ class FusionRegression(nn.Module):
         elif fusion_type == "lmf":
             from models.fusion import LowRankMultimodalFusion
             self.fusion = LowRankMultimodalFusion(text_dim, audio_dim, video_dim, hidden_dim, rank=RANK)
+        elif fusion_type == "cross_attention":
+            from models.fusion import CrossAttentionFusion
+            self.fusion = CrossAttentionFusion(text_dim, audio_dim, video_dim, hidden_dim, num_heads=4)
         else:
             raise ValueError(f"Unknown fusion: {fusion_type}")
 
@@ -453,7 +463,7 @@ class FusionRegression(nn.Module):
             )
 
     def forward(self, text, audio, video, mask):
-        fused = self.fusion(text, audio, video, tuple(mask.tolist()))
+        fused = self.fusion(text, audio, video, mask)
         return self.head(fused)
 
 
@@ -472,9 +482,9 @@ def train_daic(train_loader, val_loader, test_loader, fusion_type, device, epoch
     hidden_dim = HIDDEN_DIM["daic"]
     model = FusionClassifier(text_dim, audio_dim, video_dim, fusion_type, hidden_dim).to(device)
 
-    # WeightedRandomSampler in the DataLoader already rebalances classes — no loss weights needed
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
+    # Higher weight decay for small DAIC dataset to prevent overfitting
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-3)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, factor=0.5)
     criterion = nn.CrossEntropyLoss()
 
     best_val_auc = 0.0
@@ -535,21 +545,26 @@ def train_daic(train_loader, val_loader, test_loader, fusion_type, device, epoch
         scheduler.step(avg_val_loss)
 
         # Record gate weights
-        if hasattr(model.fusion, 'text_gate'):
+        if hasattr(model.fusion, 'text_gate') and hasattr(model.fusion, 'audio_gate') and hasattr(model.fusion, 'video_gate'):
             with torch.no_grad():
-                sample_t = t[:1].float()
-                sample_a = a[:1].float()
-                sample_v = v[:1].float()
-                # Get gate values (mean of sigmoid output)
-                t_proj = model.fusion.text_proj(sample_t)
-                a_proj = model.fusion.audio_proj(sample_a)
-                v_proj = model.fusion.video_proj(sample_v)
-                gt = model.fusion.text_gate(t_proj).mean().item()
-                ga = model.fusion.audio_gate(a_proj).mean().item()
-                gv = model.fusion.video_gate(v_proj).mean().item()
-                gate_text_hist.append(gt)
-                gate_audio_hist.append(ga)
-                gate_video_hist.append(gv)
+                try:
+                    sample_t = t[:1].float()
+                    sample_a = a[:1].float()
+                    sample_v = v[:1].float()
+                    # Get gate values (mean of sigmoid output)
+                    t_proj = model.fusion.text_proj(sample_t)
+                    a_proj = model.fusion.audio_proj(sample_a)
+                    v_proj = model.fusion.video_proj(sample_v)
+                    # Only record if gate dimensions match projected dimensions
+                    if t_proj.shape[-1] == model.fusion.text_gate[0].in_features:
+                        gt = model.fusion.text_gate(t_proj).mean().item()
+                        ga = model.fusion.audio_gate(a_proj).mean().item()
+                        gv = model.fusion.video_gate(v_proj).mean().item()
+                        gate_text_hist.append(gt)
+                        gate_audio_hist.append(ga)
+                        gate_video_hist.append(gv)
+                except Exception:
+                    pass  # Gate analysis not supported for this fusion type
 
         history["epoch"].append(epoch)
         history["train_loss"].append(avg_train_loss)
@@ -1083,19 +1098,24 @@ def plot_per_sample_gate_heatmap(model, test_loader, device, dataset_name, fusio
     sample_labels = []
 
     with torch.no_grad():
-        for t, a, v, mask, y in test_loader:
-            t, a, v = t.to(device), a.to(device), v.to(device)
-            # Get projections
-            t_proj = model.fusion.text_proj(t.float())
-            a_proj = model.fusion.audio_proj(a.float())
-            v_proj = model.fusion.video_proj(v.float())
-            gt = model.fusion.text_gate(t_proj).mean(dim=-1).cpu().numpy()
-            ga = model.fusion.audio_gate(a_proj).mean(dim=-1).cpu().numpy()
-            gv = model.fusion.video_gate(v_proj).mean(dim=-1).cpu().numpy()
-            gate_text_vals.extend(gt.tolist())
-            gate_audio_vals.extend(ga.tolist())
-            gate_video_vals.extend(gv.tolist())
-            sample_labels.extend(y[:, 0].numpy().tolist() if y.shape[1] > 1 else y.squeeze().numpy().tolist())
+        try:
+            for t, a, v, mask, y in test_loader:
+                t, a, v = t.to(device), a.to(device), v.to(device)
+                # Get projections
+                t_proj = model.fusion.text_proj(t.float())
+                a_proj = model.fusion.audio_proj(a.float())
+                v_proj = model.fusion.video_proj(v.float())
+                # Only proceed if gate dimensions match
+                if t_proj.shape[-1] == model.fusion.text_gate[0].in_features:
+                    gt = model.fusion.text_gate(t_proj).mean(dim=-1).cpu().numpy()
+                    ga = model.fusion.audio_gate(a_proj).mean(dim=-1).cpu().numpy()
+                    gv = model.fusion.video_gate(v_proj).mean(dim=-1).cpu().numpy()
+                    gate_text_vals.extend(gt.tolist())
+                    gate_audio_vals.extend(ga.tolist())
+                    gate_video_vals.extend(gv.tolist())
+                sample_labels.extend(y[:, 0].numpy().tolist() if y.shape[1] > 1 else y.squeeze().numpy().tolist())
+        except Exception:
+            pass  # Gate analysis not supported for this fusion type
 
     # Limit to first 100 samples for readability
     n_show = min(100, len(gate_text_vals))
@@ -1157,22 +1177,8 @@ def run_experiment(dataset_name, fusion_type, epochs, lr, device):
 
     batch_size = BATCH_SIZE.get(dataset_name, 16)
 
-    # For DAIC, use WeightedRandomSampler to handle class imbalance (~30% depression)
-    if dataset_name == "daic" and len(train_ds) > 0:
-        train_labels = train_ds.y[:, 0].astype(int)
-        neg_count = np.sum(train_labels == 0)
-        pos_count = np.sum(train_labels == 1)
-        if pos_count > 0 and neg_count > 0:
-            weight_per_sample = np.where(train_labels == 0, 1.0, neg_count / pos_count)
-            sampler = torch.utils.data.WeightedRandomSampler(
-                weight_per_sample, len(train_labels), replacement=True
-            )
-            train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler, collate_fn=collate_multimodal)
-            print(f"  WeightedRandomSampler: pos={pos_count}, neg={neg_count}, pos_weight={weight_per_sample[1]:.1f}")
-        else:
-            train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=collate_multimodal)
-    else:
-        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=collate_multimodal)
+    # Use standard DataLoader with shuffle for all datasets
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=collate_multimodal)
 
     # Fallback: use train split for val if val is empty
     if val_ds is None or len(val_ds) == 0:
@@ -1359,7 +1365,7 @@ def write_results_csv(all_results, out_path):
 def main():
     parser = argparse.ArgumentParser(description="Phase 4: Multimodal Fusion Baselines")
     parser.add_argument("--dataset", type=str, choices=["daic", "mosei", "fi", "all"], required=True)
-    parser.add_argument("--fusion", type=str, choices=["gated", "lmf", "all"], required=True)
+    parser.add_argument("--fusion", type=str, choices=["gated", "lmf", "cross_attention", "all"], required=True)
     parser.add_argument("--epochs", type=int, default=EPOCHS_DEFAULT)
     parser.add_argument("--lr", type=float, default=LR_DEFAULT)
     parser.add_argument("--device", type=str, default="cuda")

@@ -1,6 +1,4 @@
 dataset,fusion_type,metric,value,ci_lower,ci_upper,accuracy,f1,mae,r2,avg_mae,param_count,beats_unimodal,unimodal_baseline,epochs_trained
-daic,lmf,AUROC,0.4351,nan,nan,0.7234,0.1333,,,,34608,False,0.6991,67
-mosei,gated,CCC,0.562,0.5422,0.58,,,0.6353,0.418,,159232,True,0.5123,61
 mosei,lmf,CCC,0.5313,0.5119,0.5492,,,0.6778,0.3692,,10912,True,0.5123,31
 fi,lmf,Avg CCC,0.0,-0.05,0.05,,,,,0.1206,11584,False,0.4578,27
 fi,lmf,CCC_extraversion,0.0,0.0,0.0,,,,,,11584,False,0,27
@@ -8,10 +6,20 @@ fi,lmf,CCC_neuroticism,0.0,0.0,0.0,,,,,,11584,False,0,27
 fi,lmf,CCC_agreeableness,0.0,0.0,0.0,,,,,,11584,False,0,27
 fi,lmf,CCC_conscientiousness,0.0,0.0,0.0,,,,,,11584,False,0,27
 fi,lmf,CCC_openness,0.0,0.0,0.0,,,,,,11584,False,0,27
-fi,gated,Avg CCC,0.0,-0.05,0.05,,,,,0.1984,827392,False,0.4578,44
-fi,gated,CCC_extraversion,0.0,-0.0,0.0,,,,,,827392,False,0.4667,44
-fi,gated,CCC_neuroticism,0.0,0.0,0.0,,,,,,827392,False,0.4402,44
-fi,gated,CCC_agreeableness,-0.0,-0.0,0.0,,,,,,827392,False,0.3181,44
-fi,gated,CCC_conscientiousness,0.0,0.0,0.0,,,,,,827392,False,0.6095,44
-fi,gated,CCC_openness,0.0,-0.0,0.0,,,,,,827392,False,0.4546,44
-daic,gated,AUROC,0.4048,nan,nan,0.7021,0.125,,,,115008,False,0.6991,45
+daic,lmf,AUROC,0.3636,nan,nan,0.6596,0.0,,,,14424,False,0.6991,48
+fi,gated,Avg CCC,0.0,-0.05,0.05,,,,,0.1882,827392,False,0.4578,54
+fi,gated,CCC_extraversion,-0.0,-0.0,0.0,,,,,,827392,False,0.4667,54
+fi,gated,CCC_neuroticism,0.0,-0.0,0.0,,,,,,827392,False,0.4402,54
+fi,gated,CCC_agreeableness,0.0,-0.0,0.0,,,,,,827392,False,0.3181,54
+fi,gated,CCC_conscientiousness,-0.0,-0.0,0.0,,,,,,827392,False,0.6095,54
+fi,gated,CCC_openness,0.0,-0.0,0.0,,,,,,827392,False,0.4546,54
+mosei,gated,CCC,0.6229,0.6017,0.6413,,,0.6331,0.4171,,159232,True,0.5123,72
+mosei,cross_attention,CCC,0.5397,0.5182,0.5586,,,0.6779,0.3509,,283840,True,0.5123,26
+daic,cross_attention,AUROC,0.3117,nan,nan,0.7021,0.0,,,,64848,False,0.6991,47
+fi,cross_attention,Avg CCC,-0.0,-0.05,0.05,,,,,0.1383,2800384,False,0.4578,41
+fi,cross_attention,CCC_extraversion,0.0,0.0,0.0,,,,,,2800384,False,0.4667,41
+fi,cross_attention,CCC_neuroticism,-0.0,-0.0,0.0,,,,,,2800384,False,0.4402,41
+fi,cross_attention,CCC_agreeableness,-0.0,-0.0,0.0,,,,,,2800384,False,0.3181,41
+fi,cross_attention,CCC_conscientiousness,0.0,0.0,0.0,,,,,,2800384,False,0.6095,41
+fi,cross_attention,CCC_openness,-0.0,-0.0,0.0,,,,,,2800384,False,0.4546,41
+daic,gated,AUROC,0.4957,nan,nan,0.7021,0.0,,,,56736,False,0.6991,69
