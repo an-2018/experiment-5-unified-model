@@ -45,31 +45,37 @@ SCRIPTS = {
             "uv run python scripts/phase01_eda.py",
         ],
     },
-    2: {
+     2: {
         "name": "Phase 2 — Preprocessing and Feature Extraction",
         "commands": [
-            # DAIC: all encoders (roberta, egemaps, wavlm, openface, vit) + parallel=8 workers
-            "uv run python scripts/phase02_preprocess.py --dataset daic --encoder all --parallel 8",
-            # MOSEI: text only (fast path — 22k utterances; audio/video done separately if needed)
-            "uv run python scripts/phase02_preprocess.py --dataset mosei --encoder roberta --parallel 8",
-            # FI: text only (FI has no transcript, but we create empty placeholders)
-            "uv run python scripts/phase02_preprocess.py --dataset fi --encoder roberta --parallel 8",
-            # MOSEI audio (optional — large dataset, run if resources allow)
-            # "uv run python scripts/phase02_preprocess.py --dataset mosei --encoder wavlm --parallel 8",
-            # MOSEI video (optional)
-            # "uv run python scripts/phase02_preprocess.py --dataset mosei --encoder vit --parallel 8",
-            # FI video (optional)
-            # "uv run python scripts/phase02_preprocess.py --dataset fi --encoder vit --parallel 8",
+            # Note: WavLM must run with --parallel 1 (GPU, CUDA OOM on >1)
+            # Individual encoder commands (pick dataset+encoder combos needed):
+            # Text (RoBERTa, CPU)
+            "uv run python scripts/phase02_preprocess.py --dataset daic --encoder roberta --parallel 16",
+            "uv run python scripts/phase02_preprocess.py --dataset mosei --encoder roberta --parallel 16",
+            "uv run python scripts/phase02_preprocess.py --dataset fi --encoder roberta --parallel 16",
+            # Audio (eGeMAPS, CPU)
+            "uv run python scripts/phase02_preprocess.py --dataset daic --encoder egemaps --parallel 16",
+            # Audio (WavLM, GPU — must be --parallel 1)
+            "uv run python scripts/phase02_preprocess.py --dataset daic --encoder wavlm --parallel 1",
+            "uv run python scripts/phase02_preprocess.py --dataset mosei --encoder wavlm --parallel 1",
+            "uv run python scripts/phase02_preprocess.py --dataset fi --encoder wavlm --parallel 1",
+            # Video (OpenFace, CPU — DAIC only, no raw video released)
+            "uv run python scripts/phase02_preprocess.py --dataset daic --encoder openface --parallel 16",
+            # Video (ViT, CPU)
+            "uv run python scripts/phase02_preprocess.py --dataset mosei --encoder vit --parallel 16",
+            "uv run python scripts/phase02_preprocess.py --dataset fi --encoder vit --parallel 8",
+            # Rebuild manifest after extraction
+            "uv run python scripts/rebuild_manifest.py",
         ],
     },
     3: {
         "name": "Phase 3 — Unimodal Baselines",
         "commands": [
-            "uv run python scripts/phase03_unimodal_baselines.py --dataset daic --modality text",
-            "uv run python scripts/phase03_unimodal_baselines.py --dataset daic --modality audio",
-            "uv run python scripts/phase03_unimodal_baselines.py --dataset daic --modality video",
-            "uv run python scripts/phase03_unimodal_baselines.py --dataset mosei --modality text",
-            "uv run python scripts/phase03_unimodal_baselines.py --dataset fi --modality video",
+            # All 9 (dataset, modality) combos at once
+            "uv run python scripts/phase03_unimodal_baselines.py --dataset all --modality all",
+            # Regenerate figures + SoA comparison from cached results
+            "uv run python scripts/phase03_unimodal_baselines.py --only-visualize",
         ],
     },
     4: {
@@ -141,7 +147,7 @@ SCRIPTS = {
 }
 
 # Phases whose scripts are implemented and runnable
-IMPLEMENTED_SCRIPTS = {0, 1, 2}
+IMPLEMENTED_SCRIPTS = {0, 1, 2, 3}
 
 
 def run_command(cmd: str, dry_run: bool, verbose: bool):
