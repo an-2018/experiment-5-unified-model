@@ -1,0 +1,15 @@
+============================================================
+PHASE 2: Preprocessing and Feature Extraction
+============================================================
+Dataset: fi
+Encoder: vit
+Split: train
+Parallel workers: 1
+Device: cpu
+
+
+--- Processing fi/train ---
+Loaded 6000 FI train samples (text_available=True)
+Processing 6000 fi/train samples with encoders: ['video_vit']
+fi/train:   0%|          | 0/6000 [00:00<?, ?it/s][mov,mp4,m4a,3gp,3g2,mj2 @ 0x37c68e80] moov atom not found
+fi/train:   0%|          | 1/6000 [00:01<2:15:02,  1.35s/it]fi/train:   0%|          | 2/6000 [00:05<4:31:45,  2.72s/it]fi/train:   0%|          | 3/6000 [00:12<7:56:35,  4.77s/it]fi/train:   0%|          | 4/6000 [00:18<9:10:30,  5.51s/it]fi/train:   0%|          | 5/6000 [00:27<10:45:59,  6.47s/it]fi/train:   0%|          | 6/6000 [00:33<10:42:33,  6.43s/it]fi/train:   0%|          | 7/6000 [00:40<10:50:19,  6.51s/it]fi/train:   0%|          | 8/6000 [00:47<11:05:55,  6.67s/it]fi/train:   0%|          | 9/6000 [00:52<10:38:15,  6.39s/it]

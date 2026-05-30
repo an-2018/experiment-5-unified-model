@@ -1,0 +1,31 @@
+============================================================
+PHASE 2: Preprocessing and Feature Extraction
+============================================================
+Dataset: fi
+Encoder: roberta
+Split: train
+Parallel workers: 1
+Device: cpu
+
+
+--- Processing fi/train ---
+Loaded 6000 FI train samples (text_available=True)
+Processing 6000 fi/train samples with encoders: ['text']
+fi/train:   0%|          | 0/6000 [00:00<?, ?it/s]Loading RoBERTa tokenizer and model on cpu...
+
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 197/197 [00:00<00:00, 50053.18it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     | 
+--------------------------+------------+-
+lm_head.dense.weight      | UNEXPECTED | 
+lm_head.layer_norm.bias   | UNEXPECTED | 
+lm_head.dense.bias        | UNEXPECTED | 
+lm_head.bias              | UNEXPECTED | 
+lm_head.layer_norm.weight | UNEXPECTED | 
+pooler.dense.weight       | MISSING    | 
+pooler.dense.bias         | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+fi/train:   0%|          | 1/6000 [00:04<7:46:03,  4.66s/it]fi/train:   0%|          | 2/6000 [00:07<6:06:13,  3.66s/it]fi/train:   0%|          | 3/6000 [00:10<5:29:46,  3.30s/it]fi/train:   0%|          | 4/6000 [00:12<4:30:36,  2.71s/it]fi/train:   0%|          | 5/6000 [00:14<3:55:28,  2.36s/it]fi/train:   0%|          | 6/6000 [00:16<4:12:17,  2.53s/it]fi/train:   0%|          | 7/6000 [00:18<3:54:13,  2.35s/it]fi/train:   0%|          | 8/6000 [00:21<3:55:36,  2.36s/it]fi/train:   0%|          | 9/6000 [00:23<4:07:23,  2.48s/it]fi/train:   0%|          | 10/6000 [00:25<3:49:30,  2.30s/it]fi/train:   0%|          | 11/6000 [00:28<4:04:12,  2.45s/it]fi/train:   0%|          | 12/6000 [00:30<3:50:34,  2.31s/it]fi/train:   0%|          | 13/6000 [00:33<4:12:15,  2.53s/it]fi/train:   0%|          | 14/6000 [00:36<4:24:28,  2.65s/it]fi/train:   0%|          | 15/6000 [00:39<4:34:33,  2.75s/it]fi/train:   0%|          | 16/6000 [00:42<4:34:22,  2.75s/it]fi/train:   0%|          | 17/6000 [00:44<4:30:38,  2.71s/it]fi/train:   0%|          | 18/6000 [00:47<4:11:19,  2.52s/it]fi/train:   0%|          | 19/6000 [00:50<4:28:52,  2.70s/it]fi/train:   0%|          | 20/6000 [00:52<4:19:54,  2.61s/it]fi/train:   0%|          | 21/6000 [00:55<4:14:51,  2.56s/it]fi/train:   0%|          | 22/6000 [00:55<3:01:46,  1.82s/it]fi/train:   0%|          | 23/6000 [00:55<2:10:41,  1.31s/it]

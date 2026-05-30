@@ -408,21 +408,19 @@ class TextPreprocessor:
         self.model.eval()
 
     def extract(self, text: str, sample_id: str) -> dict[str, torch.Tensor]:
-        """Tokenize text and extract embeddings.
+        """Extract RoBERTa embeddings from text string.
 
         Returns dict with:
-        - input_ids: [seq_len] token IDs
-        - attention_mask: [seq_len] attention mask
-        - embedding: [seq_len, 768] last hidden states
-        - pooled_embedding: [768] mean-pooled embedding
+        - features: [T, 768] per-token embeddings
+        - pooled_features: [768] mean-pooled embedding
+        - input_ids, attention_mask: tokenizer outputs (for debugging)
         """
-        if text is None or len(text.strip()) == 0:
-            # Return zero vectors for empty text
+        if not text or (isinstance(text, float) and np.isnan(text)):
             return {
-                "input_ids": torch.zeros(self.max_length, dtype=torch.long),
-                "attention_mask": torch.zeros(self.max_length, dtype=torch.long),
-                "embedding": torch.zeros(self.max_length, 768),
-                "pooled_embedding": torch.zeros(768)
+                "features": torch.zeros(1, 768),
+                "pooled_features": torch.zeros(768),
+                "input_ids": torch.zeros(1, dtype=torch.long),
+                "attention_mask": torch.zeros(1, dtype=torch.long)
             }
 
         # Tokenize
@@ -458,7 +456,7 @@ class TextPreprocessor:
             "input_ids": input_ids.cpu(),
             "attention_mask": attention_mask.cpu(),
             "embedding": hidden_states,
-            "pooled_embedding": pooled
+            "pooled_features": pooled
         }
 
 
@@ -468,6 +466,10 @@ class TextPreprocessor:
 
 class AudioPreprocessor:
     """Audio feature extraction using eGeMAPS (librosa fallback) or WavLM."""
+
+    # Max audio duration for WavLM (seconds). DAIC sessions can be 16+ min,
+    # which generates 30k+ WavLM frames and causes OOM from quadratic attention.
+    MAX_WAVLM_SECONDS = 30.0
 
     def __init__(self, encoder: str = "wavlm", device: str = "cuda"):
         self.encoder = encoder
@@ -550,7 +552,17 @@ class AudioPreprocessor:
         return y[:len(mask_samples)] * mask_samples[:len(y)]
 
     def _extract_wavlm(self, y: np.ndarray, sr: int) -> dict[str, torch.Tensor]:
-        """Extract WavLM embeddings."""
+        """Extract WavLM embeddings.
+
+        Truncates audio to MAX_WAVLM_SECONDS to avoid CUDA OOM from
+        quadratic attention on long sequences (e.g., DAIC sessions up to
+        16 minutes produce 30k+ frames, causing 100+ GiB memory spikes).
+        """
+        # Truncate to max duration to avoid OOM
+        max_samples = int(self.MAX_WAVLM_SECONDS * sr)
+        if len(y) > max_samples:
+            y = y[:max_samples]
+
         # Convert to tensor (WavLM expects float32)
         waveform = torch.tensor(y, dtype=torch.float32).unsqueeze(0).to(self.device)
 
@@ -711,26 +723,60 @@ class VideoPreprocessor:
         }
 
     def _extract_openface(self, video_path: str, sample_id: str) -> dict[str, torch.Tensor]:
-        """Extract OpenFace AU features from pre-extracted vis_au.npy or raw video."""
-        # Check if pre-extracted AU features exist (from DAIC processed dir)
+        """Extract OpenFace AU features from pre-extracted vis_au.npy, FI npz, or raw video."""
+        # 1) Check for DAIC-style pre-extracted vis_au.npy
         au_path = Path(video_path).parent / f"{sample_id}_vis_au.npy"
 
         if au_path.exists():
             au_data = np.load(au_path)  # Shape: [T, 35] AU intensities + gaze + pose
-
-            # Handle 2D arrays
             if au_data.ndim == 1:
                 au_data = au_data.reshape(-1, 35)
-
-            # Temporal mean + std pooling
             mean_feat = np.mean(au_data, axis=0)
             std_feat = np.std(au_data, axis=0)
             pooled = np.concatenate([mean_feat, std_feat])
-
             return {
                 "features": torch.tensor(au_data, dtype=torch.float32),
                 "pooled_features": torch.tensor(pooled, dtype=torch.float32)
             }
+
+        # 2) Check for ChaLearn FI pre-extracted features (.npz with face_embeddings)
+        #    FI stores its features in {split}/features/ with face_embeddings (T, 512)
+        vid_path = Path(video_path)
+        # Convert 'videos/' to 'features/' in the path, change .mp4 to .npz
+        npz_path = vid_path.parent.with_name("features") / f"{vid_path.stem}_features.npz"
+        if npz_path.exists():
+            try:
+                fi_data = np.load(npz_path)
+                face_feats = fi_data.get('face_embeddings')  # [T, 512]
+                scene_feats = fi_data.get('scene_features')  # [T, 2048, 1, 1]
+                motion_feats = fi_data.get('motion_features')  # [T-1, 10]
+                if face_feats is not None and len(face_feats) > 0:
+                    # Combine face + scene + motion into single feature vector per timestep
+                    all_feats = []
+                    if face_feats.ndim == 2:
+                        all_feats.append(face_feats)
+                    if scene_feats is not None and scene_feats.ndim == 4:
+                        T = min(face_feats.shape[0], scene_feats.shape[0])
+                        scene_flat = scene_feats[:T, :, 0, 0]  # [T, 2048]
+                        all_feats.append(scene_flat)
+                    if motion_feats is not None and motion_feats.ndim == 2:
+                        # Pad motion to match T
+                        T = face_feats.shape[0]
+                        motion_pad = np.pad(motion_feats,
+                                            ((0, max(0, T - motion_feats.shape[0])), (0, 0)),
+                                            mode='edge')[:T]
+                        all_feats.append(motion_pad.astype(np.float32))
+
+                    combined = np.concatenate(all_feats, axis=1)  # [T, ~2570]
+                    mean_feat = np.mean(combined, axis=0)
+                    std_feat = np.std(combined, axis=0)
+                    pooled = np.concatenate([mean_feat, std_feat])
+                    return {
+                        "features": torch.tensor(combined, dtype=torch.float32),
+                        "pooled_features": torch.tensor(pooled, dtype=torch.float32)
+                    }
+            except Exception as e:
+                print(f"Warning: Error loading FI features from {npz_path}: {e}")
 
         return {
             "features": torch.zeros(1, 35),
@@ -941,7 +987,7 @@ class MOSEILoader:
             txt = torch.tensor(text_feats[i], dtype=torch.float32)
             pre_extracted["text"] = {
                 "embedding": txt,
-                "pooled_embedding": torch.cat([txt.mean(dim=0), txt.std(dim=0)])
+                "pooled_features": torch.cat([txt.mean(dim=0), txt.std(dim=0)])
             }
 
             # Audio: [50, 74] → pooled to [148]
@@ -981,6 +1027,20 @@ class FILoader:
 
     def __init__(self, fi_raw_path: Path = FI_RAW):
         self.fi_raw_path = fi_raw_path
+        self._transcriptions = {}  # lazy-load cache
+
+    def _load_transcriptions(self, split: str) -> dict[str, str]:
+        """Load transcriptions for a given split. Returns dict of clip_id -> text."""
+        if split == "train":
+            pkl_path = self.fi_raw_path / "train" / "transcription_training.pkl"
+        elif split == "val":
+            pkl_path = self.fi_raw_path / "val" / "transcription_validation.pkl"
+        else:
+            return {}  # test transcription zip is encrypted; skip
+        if pkl_path.exists():
+            with open(pkl_path, 'rb') as f:
+                return pickle.load(f, encoding='latin-1')
+        return {}
 
     def load(self, split: str = "train") -> list[MultimodalSample]:
         """Load FI samples for a given split."""
@@ -1000,6 +1060,10 @@ class FILoader:
             # FI test CSV uses 'interview' instead of 'openness'
             if 'openness' not in annotations.columns and 'interview' in annotations.columns:
                 annotations['openness'] = annotations['interview']
+
+        # Load transcriptions (non-test only)
+        transcriptions = self._load_transcriptions(split)
+        has_text = split != "test"  # test transcriptions unavailable
 
         samples = []
         traits = ['extraversion', 'neuroticism', 'agreeableness', 'conscientiousness', 'openness', 'interview']
@@ -1044,20 +1108,29 @@ class FILoader:
             # AudioPreprocessor can read audio from video via librosa
             audio_path_str = video_path_str
 
+            # Look up transcription
+            text = None
+            if has_text:
+                if isinstance(clip_id, str):
+                    text = transcriptions.get(clip_id, None)
+                elif isinstance(clip_id, int):
+                    # Need to figure out clip filename from index; skip text for test
+                    pass
+
             sample = MultimodalSample(
                 sample_id=sample_id,
                 dataset="fi",
                 split=split,
                 subject_id=sample_id,  # FI clips don't have subject IDs
-                text=None,  # FI has no text transcript
+                text=text,
                 audio_path=audio_path_str,  # Audio extracted from video
                 video_path=video_path_str,
-                modality_mask=(False, True, True),  # No text
+                modality_mask=(has_text and text is not None, True, True),
                 personality_traits=personality
             )
             samples.append(sample)
 
-        print(f"Loaded {len(samples)} FI {split} samples")
+        print(f"Loaded {len(samples)} FI {split} samples (text_available={has_text})")
         return samples
 
 
@@ -1080,7 +1153,22 @@ class PreprocessingPipeline:
         self.video_proc_vit: Optional[VideoPreprocessor] = None
 
         # Manifest
-        self.manifest = FeatureManifest()
+        manifest_path = FEATURES_ROOT / "manifest.json"
+        if manifest_path.exists():
+            try:
+                with open(manifest_path, 'r') as f:
+                    data = json.load(f)
+                self.manifest = FeatureManifest(
+                    version=data.get("version", "1.0"),
+                    features_root=data.get("features_root", str(FEATURES_ROOT)),
+                    datasets=data.get("datasets", {}),
+                    samples=data.get("samples", [])
+                )
+            except Exception as e:
+                print(f"Warning: Failed to load manifest, creating new: {e}")
+                self.manifest = FeatureManifest()
+        else:
+            self.manifest = FeatureManifest()
 
     def _get_text_processor(self) -> TextPreprocessor:
         if self.text_proc is None:
@@ -1293,23 +1381,45 @@ class PreprocessingPipeline:
             }
             manifest_entries.append(entry)
 
-        # Update manifest
+        # Update manifest metadata (dim + sample count per encoder)
         if dataset not in self.manifest.datasets:
             self.manifest.datasets[dataset] = {}
 
         for encoder in encoders:
-            modality = encoder.split("_")[0] if "_" in encoder else encoder
-            enc_name = encoder.split("_")[1] if "_" in encoder else encoder
+            # Split prefixed encoder names: "audio_egemaps" → modality="audio", enc_name="egemaps"
+            # Non-prefixed like "text": look up the real name from ENCODER_CONFIGS
+            if "_" in encoder:
+                modality, enc_name = encoder.split("_", 1)
+            else:
+                # "text" → lookup the true encoder name from config
+                modality = encoder
+                cfg = ENCODER_CONFIGS.get(encoder, {})
+                enc_name = cfg.get("encoder", encoder) if isinstance(cfg, dict) else encoder
 
             if modality not in self.manifest.datasets[dataset]:
                 self.manifest.datasets[dataset][modality] = {}
 
+            # Check actual cached files for real counts (more accurate than len(samples))
+            sample_split = samples[0].split if samples else "train"
+            feat_dir = FEATURES_ROOT / dataset / sample_split / modality / enc_name
+            actual_count = 0
+            if feat_dir.exists():
+                actual_count = len(list(feat_dir.glob("*.pt")))
+
             self.manifest.datasets[dataset][modality][enc_name] = {
                 "dim": ENCODER_CONFIGS.get(encoder, {}).get("dim", "unknown"),
-                "num_samples": len(samples)
+                "num_samples": actual_count if actual_count > 0 else len(samples)
             }
 
-        self.manifest.samples.extend(manifest_entries)
+        # Merge manifest entries
+        existing_samples = {(s["dataset"], s["id"]): s for s in self.manifest.samples}
+        for entry in manifest_entries:
+            key = (entry["dataset"], entry["id"])
+            if key in existing_samples:
+                existing_samples[key]["features"].update(entry["features"])
+                existing_samples[key]["content_hash"] = entry["content_hash"]
+            else:
+                self.manifest.samples.append(entry)
 
         return manifest_entries
 
@@ -1368,36 +1478,78 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
     with open(manifest_path, 'r') as f:
         manifest = json.load(f)
 
-    # Collect feature statistics
-    feature_stats = defaultdict(lambda: defaultdict(list))
+    # Filter to single dataset when generating per-dataset plots
+    if dataset_prefix and dataset_prefix in ('daic', 'mosei', 'fi'):
+        original_count = len(manifest['samples'])
+        manifest['samples'] = [s for s in manifest['samples'] if s['dataset'] == dataset_prefix]
+        print(f"  Filtered to dataset '{dataset_prefix}': {len(manifest['samples'])}/{original_count} samples")
 
-    for sample in manifest['samples']:
+    def _get_pooled(feat_data: dict) -> Optional[torch.Tensor]:
+        """Extract pooled features with fallback for key name variants."""
+        for key in ['pooled_features', 'pooled_embedding']:
+            if key in feat_data:
+                v = feat_data[key]
+                if isinstance(v, torch.Tensor) and v.ndim == 1 and v.is_floating_point():
+                    return v
+        return None
+
+    import random
+    
+    # Collect feature statistics (sample up to 500 per dataset to save time)
+    feature_stats = defaultdict(lambda: defaultdict(list))
+    sampled_for_stats = []
+    
+    for dataset in ['daic', 'mosei', 'fi']:
+        ds_samples = [s for s in manifest['samples'] if s['dataset'] == dataset]
+        if len(ds_samples) > 500:
+            ds_samples = random.sample(ds_samples, 500)
+        sampled_for_stats.extend(ds_samples)
+
+    for sample in sampled_for_stats:
         dataset = sample['dataset']
         for feat_type, feat_path in sample['features'].items():
             if os.path.exists(feat_path):
                 try:
                     feat_data = torch.load(feat_path, map_location='cpu')
-                    if 'pooled_features' in feat_data:
-                        pooled = feat_data['pooled_features']
-                        if pooled.ndim == 1:
-                            feature_stats[dataset][feat_type].append(pooled.numpy())
+                    pooled = _get_pooled(feat_data)
+                    if pooled is not None and pooled.numel() > 0:
+                        arr = pooled.numpy()
+                        if not np.isnan(arr).any() and not np.isinf(arr).any():
+                            feature_stats[dataset][feat_type].append(arr)
                 except:
                     pass
 
     # Figure 1: Audio spectrograms
     print("Generating: phase_02_spectrograms.png")
-    fig, axes = plt.subplots(3, 3, figsize=(12, 10))
-    datasets_show = ['daic', 'mosei', 'fi']
+    datasets_show = sorted(set(s['dataset'] for s in manifest['samples']))
+    n_ds = len(datasets_show)
+    if n_ds == 0:
+        datasets_show = ['daic', 'mosei', 'fi']
+        n_ds = 3
+    fig, axes = plt.subplots(n_ds, 3, figsize=(12, 4 * n_ds))
+    # Ensure axes is always 2D for consistent indexing
+    if n_ds == 1:
+        axes = axes.reshape(1, -1)
 
     for row, dataset in enumerate(datasets_show):
-        for col, sample_entry in enumerate([s for s in manifest['samples'] if s['dataset'] == dataset][:3]):
+        # Prefer train/val samples over test for better visualization
+        ds_samples = [s for s in manifest['samples'] if s['dataset'] == dataset]
+        # Sort by priority: train first, then val, then test
+        split_priority = {'train': 0, 'val': 1, 'test': 2}
+        ds_samples.sort(key=lambda s: (split_priority.get(s.get('split', 'test'), 3), s.get('id', '')))
+        selected = ds_samples[:3]
+
+        for col, sample_entry in enumerate(selected):
             ax = axes[row, col]
             audio_path = sample_entry['features'].get('audio_wavlm') or sample_entry['features'].get('audio_egemaps')
             if audio_path and os.path.exists(audio_path):
                 try:
                     feat_data = torch.load(audio_path, map_location='cpu')
                     features = feat_data.get('features', torch.zeros(100, 88)).numpy()
-                    if features.ndim == 2 and features.shape[1] > 1:
+                    # Skip all-zero features (fallback for samples without real audio)
+                    if np.abs(features).sum() < 1e-6:
+                        ax.text(0.5, 0.5, "Audio not available\n(all-zero fallback)", ha='center', va='center', transform=ax.transAxes)
+                    elif features.ndim == 2 and features.shape[1] > 1:
                         # Take first 100 time steps for visualization
                         features = features[:100, :]
                         librosa.display.specshow(features, ax=ax, x_axis='time', sr=16000)
@@ -1444,7 +1596,7 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
     plt.close()
 
     # Figure 3: UMAP of text embeddings
-    print("Generating: phase_02_umap_text{suffix}.png")
+    print(f"Generating: phase_02_umap_text{suffix}.png")
     try:
         import umap
         has_umap = True
@@ -1455,23 +1607,36 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
     text_embeddings = []
     text_labels = []
 
-    for sample in manifest['samples']:
-        text_path = sample['features'].get('text')
-        if text_path and os.path.exists(text_path):
+    # Stratified sampling: ensure fair representation from each dataset
+    text_candidates = [s for s in manifest['samples'] if s['features'].get('text_roberta') and os.path.exists(s['features']['text_roberta'])]
+    text_candidates_by_dataset = {ds: [s for s in text_candidates if s['dataset'] == ds] for ds in ['daic', 'mosei', 'fi']}
+    MAX_PER_DATASET = 333  # ~1000 total across 3 datasets
+    text_candidates = []
+    for ds in ['daic', 'mosei', 'fi']:
+        pool = text_candidates_by_dataset[ds]
+        if len(pool) > MAX_PER_DATASET:
+            pool = random.sample(pool, MAX_PER_DATASET)
+        text_candidates.extend(pool)
+
+    for sample in text_candidates:
+        text_path = sample['features'].get('text_roberta')
+        if text_path:
             try:
                 feat_data = torch.load(text_path, map_location='cpu')
-                pooled = feat_data.get('pooled_features')
-                if pooled is not None and pooled.ndim == 1 and len(pooled) > 0:
-                    text_embeddings.append(pooled.numpy())
-                    text_labels.append(sample['dataset'])
+                pooled = _get_pooled(feat_data)
+                if pooled is not None and pooled.numel() > 0:
+                    arr = pooled.numpy()
+                    if not np.isnan(arr).any() and not np.isinf(arr).any() and np.abs(arr).sum() > 1e-6:
+                        text_embeddings.append(arr)
+                        text_labels.append(sample['dataset'])
             except:
                 pass
 
-    # Sample 1000 if more
-    if len(text_embeddings) > 1000:
-        indices = np.random.choice(len(text_embeddings), 1000, replace=False)
-        text_embeddings = [text_embeddings[i] for i in indices]
-        text_labels = [text_labels[i] for i in indices]
+    # Homogenize dimensions: different datasets produce different pooled dims
+    # (e.g., MOSEI GloVe text=600, DAIC RoBERTa=768). Pad to max dim.
+    if text_embeddings:
+        max_dim = max(arr.shape[0] for arr in text_embeddings)
+        text_embeddings = [np.pad(arr, (0, max_dim - arr.shape[0]), mode='constant') if arr.shape[0] < max_dim else arr[:max_dim] for arr in text_embeddings]
 
     if len(text_embeddings) > 10:
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -1507,26 +1672,41 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
         plt.close()
 
     # Figure 4: UMAP of audio embeddings
-    print("Generating: phase_02_umap_audio{suffix}.png")
+    print(f"Generating: phase_02_umap_audio{suffix}.png")
     audio_embeddings = []
     audio_labels = []
 
-    for sample in manifest['samples']:
+    # Stratified sampling for audio
+    audio_candidates_all = [s for s in manifest['samples'] if s['features'].get('audio_wavlm') and os.path.exists(s['features']['audio_wavlm'])]
+    audio_candidates_by_dataset = {ds: [s for s in audio_candidates_all if s['dataset'] == ds] for ds in ['daic', 'mosei', 'fi']}
+    audio_candidates = []
+    for ds in ['daic', 'mosei', 'fi']:
+        pool = audio_candidates_by_dataset[ds]
+        if len(pool) > MAX_PER_DATASET:
+            pool = random.sample(pool, MAX_PER_DATASET)
+        audio_candidates.extend(pool)
+
+    for sample in audio_candidates:
         audio_path = sample['features'].get('audio_wavlm')
-        if audio_path and os.path.exists(audio_path):
+        if audio_path:
             try:
                 feat_data = torch.load(audio_path, map_location='cpu')
-                pooled = feat_data.get('pooled_features')
-                if pooled is not None and pooled.ndim == 1 and len(pooled) > 0:
-                    audio_embeddings.append(pooled[:768].numpy() if pooled.shape[0] > 768 else pooled.numpy())
-                    audio_labels.append(sample['dataset'])
+                pooled = _get_pooled(feat_data)
+                if pooled is not None and pooled.numel() > 0:
+                    arr = pooled.numpy()
+                    if not np.isnan(arr).any() and not np.isinf(arr).any() and np.abs(arr).sum() > 1e-6:
+                        # WavLM pooled is [1536], take first 768 for UMAP
+                        if arr.shape[0] > 768:
+                            arr = arr[:768]
+                        audio_embeddings.append(arr)
+                        audio_labels.append(sample['dataset'])
             except:
                 pass
 
-    if len(audio_embeddings) > 1000:
-        indices = np.random.choice(len(audio_embeddings), 1000, replace=False)
-        audio_embeddings = [audio_embeddings[i] for i in indices]
-        audio_labels = [audio_labels[i] for i in indices]
+    # Homogenize dimensions for audio (already truncated to 768, but be safe)
+    if audio_embeddings:
+        max_dim = max(arr.shape[0] for arr in audio_embeddings)
+        audio_embeddings = [np.pad(arr, (0, max_dim - arr.shape[0]), mode='constant') if arr.shape[0] < max_dim else arr[:max_dim] for arr in audio_embeddings]
 
     if len(audio_embeddings) > 10:
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -1565,24 +1745,41 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
     video_embeddings = []
     video_labels = []
 
-    for sample in manifest['samples']:
+    # Stratified sampling for video
+    video_candidates_all = []
+    for s in manifest['samples']:
+        if (s['features'].get('video_vit') and os.path.exists(s['features']['video_vit'])) or (s['features'].get('video_openface') and os.path.exists(s['features']['video_openface'])):
+            video_candidates_all.append(s)
+    video_candidates_by_dataset = {ds: [s for s in video_candidates_all if s['dataset'] == ds] for ds in ['daic', 'mosei', 'fi']}
+    video_candidates = []
+    for ds in ['daic', 'mosei', 'fi']:
+        pool = video_candidates_by_dataset[ds]
+        if len(pool) > MAX_PER_DATASET:
+            pool = random.sample(pool, MAX_PER_DATASET)
+        video_candidates.extend(pool)
+
+    for sample in video_candidates:
         video_path = sample['features'].get('video_vit')
         if not video_path:
             video_path = sample['features'].get('video_openface')
-        if video_path and os.path.exists(video_path):
+        if video_path:
             try:
                 feat_data = torch.load(video_path, map_location='cpu')
-                pooled = feat_data.get('pooled_features')
-                if pooled is not None and pooled.ndim == 1 and len(pooled) > 0:
-                    video_embeddings.append(pooled[:768].numpy() if pooled.shape[0] > 768 else pooled.numpy())
-                    video_labels.append(sample['dataset'])
+                pooled = _get_pooled(feat_data)
+                if pooled is not None and pooled.numel() > 0:
+                    arr = pooled.numpy()
+                    if not np.isnan(arr).any() and not np.isinf(arr).any() and np.abs(arr).sum() > 1e-6:
+                        if arr.shape[0] > 768:
+                            arr = arr[:768]
+                        video_embeddings.append(arr)
+                        video_labels.append(sample['dataset'])
             except:
                 pass
 
-    if len(video_embeddings) > 1000:
-        indices = np.random.choice(len(video_embeddings), 1000, replace=False)
-        video_embeddings = [video_embeddings[i] for i in indices]
-        video_labels = [video_labels[i] for i in indices]
+    # Homogenize dimensions for video
+    if video_embeddings:
+        max_dim = max(arr.shape[0] for arr in video_embeddings)
+        video_embeddings = [np.pad(arr, (0, max_dim - arr.shape[0]), mode='constant') if arr.shape[0] < max_dim else arr[:max_dim] for arr in video_embeddings]
 
     if len(video_embeddings) > 10:
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -1622,17 +1819,24 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
 
     # Compute mean/std for each dataset/modality combination
     stats_data = []
-    modalities = ['text', 'audio_wavlm', 'video_vit']
+    modalities = ['text', 'audio', 'video']  # modality prefixes to summarize
     datasets_list = ['daic', 'mosei', 'fi']
 
     for dataset in datasets_list:
         for modality in modalities:
-            key = modality if modality in ['text'] else modality.split('_')[0]
-            if key in feature_stats[dataset]:
-                feats = np.array(feature_stats[dataset][key])
-                if len(feats) > 0:
-                    mean_val = np.mean(feats)
-                    std_val = np.std(feats)
+            # Match all feature types for this modality (e.g., "audio_egemaps", "audio_wavlm" for "audio")
+            matched_keys = [k for k in feature_stats[dataset]
+                          if k == modality or k.startswith(modality + '_')]
+            if matched_keys:
+                # Use the first available encoder for this modality (avoid dim mismatch across encoders)
+                feat_list = feature_stats[dataset][matched_keys[0]]
+                if len(feat_list) > 0:
+                    # Handle potential dimension mismatch (e.g., eGeMAPS fallback is 176 but actual is 104)
+                    # Compute per-sample statistics then average to get a robust single value
+                    per_sample_mean = np.array([np.nanmean(f) for f in feat_list])
+                    per_sample_std = np.array([np.nanstd(f) for f in feat_list])
+                    mean_val = np.nanmean(per_sample_mean)
+                    std_val = np.nanmean(per_sample_std)
                     stats_data.append([f"{mean_val:.3f}", f"{std_val:.3f}"])
                 else:
                     stats_data.append(["N/A", "N/A"])
@@ -1643,7 +1847,8 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
     table_data = []
     for i, dataset in enumerate(datasets_list):
         row = [dataset.upper()]
-        row.extend(stats_data[i * len(modalities):(i + 1) * len(modalities)])
+        for stat_pair in stats_data[i * len(modalities):(i + 1) * len(modalities)]:
+            row.extend(stat_pair)
         table_data.append(row)
 
     columns = ["Dataset", "Text Mean", "Text Std", "Audio Mean", "Audio Std", "Video Mean", "Video Std"]
@@ -1721,10 +1926,26 @@ def main():
                        help="Number of parallel workers")
     parser.add_argument("--visualize", action="store_true", default=True,
                        help="Generate visualizations after preprocessing")
+    parser.add_argument("--only-visualize", action="store_true", default=False,
+                       help="Skip extraction, only regenerate visualizations from existing manifest")
     parser.add_argument("--device", type=str, default="cuda",
                        help="Device to use (cuda/cpu)")
 
     args = parser.parse_args()
+
+    if args.only_visualize:
+        print("=" * 60)
+        print("PHASE 2: Visualization Only Mode")
+        print("=" * 60)
+        manifest_path = FEATURES_ROOT / "manifest.json"
+        if not manifest_path.exists():
+            print(f"ERROR: Manifest not found at {manifest_path}")
+            sys.exit(1)
+        print(f"Using manifest: {manifest_path}")
+        viz_prefix = args.dataset if args.dataset != "all" else ""
+        generate_visualizations(manifest_path, ARTIFACTS_DIR, dataset_prefix=viz_prefix)
+        print("\nVisualizations saved to:", ARTIFACTS_DIR)
+        return
 
     print("=" * 60)
     print("PHASE 2: Preprocessing and Feature Extraction")

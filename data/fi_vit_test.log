@@ -1,0 +1,49 @@
+============================================================
+PHASE 2: Preprocessing and Feature Extraction
+============================================================
+Dataset: fi
+Encoder: vit
+Split: test
+Parallel workers: 4
+Device: cpu
+
+
+--- Processing fi/test ---
+Loaded 2000 FI test samples (text_available=False)
+Processing 2000 fi/test samples with encoders: ['video_vit']
+fi/test:   0%|          | 0/2000 [00:00<?, ?it/s]fi/test:   0%|          | 1/2000 [00:02<1:25:31,  2.57s/it]fi/test:   2%|▏         | 48/2000 [00:02<01:17, 25.14it/s] fi/test:  13%|█▎        | 255/2000 [00:02<00:10, 168.22it/s]fi/test:  28%|██▊       | 550/2000 [00:02<00:03, 421.04it/s]fi/test:  40%|████      | 808/2000 [00:02<00:01, 668.89it/s]fi/test:  53%|█████▎    | 1054/2000 [00:03<00:01, 921.03it/s]fi/test:  64%|██████▍   | 1276/2000 [00:03<00:00, 1138.64it/s]fi/test:  75%|███████▌  | 1508/2000 [00:03<00:00, 1365.28it/s]fi/test:  87%|████████▋ | 1736/2000 [00:03<00:00, 1562.68it/s]fi/test:  98%|█████████▊| 1962/2000 [00:03<00:00, 1709.10it/s]fi/test: 100%|██████████| 2000/2000 [00:03<00:00, 572.79it/s] 
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/umap/umap_.py:1952: UserWarning: n_jobs value 1 overridden to 1 by setting random_state. Use no seed for parallelism.
+  warn(
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/umap/umap_.py:1952: UserWarning: n_jobs value 1 overridden to 1 by setting random_state. Use no seed for parallelism.
+  warn(
+/home/anilson/thesis/thesis-experiment-5-unified-model/.venv/lib/python3.13/site-packages/umap/umap_.py:1952: UserWarning: n_jobs value 1 overridden to 1 by setting random_state. Use no seed for parallelism.
+  warn(
+Loading ViT-B/16 model on cpu...
+Loading ViT-B/16 model on cpu...
+Loading ViT-B/16 model on cpu...
+Loading ViT-B/16 model on cpu...
+
+--- Saving manifest ---
+Saved manifest to: /home/anilson/thesis/thesis-experiment-5-unified-model/data/features/manifest.json
+
+--- Saving low-quality flags ---
+Saved flags to: /home/anilson/thesis/thesis-experiment-5-unified-model/data/flags/low_quality_samples.json
+
+--- Generating visualizations ---
+Generating: phase_02_spectrograms.png
+Generating: phase_02_au_timeseries_fi.png
+Generating: phase_02_umap_text{suffix}.png
+Generating: phase_02_umap_audio{suffix}.png
+Generating: phase_02_umap_video_fi.png
+Generating: phase_02_feature_stats_fi.png
+Generating: phase_02_low_quality_report_fi.png
+Generated 7 visualization figures in /home/anilson/thesis/thesis-experiment-5-unified-model/artifacts/figures/phase_02_preprocessing
+
+============================================================
+PHASE 2 COMPLETE
+============================================================
+
+Manifest: /home/anilson/thesis/thesis-experiment-5-unified-model/data/features/manifest.json
+Features root: /home/anilson/thesis/thesis-experiment-5-unified-model/data/features
+Low-quality flags: /home/anilson/thesis/thesis-experiment-5-unified-model/data/flags/low_quality_samples.json
+Visualizations: /home/anilson/thesis/thesis-experiment-5-unified-model/artifacts/figures/phase_02_preprocessing/*.png
