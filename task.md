@@ -2,7 +2,7 @@
 
 - [x] Phase 0: Repository, environment, and experiment governance
 - [x] Phase 1: Dataset acquisition, EDA, and data contract
-- [ ] Phase 2: Preprocessing and feature extraction
+- [x] Phase 2: Preprocessing and feature extraction
 - [ ] Phase 3: Unimodal baselines
 - [ ] Phase 4: Multimodal fusion baselines
 - [ ] Phase 5: MMoEEx multitask backbone without graph
@@ -138,67 +138,6 @@ Please review the following artifacts before we proceed to Phase 2:
 
 ---
 
-## Phase 2 — IN PROGRESS 🔄
-
-**Assigned to:** @data-engineer
-**Started:** 2026-05-29
-
-### Goals
-Build reproducible modality preprocessing pipelines for all three datasets. Cache all extracted features with content hashes for reproducibility.
-
-### Core tasks
-
-#### Text pipeline
-- Tokenization with HuggingFace tokenizers (RoBERTa vocab)
-- Truncate/pad to max_length=512
-- Generate attention masks
-- Cache tokenized outputs by `sample_id`
-
-#### Audio pipeline
-- Resample all audio to 16 kHz
-- Apply VAD (voice activity detection) to segment speech regions
-- Extract features using **two** strategies:
-  - `egemaps`: eGeMAPS (88-dim) via openSMILE — clinically validated paralinguistic features
-  - `wavlm`: WavLM-base hidden states (768-dim) — transformer-based representation
-- Cache per-sample feature tensors with hash-based filenames
-
-#### Video pipeline
-- Sample frames at 1 FPS (uniform temporal sampling)
-- Extract features using **two** strategies:
-  - `openface`: OpenFace 2.0 action unit intensities + gaze + head pose (≈35-dim)
-  - `vit`: ViT-B/16 frame embeddings (768-dim) via timm
-- Temporal pooling: mean + std over time axis → fixed-length vectors
-- Cache per-sample feature tensors with hash-based filenames
-
-#### Feature cache
-- Directory: `data/features/{dataset}/{split}/{modality}/{encoder}/`
-- Filename format: `{sample_id}_{content_hash}.pt`
-- Manifest: `data/features/manifest.json` listing all cached features and their hashes
-- Regenerate only if content hash or config hash changes
-
-#### Low-quality sample detection
-- Flag audio with < 2s of detected speech
-- Flag video with > 50% black/near-black frames
-- Flag text with empty transcript after cleaning
-- Log flagged sample IDs to `data/flags/low_quality_samples.json`
-
-### Visualization requirements (Visualization-First)
-Required outputs in `artifacts/figures/phase_02_preprocessing/`:
-- Audio spectrogram for 3 representative samples per dataset (per modality)
-- OpenFace AU time-series (first 30 seconds) for 3 DAIC samples
-- UMAP projection of raw text embeddings (1000 random samples, colored by dataset)
-- UMAP projection of raw audio embeddings (1000 random samples, colored by dataset)
-- UMAP projection of raw video embeddings (1000 random samples, colored by dataset)
-- Feature extraction statistics table (mean/std per modality per dataset)
-- Low-quality sample report (histogram of flagged reasons)
-
-### Done criteria
-- All samples preprocessed (or explicitly flagged with reason)
-- Feature cache manifest verified
-- All visualization figures saved
-- Low-quality sample report saved
-
----
 
 ## Phase 2 — COMPLETED ✅
 
@@ -235,6 +174,36 @@ Required outputs in `artifacts/figures/phase_02_preprocessing/`:
   - `phase_02_umap_video.png` — UMAP of 1000 video (ViT) embeddings by dataset
   - `phase_02_feature_stats.png` — feature statistics heatmap table
   - `phase_02_low_quality_report.png` — low-quality flag histogram
+
+---
+
+## Phase 3 — IN PROGRESS 🔄
+
+**Assigned to:** @multimodal-architect
+**Started:** 2026-05-30
+
+### Goals
+Establish sanity-check baselines for each modality (Text, Audio, Video) across DAIC, MOSEI, and FI datasets using cached features.
+
+### Core tasks
+- Implement classical unimodal models (e.g., Logistic/Ridge Regression, shallow MLPs)
+- Train & evaluate on Text-only, Audio-only, and Video-only where data exists
+- Abide by dataset granularity contract (participant/session-level for DAIC)
+- Evaluate metrics using `uv run python` exclusively
+
+### Visualization requirements
+- Baseline metric bar charts with 95% confidence intervals
+- Confusion matrix for DAIC depression
+- MOSEI emotion per-class F1 bars
+- FI trait predicted-vs-true scatter plots
+- Error distribution by dataset and modality
+- UMAP of unimodal embeddings colored by task labels
+
+### Done criteria
+- Modalities perform above trivial baseline where signal exists
+- Broken modalities explicitly identified
+- `artifacts/tables/unimodal_baselines.csv` generated
+- QA Validator review passed (100% pass rate)
 
 ---
 
