@@ -1,0 +1,17 @@
+dataset,fusion_type,metric,value,ci_lower,ci_upper,accuracy,f1,mae,r2,avg_mae,param_count,beats_unimodal,unimodal_baseline,epochs_trained
+daic,lmf,AUROC,0.4351,nan,nan,0.7234,0.1333,,,,34608,False,0.6991,67
+mosei,gated,CCC,0.562,0.5422,0.58,,,0.6353,0.418,,159232,True,0.5123,61
+mosei,lmf,CCC,0.5313,0.5119,0.5492,,,0.6778,0.3692,,10912,True,0.5123,31
+fi,lmf,Avg CCC,0.0,-0.05,0.05,,,,,0.1206,11584,False,0.4578,27
+fi,lmf,CCC_extraversion,0.0,0.0,0.0,,,,,,11584,False,0,27
+fi,lmf,CCC_neuroticism,0.0,0.0,0.0,,,,,,11584,False,0,27
+fi,lmf,CCC_agreeableness,0.0,0.0,0.0,,,,,,11584,False,0,27
+fi,lmf,CCC_conscientiousness,0.0,0.0,0.0,,,,,,11584,False,0,27
+fi,lmf,CCC_openness,0.0,0.0,0.0,,,,,,11584,False,0,27
+fi,gated,Avg CCC,0.0,-0.05,0.05,,,,,0.1984,827392,False,0.4578,44
+fi,gated,CCC_extraversion,0.0,-0.0,0.0,,,,,,827392,False,0.4667,44
+fi,gated,CCC_neuroticism,0.0,0.0,0.0,,,,,,827392,False,0.4402,44
+fi,gated,CCC_agreeableness,-0.0,-0.0,0.0,,,,,,827392,False,0.3181,44
+fi,gated,CCC_conscientiousness,0.0,0.0,0.0,,,,,,827392,False,0.6095,44
+fi,gated,CCC_openness,0.0,-0.0,0.0,,,,,,827392,False,0.4546,44
+daic,gated,AUROC,0.4048,nan,nan,0.7021,0.125,,,,115008,False,0.6991,45

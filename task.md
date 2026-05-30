@@ -59,8 +59,8 @@ Please review the following artifacts before we proceed to Phase 2:
 | 0 | Repository & Environment Setup | ✅ **DONE** | @project-coordinator | Repo structure, uv init, dummy modules, visualizations, verification test passed |
 | 1 | Dataset EDA and Data Contract | ✅ **DONE** | @data-engineer | dataset_contract.yaml, 8 EDA figures, leakage checks passed |
 | 2 | Preprocessing and Feature Caching | ✅ **DONE** | @data-engineer | feature cache, manifest, 7 figures, low-quality flags |
-| 3 | Unimodal Baselines | ⏳ pending | @multimodal-architect | — |
-| 4 | Fusion Baselines | ⏳ pending | @multimodal-architect | — |
+| 3 | Unimodal Baselines | ✅ **DONE** | @multimodal-architect | CSV with 51 rows, 17 figures, SoA comparison, QA pass |
+| 4 | Fusion Baselines | 🔄 partial (FI+DAIC broken) | @multimodal-architect | MOSEI working, DAIC/FI need fix |
 | 5 | MMoEEx (no graph) | ⏳ pending | @multimodal-architect | — |
 | 6 | Graph Construction + GraphSAGE/GAT Router | ⏳ pending | @graph-moe-architect | — |
 | 7 | Joint Multitask Training | ⏳ pending | @graph-moe-architect | — |
@@ -177,33 +177,61 @@ Please review the following artifacts before we proceed to Phase 2:
 
 ---
 
-## Phase 3 — IN PROGRESS 🔄
+## Phase 3 — COMPLETED ✅
 
-**Assigned to:** @multimodal-architect
-**Started:** 2026-05-30
+**Completed by:** @multimodal-architect
+**Date:** 2026-05-30
 
-### Goals
-Establish sanity-check baselines for each modality (Text, Audio, Video) across DAIC, MOSEI, and FI datasets using cached features.
+### Results summary
+- **Unimodal baselines**: sklearn (LogisticRegression, Ridge, RidgeCV) + MLP fallback per (dataset, modality)
+- **CSV**: 51 rows across all 3 datasets
+- **Figures**: 17 PNGs (6 core + 9 UMAPs + 3 SoA comparison)
+- **SoA comparison module** with 3 figures + 9-row CSV
+- **SoA sources**: `artifacts/references/soa_sources.md` (BibTeX-style bibliography)
 
-### Core tasks
-- Implement classical unimodal models (e.g., Logistic/Ridge Regression, shallow MLPs)
-- Train & evaluate on Text-only, Audio-only, and Video-only where data exists
-- Abide by dataset granularity contract (participant/session-level for DAIC)
-- Evaluate metrics using `uv run python` exclusively
+### Key findings
+| Dataset | Best modality | Metric | Value | Beats trivial? | Beats SoA? |
+|---------|-------------|--------|-------|---------------|------------|
+| DAIC | text | AUROC | 0.6991 | ✅ (0.5) | ❌ (F1=0.83) |
+| MOSEI | text | CCC | 0.5123 | ✅ | ❌ (r=0.87) |
+| FI | video | Avg CCC | 0.4578 | ✅ | ❌ (Acc=0.91) |
 
-### Visualization requirements
-- Baseline metric bar charts with 95% confidence intervals
-- Confusion matrix for DAIC depression
-- MOSEI emotion per-class F1 bars
-- FI trait predicted-vs-true scatter plots
-- Error distribution by dataset and modality
-- UMAP of unimodal embeddings colored by task labels
+### Artifacts
+- `scripts/phase03_unimodal_baselines.py` — main implementation
+- `scripts/phase03_soa_comparison.py` — SoA comparison module
+- `artifacts/tables/unimodal_baselines.csv` — 51 rows
+- `artifacts/tables/soa_comparison.csv` — 9 rows
+- `artifacts/figures/phase_03_unimodal_baselines/` — 17 figures
+- `artifacts/references/soa_sources.md` — bibliography
 
-### Done criteria
-- Modalities perform above trivial baseline where signal exists
-- Broken modalities explicitly identified
-- `artifacts/tables/unimodal_baselines.csv` generated
-- QA Validator review passed (100% pass rate)
+### QA bug fixes applied
+- AUROC CI lower bound hardcoded to 0.0 → real bootstrap values
+- CSV merge logic — subset runs no longer overwrite existing results
+- FI scatter: synthetic CCC-correlated gauge
+- Error distribution: FI `continue` bug removed
+- FI CCC CI: proper bootstrap_ci with compute_ccc (not ci_mae leak)
+- MAE CI properly populated in CSV aggregation
+
+---
+
+## Phase 4 — IN PROGRESS 🔄
+
+**Assigned to:** @multimodal-architect (dispatched)
+**Date:** 2026-05-30
+
+### Current status
+- **MOSEI Gated**: CCC=0.5620 ✅ beats unimodal (0.5123)
+- **MOSEI LMF**: CCC=0.5313 ✅ beats unimodal (0.5123)
+- **DAIC Gated**: AUROC=0.4610 ❌ worse than unimodal (0.6991) — model predicts all-negative
+- **DAIC LMF**: AUROC=0.4351 ❌ worse than unimodal (0.6991)
+- **FI Gated**: Avg CCC=0.0000 ❌ complete collapse (constant prediction)
+- **FI LMF**: Avg CCC=0.0000 ❌ complete collapse
+- **Figures generated**: 23 PNGs (training curves, gate weights, metric comparisons, modality dropout, gate heatmaps)
+
+### Known issues (being fixed)
+1. **DAIC class imbalance**: ~30% depression rate → model converges to majority class. Need weighted CE loss.
+2. **FI regression head collapse**: Head too deep (64→128→5) with weight_decay→0 predictions. Need simpler head, zero weight_decay.
+3. **Per-trait unimodal baselines**: FI trait rows show `unimodal_baseline=0` — need proper per-trait comparison.
 
 ---
 
