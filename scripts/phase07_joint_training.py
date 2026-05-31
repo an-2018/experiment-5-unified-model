@@ -1066,6 +1066,7 @@ def evaluate(model, dataloader, device, edge_index_dict, router):
                 out, _ = model(t_text, t_audio, t_video, t_mask_feat, task_val, routing, batch_edge_index)
 
                 if tid == 0:
+                    out = model.depression_head(out)
                     out_np = torch.sigmoid(out).cpu().numpy().flatten()
                     lbl = t_labels[:, 0].cpu().numpy().flatten()
                     results["daic"]["all_labels"].extend(lbl.tolist())
@@ -1076,6 +1077,7 @@ def evaluate(model, dataloader, device, edge_index_dict, router):
                     results["mosei_sentiment"]["all_labels"].extend(lbl.tolist())
                     results["mosei_sentiment"]["all_preds"].extend(out_np.tolist())
                 elif tid == 2:
+                    out = model.emotion_head(out)
                     out_np = torch.sigmoid(out).cpu().numpy()
                     lbl = t_labels[:, :6].cpu().numpy()
                     results["mosei_emotion"]["all_labels"].append(lbl)
@@ -1328,6 +1330,7 @@ def main():
             task_ids=global_task_ids,
             split_ids=global_split_ids,
             index_map=index_map,
+            dataset_ids=dataset_ids,
             all_labels=all_labels,
             manifest_data=manifest_data,
             feature_dims=FEATURE_DIMS,
@@ -1409,6 +1412,9 @@ def main():
         model.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
         start_epoch = ckpt["epoch"] + 1
+        # Restore unfrozen state from checkpoint
+        if "unfrozen" in ckpt:
+            model.unfrozen = ckpt["unfrozen"]
 
     # Training
     print("\n[4/6] Training...")
