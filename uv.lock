@@ -4145,6 +4145,7 @@ name = "thesis-experiment-5-unified-model"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "accelerate" },
     { name = "biopython" },
     { name = "captum" },
     { name = "datasets" },
@@ -4192,6 +4193,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "accelerate", specifier = ">=1.13.0" },
     { name = "biopython", specifier = ">=1.81" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "captum", specifier = ">=0.6.0" },

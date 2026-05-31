@@ -1,0 +1,53 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+flowchart LR
+    subgraph Phases["Experiment phases"]
+        V0["0. EDA and data contract"]
+        V1["1. Feature extraction"]
+        V2["2. Baselines"]
+        V3["3. Fusion"]
+        V4["4. MMoEEx"]
+        V5["5. Graph router"]
+        V6["6. Joint training"]
+        V7["7. LLM ablations"]
+        V8["8. Domain adaptation and ablations"]
+        V9["9. Evaluation and statistics"]
+        V10["10. XAI and thesis synthesis"]
+    end
+
+    subgraph Visuals["Visualization outputs"]
+        O0["Dataset EDA<br/>label distributions<br/>duration plots<br/>missing-modality heatmaps"]
+        O1["Feature-space plots<br/>UMAP/t-SNE<br/>embedding norms<br/>alignment panels"]
+        O2["Baseline plots<br/>metric bars with CIs<br/>confusion matrices<br/>prediction scatterplots"]
+        O3["Fusion plots<br/>modality gates<br/>cross-modal attention<br/>fusion success/failure samples"]
+        O4["Expert plots<br/>task-expert heatmaps<br/>expert diversity<br/>gate entropy"]
+        O5["Graph plots<br/>degree distribution<br/>dataset mixing<br/>KNN neighborhoods<br/>routing entropy"]
+        O6["Training dashboard<br/>loss curves<br/>uncertainty weights<br/>routing stability<br/>resource usage"]
+        O7["LLM comparison plots<br/>encoder ablations<br/>cost vs performance<br/>feature attribution shifts"]
+        O8["Ablation plots<br/>parallel coordinates<br/>domain alignment UMAPs<br/>component contribution matrix"]
+        O9["Statistical plots<br/>ROC/PR curves<br/>bootstrap CIs<br/>calibration curves<br/>Bland-Altman"]
+        O10["XAI case studies<br/>SHAP/IG force plots<br/>Grad-CAM panels<br/>GNN subgraphs<br/>GraphXAIN narratives"]
+    end
+
+    V0 --> O0
+    V1 --> O1
+    V2 --> O2
+    V3 --> O3
+    V4 --> O4
+    V5 --> O5
+    V6 --> O6
+    V7 --> O7
+    V8 --> O8
+    V9 --> O9
+    V10 --> O10
+
+    O0 --> Thesis["Thesis figures and debugging evidence"]
+    O1 --> Thesis
+    O2 --> Thesis
+    O3 --> Thesis
+    O4 --> Thesis
+    O5 --> Thesis
+    O6 --> Thesis
+    O7 --> Thesis
+    O8 --> Thesis
+    O9 --> Thesis
+    O10 --> Thesis

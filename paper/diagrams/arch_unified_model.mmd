@@ -1,0 +1,207 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+flowchart LR
+    %% =====================
+    %% Datasets and contract
+    %% =====================
+    subgraph DataLayer["Datasets and sample contract"]
+        DAIC["DAIC-WOZ<br/>session or turn samples<br/>depression + PHQ-8"]
+        MOSEI["CMU-MOSEI<br/>utterance samples<br/>sentiment + emotions"]
+        FI["ChaLearn FI<br/>clip samples<br/>apparent Big-Five"]
+        Contract["Unified sample contract<br/>sample_id + subject_id + dataset_id<br/>task masks + missing-modality masks<br/>official splits + no leakage"]
+        DAIC --> Contract
+        MOSEI --> Contract
+        FI --> Contract
+    end
+
+    Contract --> Inputs
+
+    %% =====================
+    %% Inputs and encoders
+    %% =====================
+    subgraph Inputs["Multimodal inputs"]
+        TextIn["Text / transcript"]
+        AudioIn["Audio waveform / acoustic features"]
+        VideoIn["Video frames / facial AUs"]
+    end
+
+    subgraph TextBranch["Text branch"]
+        TBase["RoBERTa / ClinicalBERT<br/>baseline encoder"]
+        TMistral["Mistral-7B-Instruct LoRA<br/>r=16, alpha=32<br/>q_proj + v_proj<br/>LLM text ablation"]
+        TTeacher["LLM teacher features<br/>symptom cues, discourse markers,<br/>transcript summaries"]
+        TextProj["Text projection<br/>to 256/512-d"]
+        TextIn --> TBase
+        TextIn --> TMistral
+        TextIn --> TTeacher
+        TBase --> TextProj
+        TMistral --> TextProj
+        TTeacher --> TextProj
+    end
+
+    subgraph AudioBranch["Audio branch"]
+        ABase["Wav2Vec 2.0 / HuBERT / WavLM<br/>speech representation baseline"]
+        AHand["eGeMAPS / COVAREP<br/>interpretable acoustic features"]
+        ALLM["Audio-LLM ablation<br/>Qwen2-Audio-like features<br/>paralinguistic descriptors"]
+        AudioProj["Audio projection<br/>to 256/512-d"]
+        AudioIn --> ABase
+        AudioIn --> AHand
+        AudioIn --> ALLM
+        ABase --> AudioProj
+        AHand --> AudioProj
+        ALLM --> AudioProj
+    end
+
+    subgraph VideoBranch["Video branch"]
+        VBase["OpenFace AUs<br/>interpretable facial actions"]
+        VDeep["ViT / 3D-ResNet<br/>spatiotemporal baseline"]
+        VLLM["Vision/Video-LLM ablation<br/>Qwen2.5-VL / LLaVA-OneVision-like features"]
+        VideoProj["Video projection<br/>to 256/512-d"]
+        VideoIn --> VBase
+        VideoIn --> VDeep
+        VideoIn --> VLLM
+        VBase --> VideoProj
+        VDeep --> VideoProj
+        VLLM --> VideoProj
+    end
+
+    %% =====================
+    %% Fusion
+    %% =====================
+    TextProj --> Fusion
+    AudioProj --> Fusion
+    VideoProj --> Fusion
+
+    subgraph Fusion["Low-rank / gated late fusion"]
+        Masking["Apply modality masks<br/>handle missing text/audio/video"]
+        LMF["LMF / gated fusion<br/>+ cross-modal attention"]
+        H["Shared fused embedding h_i"]
+        Masking --> LMF --> H
+    end
+
+    %% =====================
+    %% Domain adaptation
+    %% =====================
+    subgraph DomainAdapt["Domain adaptation ablations"]
+        MMD["MMD"]
+        CORAL["Deep CORAL"]
+        DANN["DANN + GRL"]
+        DomainViz["Domain visualizations<br/>UMAP by dataset<br/>alignment curves"]
+    end
+
+    H --> MMD
+    H --> CORAL
+    H --> DANN
+    MMD --> H
+    CORAL --> H
+    DANN --> H
+    MMD --> DomainViz
+    CORAL --> DomainViz
+    DANN --> DomainViz
+
+    %% =====================
+    %% MoE backbone
+    %% =====================
+    subgraph MoE["MMoEEx multitask backbone"]
+        Experts["Bank of K experts<br/>MLPs / small transformers"]
+        Gates["Task-specific gates<br/>g_t(h_i)"]
+        Excl["Expert diversity<br/>exclusivity + orthogonality regularization"]
+        H --> Experts
+        H --> Gates
+        Experts --> Excl
+    end
+
+    %% =====================
+    %% Graph construction and router
+    %% =====================
+    subgraph GraphBuild["Graph construction and leakage-safe protocol"]
+        HGraph["Graph embeddings<br/>h_i or ImageBind-style shared embeddings"]
+        SplitProtocol["Graph protocol<br/>main: inductive val/test<br/>ablation: transductive graph<br/>never use labels in graph edges"]
+        KNN["KNN similarity graph<br/>nodes=samples<br/>edges=multimodal similarity"]
+        GraphViz["Graph visualizations<br/>degree distribution<br/>dataset mixing<br/>UMAP + neighborhood examples"]
+        H --> HGraph
+        HGraph --> SplitProtocol --> KNN --> GraphViz
+    end
+
+    subgraph Router["Graph-gated MoE router"]
+        GraphSAGE["GraphSAGE / GAT router"]
+        R["Graph routing weights r_i"]
+        RouterEntropy["Router diagnostics<br/>expert usage + entropy"]
+        KNN --> GraphSAGE --> R --> RouterEntropy
+    end
+
+    %% =====================
+    %% Combine routing
+    %% =====================
+    Gates --> Combine
+    Experts --> Combine
+    R --> Combine
+
+    Combine["Combine task gate g_t(h_i)<br/>with graph routing r_i<br/>log-space fusion + softmax"]
+
+    Combine --> UDep["u_dep"]
+    Combine --> USent["u_sent"]
+    Combine --> UEmo["u_emo"]
+    Combine --> UPers["u_pers"]
+
+    %% =====================
+    %% Task heads
+    %% =====================
+    subgraph Heads["Task-specific heads"]
+        DepHead["DAIC depression head<br/>binary risk + PHQ-8 severity"]
+        SentHead["MOSEI sentiment head<br/>regression + optional Acc-2"]
+        EmoHead["MOSEI emotion head<br/>multi-label emotions"]
+        PersHead["FI personality head<br/>Big-Five regression"]
+    end
+
+    UDep --> DepHead
+    USent --> SentHead
+    UEmo --> EmoHead
+    UPers --> PersHead
+
+    %% =====================
+    %% Losses and evaluation
+    %% =====================
+    subgraph TrainEval["Training, calibration, and statistical evaluation"]
+        LDep["BCE + optional PHQ loss"]
+        LSent["MAE/MSE or CCC loss"]
+        LEmo["Multi-label BCE"]
+        LPers["MAE / CCC loss"]
+        Unc["Homoscedastic uncertainty weighting"]
+        TotalLoss["Total loss<br/>task losses + exclusivity + weight decay"]
+        Calib["Calibration<br/>Brier + ECE + reliability curves"]
+        Stats["Statistical tests<br/>BCa bootstrap CIs<br/>DeLong AUROC<br/>permutation tests"]
+        MetricViz["Metric visualizations<br/>bar plots with CIs<br/>parallel coordinates<br/>Bland-Altman plots"]
+        DepHead --> LDep --> Unc
+        SentHead --> LSent --> Unc
+        EmoHead --> LEmo --> Unc
+        PersHead --> LPers --> Unc
+        Unc --> TotalLoss
+        DepHead --> Calib
+        EmoHead --> Calib
+        DepHead --> Stats
+        SentHead --> Stats
+        EmoHead --> Stats
+        PersHead --> Stats
+        Stats --> MetricViz
+        Calib --> MetricViz
+    end
+
+    %% =====================
+    %% XAI
+    %% =====================
+    subgraph XAI["Explainability and narratives"]
+        SHAP["SHAP / Integrated Gradients<br/>modality and feature attribution"]
+        GradCAM["Grad-CAM / frame saliency<br/>visual evidence"]
+        GNNExp["GNNExplainer / PGExplainer<br/>important nodes, edges, subgraphs"]
+        RoutingXAI["Routing explanations<br/>expert weights + graph neighbors"]
+        GraphXAIN["GraphXAIN-style LLM narratives<br/>human-readable explanation"]
+        XAIViz["XAI visualizations<br/>subgraphs, force plots,<br/>routing heatmaps,<br/>case-study panels"]
+        H --> SHAP
+        VideoProj --> GradCAM
+        GraphSAGE --> GNNExp
+        R --> RoutingXAI
+        SHAP --> GraphXAIN
+        GradCAM --> GraphXAIN
+        GNNExp --> GraphXAIN
+        RoutingXAI --> GraphXAIN
+        GraphXAIN --> XAIViz
+    end

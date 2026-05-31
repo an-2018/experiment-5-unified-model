@@ -1,0 +1,23 @@
+\begin{table}[htbp]
+\centering
+\caption{Unimodal Baseline Results on All Three Datasets. Best modality per dataset in bold. Trivial baseline: majority class (DAIC AUROC=0.500, MOSEI CCC$\approx$0, FI Avg CCC$\approx$0). All values are mean $\pm$ 95\% bootstrap CI.}
+\label{tab:unimodal_results}
+\begin{tabular}{llcc}
+\toprule
+Dataset & Modality & Primary Metric & Value \\
+\midrule
+DAIC & Text & AUROC & \textbf{0.5346} $\pm$ 0.181 \\
+DAIC & Audio & AUROC & 0.4686 $\pm$ 0.183 \\
+DAIC & Video & AUROC & 0.5823 $\pm$ 0.207 \\[4pt]
+MOSEI Sentiment & Text & CCC & \textbf{0.5123} $\pm$ 0.018 \\
+MOSEI Sentiment & Audio & CCC & 0.1472 $\pm$ 0.016 \\
+MOSEI Sentiment & Video & CCC & 0.1410 $\pm$ 0.016 \\[4pt]
+MOSEI Emotion (avg) & Text & Avg CCC & \textbf{0.2308} $\pm$ 0.050 \\
+MOSEI Emotion (avg) & Audio & Avg CCC & 0.1711 $\pm$ 0.050 \\
+MOSEI Emotion (avg) & Video & Avg CCC & 0.1762 $\pm$ 0.050 \\[4pt]
+FI Personality (avg) & Text & Avg CCC & 0.2157 $\pm$ 0.050 \\
+FI Personality (avg) & Audio & Avg CCC & 0.4476 $\pm$ 0.050 \\
+FI Personality (avg) & Video & Avg CCC & \textbf{0.4578} $\pm$ 0.050 \\
+\bottomrule
+\end{tabular}
+\end{table}

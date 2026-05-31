@@ -1,0 +1,14 @@
+\begin{table}[htbp]
+\centering
+\caption{Dataset Summary: Sample Counts, Splits, Labels, and Modalities. All splits are subject/session/clip-independent. MOSEI dominance (120$\times$ larger than DAIC) is mitigated by temperature-balanced sampling (T=2.0). See \S\ref{sec:dataset}. Source: \texttt{configs/dataset\_contract.yaml}.}
+\label{tab:dataset_summary}
+\begin{tabular}{lcccc}
+\toprule
+Dataset & Train / Val / Test & Primary Label & Tasks & Best Modality \\
+\midrule
+DAIC-WOZ & 107 / 35 / 47 & PHQ-8 binary & Depression & Text (AUROC=0.5346) \\
+CMU-MOSEI & 16,265 / 1,869 / 4,643 & Sentiment score & Sentiment, Emotion & Text (CCC=0.5123) \\
+ChaLearn FI & 6,000 / 2,000 / 2,000 & Big-Five scores & Personality & Video (Avg CCC=0.4578) \\
+\bottomrule
+\end{tabular}
+\end{table}

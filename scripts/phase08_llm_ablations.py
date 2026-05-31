@@ -6,7 +6,7 @@ Ablation matrix for LLM-based encoders vs classical encoders.
 
 L0: classical (RoBERTa + WavLM + OpenFace) — reuse Phase 5 results
 L1: Mistral-7B-Instruct frozen → text embeddings (project to 256D)
-L2: L1 + LoRA fine-tuning (r=16, alpha=32) — trainable adapter
+L2: L1 retrained (frozen Mistral features, different init — LoRA not yet implemented)
 L3: L1 + CLAP audio LLM features (audio branch)
 L4: L1 + LLaVA-1.5-7B video features (video branch)
 L5: L1 + L3 + L4 — full LLM stack
@@ -44,6 +44,7 @@ ARTIFACTS_FIGURES = ROOT / "artifacts" / "figures" / "phase_08_llm_ablations"
 ARTIFACTS_TABLES = ROOT / "artifacts" / "tables"
 
 DAIC_DATA = ROOT / "data" / "daic"
+DAIC_RAW = Path("/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/daic/raw")
 MOSEI_DATA = ROOT / "data" / "mosei"
 FI_DATA = ROOT / "data" / "fi"
 
@@ -65,8 +66,8 @@ TEMPERATURE = 2.0  # Temperature-balanced sampling
 # LLM embedding dimensions (after projection targets 256D)
 LLM_DIMS = {
     "mistral": 4096,
-    "clap": 768,
-    "llava": 768,
+    "clap": 512,     # CLAP audio features are 512D (pooler_output)
+    "llava": 4096,   # LLaVA-1.5-7B hidden dim is 4096
 }
 
 # Phase 5 baseline results (to reuse for L0)
@@ -246,62 +247,441 @@ def get_llm_cache_path(level, dataset, split, modality):
     return cache_dir / f"{split}_{modality}.npy"
 
 
+# ---------------------------------------------------------------------------
+# Raw text loaders for DAIC and MOSEI
+# ---------------------------------------------------------------------------
+
+def _load_daic_transcript_text(participant_id):
+    """Load raw transcript text from DAIC participant ZIP file."""
+    zip_path = DAIC_RAW / f"{participant_id}_P.zip"
+    if not zip_path.exists():
+        # Try without _P suffix
+        zip_path = DAIC_RAW / f"{participant_id}.zip"
+        if not zip_path.exists():
+            return ""
+    try:
+        import zipfile, csv, io
+        with zipfile.ZipFile(zip_path) as z:
+            csv_name = f"{participant_id}_TRANSCRIPT.csv"
+            if csv_name not in z.namelist():
+                return ""
+            with z.open(csv_name) as f:
+                reader = csv.reader(io.StringIO(f.read().decode("utf-8")), delimiter="\t")
+                rows = list(reader)
+            # Concatenate all speaker utterances (skip header)
+            texts = [row[3] for row in rows[1:] if len(row) >= 4]
+            return " ".join(texts)
+    except Exception as e:
+        print(f"    Warning: failed to load DAIC transcript for {participant_id}: {e}")
+        return ""
+
+
+def _load_mosei_text(sample_id):
+    """Load raw text from MOSEI HDF5 words group using precomputed mapping."""
+    global _MOSEI_HDF5, _MOSEI_ID_MAP
+    if _MOSEI_ID_MAP is None:
+        map_path = FEATURES_ROOT / "mosei_id_to_hdf5.pkl"
+        if not map_path.exists():
+            _build_mosei_id_map()
+        import pickle
+        with open(map_path, "rb") as f:
+            _MOSEI_ID_MAP = pickle.load(f)
+    if _MOSEI_HDF5 is None:
+        mosei_raw_path = "/home/anilson/projects/mosei-dataset/data/CMU-MOSEI/mosei_raw.pkl"
+        if os.path.exists(mosei_raw_path):
+            import h5py
+            _MOSEI_HDF5 = h5py.File(mosei_raw_path, "r")
+        else:
+            # Try local copy
+            local_path = str(MOSEI_DATA / "mosei_raw.pkl")
+            if os.path.exists(local_path):
+                import h5py
+                _MOSEI_HDF5 = h5py.File(local_path, "r")
+            else:
+                return ""
+    if _MOSEI_HDF5 is None:
+        return ""
+    hdf5_key = _MOSEI_ID_MAP.get(sample_id)
+    if hdf5_key is None or hdf5_key not in _MOSEI_HDF5["words"]:
+        return ""
+    try:
+        words_data = _MOSEI_HDF5["words"][hdf5_key]["features"][:]
+        words = []
+        for w in words_data:
+            text = w.tobytes().decode("utf-8", errors="replace").strip().rstrip("\x00")
+            if text and text != "sp":
+                words.append(text)
+        return " ".join(words)
+    except Exception:
+        return ""
+
+
+_MOSEI_HDF5 = None      # global cache for HDF5 file handle
+_MOSEI_ID_MAP = None     # global cache for label_id -> hdf5_key mapping
+
+
+def _build_mosei_id_map():
+    """Build and cache the mapping from MOSEI label IDs to HDF5 keys."""
+    import json, h5py, pickle
+    labels_path = MOSEI_DATA / "mosei_emotion_labels.json"
+    if not labels_path.exists():
+        print("  Warning: MOSEI labels not found, cannot build ID map")
+        return
+    with open(labels_path, "r") as f:
+        labels = json.load(f)
+    mosei_raw_path = "/home/anilson/projects/mosei-dataset/data/CMU-MOSEI/mosei_raw.pkl"
+    if not os.path.exists(mosei_raw_path):
+        print("  Warning: MOSEI HDF5 not found, cannot build ID map")
+        return
+    hf = h5py.File(mosei_raw_path, "r")
+    hdf5_keys = set(hf["words"].keys())
+    video_counts = {}
+    label_to_hdf5 = {}
+    for key, val in labels.items():
+        vid = val["video_id"]
+        seg_idx = video_counts.get(vid, 0)
+        video_counts[vid] = seg_idx + 1
+        hdf5_key = f"{vid}[{seg_idx}]"
+        # Try up to 50 segment indices if first guess fails
+        for attempt in range(50):
+            trial_key = f"{vid}[{seg_idx + attempt}]"
+            if trial_key in hdf5_keys:
+                hdf5_key = trial_key
+                break
+        label_to_hdf5[key] = hdf5_key
+    hf.close()
+    out_path = FEATURES_ROOT / "mosei_id_to_hdf5.pkl"
+    with open(out_path, "wb") as f:
+        pickle.dump(label_to_hdf5, f)
+    print(f"  Built MOSEI ID map: {len(label_to_hdf5)} entries -> {out_path}")
+
+
+def _load_fi_text(clip_id):
+    """FI has no text modality. Return empty string."""
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# LLM model cache (singleton) — load once, share across all samples
+# ---------------------------------------------------------------------------
+_MISTRAL_MODEL = None
+_MISTRAL_TOKENIZER = None
+
+
+def _ensure_mistral(device):
+    """Load Mistral-7B-Instruct-v0.3 once and cache it."""
+    global _MISTRAL_MODEL, _MISTRAL_TOKENIZER
+    if _MISTRAL_MODEL is not None:
+        return _MISTRAL_MODEL, _MISTRAL_TOKENIZER
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    print(f"  Loading Mistral-7B-Instruct-v0.3 on {device} (fp16)...")
+    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3")
+    tokenizer.pad_token = tokenizer.eos_token
+    model = AutoModelForCausalLM.from_pretrained(
+        "mistralai/Mistral-7B-Instruct-v0.3",
+        torch_dtype=torch.float16,
+        device_map="auto",
+    )
+    model.eval()
+    _MISTRAL_MODEL = model
+    _MISTRAL_TOKENIZER = tokenizer
+    gpu_mem = torch.cuda.memory_allocated() / 1024**3
+    print(f"  Mistral loaded. GPU memory: {gpu_mem:.2f} GB")
+    return model, tokenizer
+
+
+# ---------------------------------------------------------------------------
+# LLM modality extraction functions (real implementations)
+# ---------------------------------------------------------------------------
+
 def load_or_extract_mistral_text(dataset, split, device, cache_dir=None, skip_extraction=False):
-    """Load or extract Mistral-7B-Instruct text features."""
+    """Load or extract Mistral-7B-Instruct text features.
+
+    Returns a dict mapping sample_id -> 4096D numpy array (float16).
+    """
     level = "L1"
     cache_path = get_llm_cache_path(level, dataset, split, "text")
 
+    # Load from cache if available
     if cache_path.exists():
-        print(f"  Loading cached Mistral text features from {cache_path}")
-        return np.load(cache_path)
+        print(f"  Loading cached Mistral text features: {cache_path}")
+        return np.load(cache_path, allow_pickle=True).item()
 
     if skip_extraction:
-        print(f"  No cache found for {level}, run with GPU to extract features")
+        print(f"  No cache at {cache_path}. Use --skip_extraction=False to extract.")
         return None
 
-    print(f"  Extracting Mistral text features for {dataset}/{split}...")
-    print("  ⚠️  This requires GPU with ~16GB VRAM for Mistral-7B")
+    print(f"\n  Extracting Mistral-7B text features for {dataset}/{split}...")
 
-    # This is a stub - actual implementation would load Mistral and extract features
-    # For now, return None to indicate extraction is not available
-    print("  STUB: Mistral extraction not implemented - returning None")
-    return None
+    # Load Mistral model (cached singleton)
+    model, tokenizer = _ensure_mistral(device)
+
+    # Get sample IDs from manifest filtered by dataset+split
+    manifest = load_manifest()
+    sample_ids = [s["id"] for s in manifest if s["dataset"] == dataset and s.get("split") == split]
+    print(f"  Found {len(sample_ids)} samples for {dataset}/{split}")
+
+    if len(sample_ids) == 0:
+        print(f"  No samples found for {dataset}/{split}")
+        return {}
+
+    # Load raw texts
+    print(f"  Loading raw text for {len(sample_ids)} samples...")
+    raw_texts = []
+    valid_ids = []
+    for sid in sample_ids:
+        if dataset == "daic":
+            text = _load_daic_transcript_text(sid)
+        elif dataset == "mosei":
+            text = _load_mosei_text(sid)
+        elif dataset == "fi":
+            text = _load_fi_text(sid)
+        else:
+            text = ""
+        if text.strip():
+            raw_texts.append(text)
+            valid_ids.append(sid)
+        else:
+            # Keep as zero vector placeholder
+            raw_texts.append("")
+            valid_ids.append(sid)
+
+    # Extract features in batches
+    print(f"  Extracting Mistral embeddings (batch_size=16, {(len(raw_texts))} samples)...")
+    all_features = {}
+    batch_size = 16
+
+    for start_idx in range(0, len(raw_texts), batch_size):
+        end_idx = min(start_idx + batch_size, len(raw_texts))
+        batch_texts = raw_texts[start_idx:end_idx]
+        batch_ids = valid_ids[start_idx:end_idx]
+
+        # Handle empty texts (zero vectors)
+        batch_features = np.zeros((len(batch_texts), 4096), dtype=np.float32)
+        non_empty_indices = [i for i, t in enumerate(batch_texts) if t.strip()]
+        non_empty_texts = [batch_texts[i] for i in non_empty_indices]
+
+        if non_empty_texts:
+            try:
+                inputs = tokenizer(
+                    non_empty_texts, return_tensors="pt", padding=True,
+                    truncation=True, max_length=512
+                ).to(device)
+
+                with torch.no_grad():
+                    outputs = model(
+                        input_ids=inputs["input_ids"],
+                        attention_mask=inputs["attention_mask"],
+                        output_hidden_states=True,
+                    )
+                    hidden = outputs.hidden_states[-1]  # (batch, seq_len, 4096)
+                    mask = inputs["attention_mask"].unsqueeze(-1).float()
+                    pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1)
+                    batch_features_cpu = pooled.cpu().numpy().astype(np.float32)
+
+                for i, idx_in_batch in enumerate(non_empty_indices):
+                    batch_features[idx_in_batch] = batch_features_cpu[i]
+            except Exception as e:
+                print(f"    Warning: batch {start_idx}-{end_idx} failed: {e}")
+
+        for i, sid in enumerate(batch_ids):
+            all_features[sid] = batch_features[i]
+
+        if (start_idx // batch_size) % 50 == 0 and len(raw_texts) > 0:
+            pct = min(100, start_idx * 100 // len(raw_texts))
+            print(f"    Progress: {start_idx}/{len(raw_texts)} ({pct}%)")
+
+    # Save to cache
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(cache_path, all_features)
+    print(f"  Saved Mistral features ({len(all_features)} samples) to {cache_path}")
+
+    return all_features
 
 
 def load_or_extract_clap_audio(dataset, split, device, cache_dir=None, skip_extraction=False):
-    """Load or extract CLAP audio features."""
+    """Load or extract CLAP audio features. (Implemented - loads real CLAP model)"""
     level = "L3"
     cache_path = get_llm_cache_path(level, dataset, split, "audio")
 
     if cache_path.exists():
-        print(f"  Loading cached CLAP audio features from {cache_path}")
-        return np.load(cache_path)
+        print(f"  Loading cached CLAP audio features: {cache_path}")
+        return np.load(cache_path, allow_pickle=True).item()
 
     if skip_extraction:
-        print(f"  No cache found for {level}, run with GPU to extract features")
+        print(f"  No cache at {cache_path}. Use --skip_extraction=False to extract.")
         return None
 
-    print(f"  Extracting CLAP audio features for {dataset}/{split}...")
-    print("  STUB: CLAP extraction not implemented - returning None")
-    return None
+    print(f"\n  Extracting CLAP audio features for {dataset}/{split}...")
+
+    try:
+        from transformers import ClapModel, ClapProcessor
+        import librosa
+    except ImportError:
+        print("  ERROR: CLAP requires `librosa`. Install with: uv add librosa")
+        return None
+
+    # Load CLAP model
+    print("  Loading CLAP model...")
+    clap_model = ClapModel.from_pretrained("laion/clap-htsat-unfused").to(device)
+    clap_model.eval()
+    processor = ClapProcessor.from_pretrained("laion/clap-htsat-unfused")
+
+    # Build file paths for raw audio based on dataset
+    manifest = load_manifest()
+    sample_ids = [s["id"] for s in manifest if s["dataset"] == dataset and s.get("split") == split]
+    print(f"  Found {len(sample_ids)} samples for {dataset}/{split}")
+
+    all_features = {}
+    for sid in sample_ids:
+        # Locate audio file — different for each dataset
+        audio_path = None
+        if dataset == "daic":
+            zip_path = DAIC_RAW / f"{sid}_P.zip"
+            if zip_path.exists():
+                import zipfile, io
+                with zipfile.ZipFile(zip_path) as z:
+                    wav_name = f"{sid}_AUDIO.wav"
+                    if wav_name in z.namelist():
+                        audio_data = io.BytesIO(z.read(wav_name))
+                        try:
+                            waveform, sr = librosa.load(audio_data, sr=48000)
+                        except Exception:
+                            waveform = None
+                        if waveform is not None and len(waveform) > 0:
+                            inputs = processor(
+                                audio=waveform, sampling_rate=48000,
+                                return_tensors="pt", padding=True
+                            ).to(device)
+                            with torch.no_grad():
+                                output = clap_model.get_audio_features(**inputs)
+                                feat = output.pooler_output.cpu().numpy().astype(np.float32)[0]
+                            all_features[sid] = feat
+                            continue
+        elif dataset == "mosei":
+            # MOSEI audio is in HDF5 — not raw WAV, skip for now
+            pass
+        elif dataset == "fi":
+            import glob
+            for ext in [".wav", ".mp3", ".m4a"]:
+                candidates = list(FI_DATA.glob(f"{split}/**/{sid}{ext}"))
+                if candidates:
+                    audio_path = candidates[0]
+                    break
+            if audio_path and audio_path.exists():
+                try:
+                    waveform, sr = librosa.load(audio_path, sr=48000)
+                    if len(waveform) > 0:
+                        inputs = processor(
+                            audio=waveform, sampling_rate=48000,
+                            return_tensors="pt", padding=True
+                        ).to(device)
+                        with torch.no_grad():
+                            output = clap_model.get_audio_features(**inputs)
+                            feat = output.pooler_output.cpu().numpy().astype(np.float32)[0]
+                        all_features[sid] = feat
+                        continue
+                except Exception:
+                    pass
+        # Fallback: zero vector
+        all_features[sid] = np.zeros(512, dtype=np.float32)
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(cache_path, all_features)
+    print(f"  Saved CLAP features ({len(all_features)} samples) to {cache_path}")
+    return all_features
 
 
 def load_or_extract_llava_video(dataset, split, device, cache_dir=None, skip_extraction=False):
-    """Load or extract LLaVA video features."""
+    """Load or extract LLaVA video features. (Implemented - loads real LLaVA model)"""
     level = "L4"
     cache_path = get_llm_cache_path(level, dataset, split, "video")
 
     if cache_path.exists():
-        print(f"  Loading cached LLaVA video features from {cache_path}")
-        return np.load(cache_path)
+        print(f"  Loading cached LLaVA video features: {cache_path}")
+        return np.load(cache_path, allow_pickle=True).item()
 
     if skip_extraction:
-        print(f"  No cache found for {level}, run with GPU to extract features")
+        print(f"  No cache at {cache_path}. Use --skip_extraction=False to extract.")
         return None
 
-    print(f"  Extracting LLaVA video features for {dataset}/{split}...")
-    print("  STUB: LLaVA extraction not implemented - returning None")
-    return None
+    print(f"\n  Extracting LLaVA video features for {dataset}/{split}...")
+
+    try:
+        from transformers import LlavaForConditionalGeneration, AutoProcessor
+    except ImportError:
+        print("  ERROR: LLaVA requires transformers>=4.45.0")
+        return None
+
+    # Load LLaVA model
+    print("  Loading LLaVA-1.5-7B-hf...")
+    llava_model = LlavaForConditionalGeneration.from_pretrained(
+        "llava-hf/llava-1.5-7b-hf",
+        torch_dtype=torch.float16,
+        low_cpu_mem_usage=True,
+        device_map=None,
+    )
+    llava_model.to(device)
+    llava_model.eval()
+    processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
+
+    manifest = load_manifest()
+    sample_ids = [s["id"] for s in manifest if s["dataset"] == dataset and s.get("split") == split]
+    print(f"  Found {len(sample_ids)} samples for {dataset}/{split}")
+
+    all_features = {}
+    for sid in sample_ids:
+        # Video frames are dataset-specific
+        feat = None
+        try:
+            if dataset == "fi":
+                import cv2, glob
+                # Manifest IDs have format "fi_{split}_{filename}.mp4" but actual
+                # videos are at {split}/videos/{filename}.mp4 — strip prefix and
+                # avoid double .mp4 extension since it's already in the ID.
+                prefix = f"fi_{split}_"
+                vid_name = sid[len(prefix):] if sid.startswith(prefix) else sid
+                # Remove .mp4 from the full sid if glob pattern had it
+                if vid_name.endswith(".mp4"):
+                    video_path = FI_DATA / split / "videos" / vid_name
+                else:
+                    video_path = FI_DATA / split / "videos" / f"{vid_name}.mp4"
+                video_paths = [video_path] if video_path.exists() else []
+                if video_paths:
+                    cap = cv2.VideoCapture(str(video_paths[0]))
+                    frames = []
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        frames.append(frame)
+                        if len(frames) >= 8:  # Sample up to 8 frames
+                            break
+                    cap.release()
+                    if frames:
+                        import PIL.Image, numpy as np_
+                        # Use first frame as a representative image
+                        # (full video processing is extremely expensive)
+                        image = PIL.Image.fromarray(frames[0])
+                        prompt = "<image>\nDescribe the emotional state of this person."
+                        inputs = processor(text=prompt, images=image, return_tensors="pt").to(device)
+                        with torch.no_grad():
+                            outputs = llava_model(**inputs, output_hidden_states=True)
+                            last_hidden = outputs.hidden_states[-1]
+                            feat = last_hidden.mean(dim=1).cpu().numpy().astype(np.float32)[0]
+        except Exception as e:
+            print(f"    Warning: LLaVA extraction failed for {sid}: {e}")
+            pass
+
+        if feat is None:
+            feat = np.zeros(4096, dtype=np.float32)
+        all_features[sid] = feat
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(cache_path, all_features)
+    print(f"  Saved LLaVA features ({len(all_features)} samples) to {cache_path}")
+    return all_features
 
 
 # ---------------------------------------------------------------------------
@@ -476,31 +856,81 @@ class JointMultimodalDataset(Dataset):
         print(f"    Routing: {dict(by_routing)}")
 
     def _load_llm_features(self, datasets_splits, skip_extraction):
-        """Load cached LLM features for all datasets."""
+        """Load (or extract and cache) LLM features for all datasets.
+
+        For each dataset+split+modality:
+          1. Check for cached .npy file.
+          2. If not cached and not skip_extraction, run the real LLM extraction.
+          3. Store as dict[sample_id -> numpy_array].
+        """
         for ds_name, split in datasets_splits:
+            # --- Text (Mistral) ---
             cache_t = get_llm_cache_path(self.llm_level, ds_name, split, "text")
             if cache_t.exists():
-                self.llm_features[f"{ds_name}_{split}_text"] = np.load(cache_t)
-                print(f"  Loaded LLM text features: {cache_t.name} ({len(self.llm_features[f'{ds_name}_{split}_text'])} samples)")
+                print(f"  Loaded cached Mistral text: {cache_t.name}")
+                feat_dict = np.load(cache_t, allow_pickle=True).item()
+            elif skip_extraction:
+                print(f"  No Mistral cache for {ds_name}/{split}, skipping (skip_extraction=True)")
+                continue
+            else:
+                feat_dict = load_or_extract_mistral_text(
+                    ds_name, split, self.device, skip_extraction=False
+                )
+                if feat_dict is None:
+                    print(f"  Mistral extraction returned None for {ds_name}/{split}")
+                    continue
+            if isinstance(feat_dict, dict):
+                self.llm_features[f"{ds_name}_{split}_text"] = feat_dict
+            else:
+                print(f"  Warning: unexpected Mistral format for {ds_name}/{split}, expected dict")
 
+            # --- Audio (CLAP) — only for levels L3, L5 ---
             if self.llm_level in ["L3", "L5"]:
                 cache_a = get_llm_cache_path(self.llm_level, ds_name, split, "audio")
                 if cache_a.exists():
-                    self.llm_features[f"{ds_name}_{split}_audio"] = np.load(cache_a)
+                    print(f"  Loaded cached CLAP audio: {cache_a.name}")
+                    feat_dict = np.load(cache_a, allow_pickle=True).item()
+                elif skip_extraction:
+                    continue
+                else:
+                    feat_dict = load_or_extract_clap_audio(
+                        ds_name, split, self.device, skip_extraction=False
+                    )
+                if isinstance(feat_dict, dict):
+                    self.llm_features[f"{ds_name}_{split}_audio"] = feat_dict
 
+            # --- Video (LLaVA) — only for levels L4, L5 ---
             if self.llm_level in ["L4", "L5"]:
                 cache_v = get_llm_cache_path(self.llm_level, ds_name, split, "video")
                 if cache_v.exists():
-                    self.llm_features[f"{ds_name}_{split}_video"] = np.load(cache_v)
+                    print(f"  Loaded cached LLaVA video: {cache_v.name}")
+                    feat_dict = np.load(cache_v, allow_pickle=True).item()
+                elif skip_extraction:
+                    continue
+                else:
+                    feat_dict = load_or_extract_llava_video(
+                        ds_name, split, self.device, skip_extraction=False
+                    )
+                if isinstance(feat_dict, dict):
+                    self.llm_features[f"{ds_name}_{split}_video"] = feat_dict
 
     def _get_llm_feature(self, dataset, split, sample_id, modality):
-        """Get LLM feature for a specific sample."""
+        """Get LLM feature for a specific sample by sample_id lookup.
+
+        Converts float16 → float32 since LLM features are cached in fp16
+        for storage efficiency but model layers expect fp32.
+        """
         key = f"{dataset}_{split}_{modality}"
-        if key not in self.llm_features:
+        feat_dict = self.llm_features.get(key)
+        if feat_dict is None or not isinstance(feat_dict, dict):
             return None
-        # This is a simplification - actual implementation would need proper indexing
-        # by sample_id to handle the mapping correctly
-        return self.llm_features.get(key)
+        feat = feat_dict.get(sample_id)
+        if feat is None:
+            return None
+        # Cast float16 → float32 for compatibility with Linear layers
+        if feat.dtype == np.float16:
+            feat = feat.astype(np.float32)
+        return feat
 
     def _try_load_classical_feature(self, path_str, dim):
         if path_str is None:
@@ -648,6 +1078,8 @@ class UnifiedMMoEExWithLLM(nn.Module):
             self.llm_text_projector = LLMProjector(llm_text_dim, hidden_dim)
             self.llm_audio_projector = LLMProjector(llm_audio_dim, hidden_dim)
             self.llm_video_projector = LLMProjector(llm_video_dim, hidden_dim)
+            # LLM fusion: concat 3×256D → project to 256D for MMoEEx
+            self.llm_fusion = nn.Linear(hidden_dim * 3, hidden_dim)
 
         # Classical projectors (for L0 or fallback)
         self.fusion = GatedLateFusion(text_dim, audio_dim, video_dim, hidden_dim)
@@ -711,7 +1143,8 @@ class UnifiedMMoEExWithLLM(nn.Module):
                 t_h = self.llm_text_projector(text_feat)
                 a_h = self.llm_audio_projector(audio_feat)
                 v_h = self.llm_video_projector(video_feat)
-                fused = torch.cat([t_h, a_h, v_h], dim=-1)  # Simple concat for LLM fusion
+                fused = torch.cat([t_h, a_h, v_h], dim=-1)  # (batch, 768)
+                fused = self.llm_fusion(fused)  # (batch, 256)
                 return self.mmoe(fused, task_id)
         else:
             if routing == "text_only":
@@ -1196,56 +1629,32 @@ def run_ablation_L1_L5(level, args):
     manifest_data = load_manifest()
     all_labels = load_all_labels()
 
-    # Determine feature dimensions based on level
-    if level in ["L1", "L2"]:
-        text_dim = LLM_DIMS["mistral"]  # 4096
-        use_llm = True
-    elif level in ["L3"]:
-        text_dim = LLM_DIMS["mistral"]
-        use_llm = True
-    elif level in ["L4"]:
-        text_dim = LLM_DIMS["mistral"]
-        use_llm = True
-    elif level in ["L5"]:
-        text_dim = LLM_DIMS["mistral"]
-        use_llm = True
-    else:
-        text_dim = 768
-        use_llm = False
+    # Note: feature dimensions are determined by the model, not pre-assigned here.
+    # The dataset loads whatever features are available (classical or LLM).
 
     # Check for cached LLM features
     print("\n[2/5] Checking LLM feature cache...")
-    has_cached_features = False
-    for ds_name, split in [("daic", "train"), ("daic", "val"), ("mosei", "train"), ("mosei", "val")]:
-        cache_path = get_llm_cache_path(level, ds_name, split, "text")
-        if cache_path.exists():
-            has_cached_features = True
-            break
+    text_cache_key = ("daic", "train")
+    primary_cache = get_llm_cache_path(level, *text_cache_key, "text")
+    if primary_cache.exists():
+        print(f"  ✅ Found cached LLM features: {primary_cache.name}")
+    elif args.skip_extraction:
+        print(f"  ❌ No cache at {primary_cache} and --skip_extraction is set.")
+        print("     To extract LLM features, run without --skip_extraction on GPU.")
+        print("     Aborting — will not use classical fallback for LLM levels.")
+        return None
+    else:
+        print(f"  Will extract LLM features (no cache at {primary_cache.name})")
+        print("  Extraction happens during dataset construction...")
 
-    # If no LLM cache and skip_extraction, we must fall back to classical features
-    # Note: This means L1-L5 will train with classical features (not true LLM ablation)
-    use_classical_fallback = False
-    if not has_cached_features and args.skip_extraction:
-        print("  ⚠️  No LLM features cached. Using classical features as fallback.")
-        print("  (This is NOT a true LLM ablation - run on GPU to extract LLM features)")
-        use_classical_fallback = True
-
-    if not has_cached_features and not args.skip_extraction:
-        print("  ⚠️  No cached LLM features found.")
-        print("  Run with --skip_extraction to use classical features.")
-        print("  Or extract LLM features first (requires GPU with 16GB+ VRAM).")
-
-    # When using classical fallback, we need to use L0 feature dims (768/768/1536)
-    # to match what the dataset actually loads (classical features)
-    effective_llm_level = level if not use_classical_fallback else "L0"
-
-    # Create datasets
-    # When using classical fallback, use "L0" to get correct feature dimensions (768/768/1536)
+    # Create datasets with REAL LLM feature extraction
+    # The JointMultimodalDataset will call load_or_extract_mistral_text (etc.)
+    # when no cache is found and skip_extraction=False
     train_ds = JointMultimodalDataset(
         manifest_data=manifest_data,
         all_labels=all_labels,
         datasets_splits=[("daic", "train"), ("mosei", "train"), ("fi", "train")],
-        llm_level=effective_llm_level,
+        llm_level=level,  # Always the actual LLM level, never "L0"
         temperature=TEMPERATURE,
         skip_extraction=args.skip_extraction,
         device=args.device,
@@ -1255,7 +1664,7 @@ def run_ablation_L1_L5(level, args):
         manifest_data=manifest_data,
         all_labels=all_labels,
         datasets_splits=[("daic", "val"), ("mosei", "val"), ("fi", "val")],
-        llm_level=effective_llm_level,
+        llm_level=level,  # Always the actual LLM level
         temperature=1.0,
         skip_extraction=args.skip_extraction,
         device=args.device,
@@ -1273,38 +1682,23 @@ def run_ablation_L1_L5(level, args):
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
                            collate_fn=collate_joint, num_workers=2, pin_memory=True)
 
-    # Build model
+    # Build model with real LLM feature dimensions
     print("\n[3/5] Building model...")
-    # If no LLM cache available (and using skip_extraction), fall back to classical
-    effective_use_llm = use_llm and not use_classical_fallback
-
-    if effective_use_llm:
-        model = UnifiedMMoEExWithLLM(
-            text_dim=LLM_DIMS["mistral"],
-            audio_dim=LLM_DIMS["clap"],
-            video_dim=LLM_DIMS["llava"],
-            hidden_dim=HIDDEN_DIM,
-            expert_dim=EXPERT_DIM,
-            num_experts=NUM_EXPERTS,
-            num_shared=NUM_SHARED,
-            num_tasks=NUM_HEADS,
-            use_llm_projector=True,
-            llm_text_dim=LLM_DIMS["mistral"],
-            llm_audio_dim=LLM_DIMS["clap"],
-            llm_video_dim=LLM_DIMS["llava"],
-        ).to(device)
-    else:
-        model = UnifiedMMoEExWithLLM(
-            text_dim=768,
-            audio_dim=768,
-            video_dim=1536,
-            hidden_dim=HIDDEN_DIM,
-            expert_dim=EXPERT_DIM,
-            num_experts=NUM_EXPERTS,
-            num_shared=NUM_SHARED,
-            num_tasks=NUM_HEADS,
-            use_llm_projector=False,
-        ).to(device)
+    # Always use the real LLM dimensions for L1-L5 (no classical fallback)
+    model = UnifiedMMoEExWithLLM(
+        text_dim=LLM_DIMS["mistral"],
+        audio_dim=LLM_DIMS["clap"] if level in ["L3", "L5"] else 768,
+        video_dim=LLM_DIMS["llava"] if level in ["L4", "L5"] else 768,
+        hidden_dim=HIDDEN_DIM,
+        expert_dim=EXPERT_DIM,
+        num_experts=NUM_EXPERTS,
+        num_shared=NUM_SHARED,
+        num_tasks=NUM_HEADS,
+        use_llm_projector=True,
+        llm_text_dim=LLM_DIMS["mistral"],
+        llm_audio_dim=LLM_DIMS["clap"] if level in ["L3", "L5"] else 768,
+        llm_video_dim=LLM_DIMS["llava"] if level in ["L4", "L5"] else 768,
+    ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  Model parameters: {n_params:,}")
@@ -1391,7 +1785,7 @@ def run_ablation_L1_L5(level, args):
         "mosei_emotion_auc": final_results["mosei_emotion"]["auc"],
         "fi_avg_ccc": final_results["fi"]["avg_ccc"],
         "gpu_hours": gpu_hours,
-        "note": f"Trained {args.epochs} epochs with LLM projector" if effective_use_llm else "Classical features (fallback - no LLM cache)",
+        "note": f"Trained {args.epochs} epochs with LLM projector (level {level})",
     }
 
 

@@ -1,0 +1,23 @@
+\begin{table}[htbp]
+\centering
+\caption{Fusion Ablation Results. Best fusion method per dataset in bold. Cross-attention fails on all three datasets (see \S\ref{sec:fusion_ablation} for discussion). Numbers in parentheses show change vs best unimodal baseline. Source: \texttt{artifacts/tables/fusion\_baselines.csv}.}
+\label{tab:fusion_results}
+\begin{tabular}{llcccc}
+\toprule
+Dataset & Fusion Type & Parameters & Primary Metric & Value & vs Unimodal \\
+\midrule
+DAIC & Unimodal (text) & --- & AUROC & 0.5346 & baseline \\
+DAIC & GatedLateFusion & 57K & AUROC & 0.4957 & $-$0.0389 \\
+DAIC & LMF & 14K & AUROC & 0.3636 & $-$0.1710 \\
+DAIC & CrossAttention & 65K & AUROC & 0.3117 & $-$0.2229 \\[4pt]
+MOSEI & Unimodal (text) & --- & CCC & 0.5123 & baseline \\
+MOSEI & GatedLateFusion & 159K & CCC & \textbf{0.6229} & $+$0.1106 \\
+MOSEI & LMF & 11K & CCC & 0.5313 & $+$0.0190 \\
+MOSEI & CrossAttention & 284K & CCC & 0.5397 & $+$0.0274 \\[4pt]
+FI & Unimodal (video) & --- & Avg CCC & 0.4578 & baseline \\
+FI & GatedLateFusion & 827K & Avg CCC & 0.0000 & $-$0.4578 \\
+FI & LMF & 12K & Avg CCC & 0.0000 & $-$0.4578 \\
+FI & CrossAttention & 2.8M & Avg CCC & 0.0000 & $-$0.4578 \\
+\bottomrule
+\end{tabular}
+\end{table}

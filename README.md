@@ -63,17 +63,87 @@ uv run python scripts/phase04_fusion.py --dataset fi --fusion gated
 uv run python scripts/phase05_mmoeex.py --dataset all --tasks depression,sentiment,emotion,personality
 
 # Phase 6 — Graph construction (split-local = primary results, inductive = final eval)
+# V0–V4 ablation (runs none/graphsage/gat, then inductive variants — primary result)
+uv run python scripts/phase06_graph.py --run_ablation --graph_type split-local --k 10 --epochs 150
+
+# Individual graph builds (for visualization and inspection)
 uv run python scripts/phase06_graph.py --graph_type split-local --k 10
 uv run python scripts/phase06_graph.py --graph_type inductive --k 10
 
+# Single router variant (no ablation)
+uv run python scripts/phase06_graph.py --graph_type split-local --k 10 --router graphsage --epochs 150
+
 # Phase 7 — Joint multitask training
-uv run python scripts/phase07_joint_training.py --epochs 50 --batch_size 32 --temperature 2.0
+# Quick test (3 epochs, no graph routing — fast iteration)
+uv run python scripts/phase07_joint_training.py --epochs 3 --quick_test --router none --graph_type split-local --temperature 2.0
+
+# Full training run — primary result (GraphSAGE router, 150 epochs)
+uv run python scripts/phase07_joint_training.py \
+  --epochs 150 --router graphsage --graph_type split-local \
+  --k 10 --graph_weight 0.5 --freeze_epochs 20 \
+  --temperature 2.0 --batch_size 32 --lr 1e-3 \
+  --device cuda 2>&1 | tee logs/phase07_full_run.log
+
+# Ablation: run router=none, graphsage, gat separately (no --run_ablation flag)
+# V0 (no graph): router=none
+# V1 (GraphSAGE): router=graphsage
+# V2 (GAT): router=gat
+uv run python scripts/phase07_joint_training.py --epochs 150 --router graphsage --graph_type split-local --k 10 --graph_weight 0.5 --freeze_epochs 20 --temperature 2.0
+uv run python scripts/phase07_joint_training.py --epochs 150 --router gat --graph_type split-local --k 10 --graph_weight 0.5 --freeze_epochs 20 --temperature 2.0
+uv run python scripts/phase07_joint_training.py --epochs 150 --router none --graph_type split-local --k 10 --graph_weight 0.5 --freeze_epochs 20 --temperature 2.0
+
+# Resume from checkpoint (e.g., after GPU crash)
+uv run python scripts/phase07_joint_training.py \
+  --resume artifacts/tables/phase07_best.pt \
+  --epochs 150 --router graphsage --graph_type split-local \
+  --k 10 --graph_weight 0.5 --freeze_epochs 20 \
+  --temperature 2.0 --batch_size 32 --lr 1e-3
 
 # Phase 8 — LLM modality ablations (L0–L9)
-uv run python scripts/phase08_llm_ablations.py --ablation L0   # classical encoders
-uv run python scripts/phase08_llm_ablations.py --ablation L1   # Mistral frozen
-uv run python scripts/phase08_llm_ablations.py --ablation L3   # audio LLM
-uv run python scripts/phase08_llm_ablations.py --ablation L5   # full LLM stack
+
+## Primary: run all levels sequentially
+# Auto-detects GPU, runs L0-L5 with real Mistral/CLAP/LLaVA extraction + 30 epochs each.
+# First run: ~14-19 hours (extraction + training). After caching: ~1-3 hours.
+bash scripts/run_phase08_all.sh --execute --epochs 30 --device cuda
+
+# To skip LLM extraction (use cache from previous run):
+bash scripts/run_phase08_all.sh --execute --epochs 30 --device cuda --skip_extraction
+
+# Generate summary report (CSV + figures) from existing results:
+bash scripts/run_phase08_all.sh --report
+
+# Resume from checkpoint (skip completed levels):
+bash scripts/run_phase08_all.sh --execute --resume --device cuda
+
+## Individual levels (alternative to the full orchestration above)
+# L0: Classical encoders — instant (reuses Phase 5 results, no GPU needed)
+uv run python scripts/phase08_llm_ablations.py --ablation L0 --epochs 30
+
+# L1: Mistral-7B frozen text encoder — requires GPU for feature extraction
+#     Features cached to data/features/llm/L1/ after first run
+uv run python scripts/phase08_llm_ablations.py --ablation L1 --epochs 30 --device cuda
+
+# L2: Mistral + LoRA (r=16, alpha=32) — trainable adapter, requires GPU
+uv run python scripts/phase08_llm_ablations.py --ablation L2 --epochs 30 --device cuda
+
+# L3: CLAP audio LLM features — requires GPU
+uv run python scripts/phase08_llm_ablations.py --ablation L3 --epochs 30 --device cuda
+
+# L4: LLaVA-1.5-7B video features — requires GPU
+uv run python scripts/phase08_llm_ablations.py --ablation L4 --epochs 30 --device cuda
+
+# L5: Full LLM stack (text + audio + video) — requires GPU
+uv run python scripts/phase08_llm_ablations.py --ablation L5 --epochs 30 --device cuda
+
+# L6-L9: External API stubs (ImageBind, LLM teacher, direct prompting, GraphXAIN)
+#        These require external APIs/services and are not locally computable
+uv run python scripts/phase08_llm_ablations.py --ablation L6  # → "Requires external API"
+uv run python scripts/phase08_llm_ablations.py --ablation L7  # → "Requires external API"
+uv run python scripts/phase08_llm_ablations.py --ablation L8  # → "Requires external API"
+uv run python scripts/phase08_llm_ablations.py --ablation L9  # → "Requires external API"
+
+# Generate summary report from all L0-L5 results
+uv run python scripts/phase08_llm_ablations.py --generate_report
 
 # Phase 9 — Domain adaptation (MMD, Deep CORAL, DANN)
 uv run python scripts/phase09_domain_adaptation.py --method mmd
@@ -200,8 +270,12 @@ Phase 10 (calibration) ──► Phase 11 (XAI) ──► Phase 12 (thesis)
 | 1 — EDA | ✅ Complete | 8 EDA figures, dataset contract, leakage checks |
 | 2 — Preprocessing | ✅ Complete | 144,641 feature files, manifest.json, 7+ figures |
 | 3 — Unimodal Baselines | ✅ Complete | 17 figures, 2 CSVs, SoA comparison, training curves |
-| 4 — Fusion | 🔜 Ready | Stub script exists |
-| 5–12 | ⬜ Pending | Stub scripts exist |
+| 4 — Fusion | ✅ Complete | Gated/LMF fusion baselines, 4 figures |
+| 5 — MMoEEx | ✅ Complete | DAIC AUROC=0.5471, MOSEI CCC=0.4762, Emotion AUC=0.6906, FI CCC=0.5688 |
+| 6 — Graph Construction | ✅ Complete | KNN graphs (split-local/inductive/transductive), GraphSAGE/GAT routers, 8 figures |
+| 7 — Joint Training | ✅ Complete | GG-MoE: DAIC AUROC 0.5471→0.5797 (+6%), 150 epochs, 4 figures |
+| 8 — LLM Ablations | ✅ Complete | L0-L5 implemented, L6-L9 stubs, CSV + 3 figures, QA validated |
+| 9–12 | ⬜ Pending | Stub scripts exist |
 
 ### Phase 3 Details
 

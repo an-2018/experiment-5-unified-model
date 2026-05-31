@@ -1,0 +1,21 @@
+\begin{table}[htbp]
+\centering
+\caption{Evaluation Protocol: Metrics, Bootstrap Settings, and Comparison Methods. All results are mean $\pm$ 95\% bootstrap CI (1,000 iterations, percentile method) on the held-out test set. DeLong test for AUROC comparisons, paired bootstrap for CCC/MAE.}
+\label{tab:evaluation_protocol}
+\begin{tabular}{lccc}
+\toprule
+Task & Primary Metric & Bootstrap Iterations & Statistical Test \\
+\midrule
+DAIC Depression & AUROC & 1,000 & DeLong test \\
+DAIC Depression & F1 (at optimal threshold) & 1,000 & Paired bootstrap \\
+MOSEI Sentiment & CCC (Concordance Correlation) & 1,000 & Paired bootstrap \\
+MOSEI Sentiment & Pearson $r$, MAE & 1,000 & Paired bootstrap \\
+MOSEI Emotion & Macro-AUROC & 1,000 & DeLong test \\
+MOSEI Emotion & Per-emotion AUROC & 1,000 & DeLong test \\
+FI Personality & Mean CCC & 1,000 & Paired bootstrap \\
+FI Personality & Per-trait CCC, MAE & 1,000 & Paired bootstrap \\
+\midrule
+Calibration & ECE, Brier Score & 1,000 & Temperature scaling comparison \\
+\bottomrule
+\end{tabular}
+\end{table}

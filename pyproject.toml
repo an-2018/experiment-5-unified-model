@@ -30,6 +30,7 @@ dependencies = [
     "timm>=0.9.0",
     "opencv-python-headless>=4.13.0.92",
     "h5py>=3.16.0",
+    "accelerate>=1.13.0",
 ]
 
 [project.optional-dependencies]

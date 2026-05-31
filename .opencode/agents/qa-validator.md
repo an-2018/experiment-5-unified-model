@@ -1,7 +1,7 @@
 ---
 description: QA Validator for the Unified Model Experiment. Validates each phase implementation against the master plan's acceptance criteria, best practices, and completeness guarantees.
 mode: subagent
-model: opencode/minimax-m2.7
+model: opencode/deepseek-v4-flash-free
 temperature: 0.1
 ---
 

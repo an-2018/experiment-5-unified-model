@@ -1,0 +1,45 @@
+  🖥️  GPU: NVIDIA RTX A6000 (49140 MiB)
+  ⚠️  Missing LLM packages: peft accelerate
+     Install with: uv add peft accelerate
+     L1-L5 will use classical fallback (no true LLM ablation)
+
+╔══════════════════════════════════════════════════════════════════╗
+║     Phase 8 — LLM Modality Ablations (L0–L5)                   ║
+║     Sun May 31 08:17:42 PM WEST 2026                    ║
+╚══════════════════════════════════════════════════════════════════╝
+
+  Device:      cuda
+  Epochs:      50
+  Batch size:  32
+  Learning rate: 0.0001
+  Skip extraction: false
+  Mode:        EXECUTE
+  Resume:      false
+  Log:         logs/phase08_full_run_20260531_201740.log
+  Checkpoint:  logs/phase08_checkpoint.txt
+
+  ✅ LLM FEATURES: Will extract REAL Mistral/CLAP/LLaVA features on GPU (first run slow).
+                   Use --skip_extraction after cache is populated.
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │  Ablation Order:                                              │
+  │  ⬜ L0    Classical encoders (instant — reuses Phase 5)         │
+  │  ⬜ L1    Mistral-7B-Instruct frozen — text branch              │
+  │  ⬜ L2    Mistral LoRA (r=16, alpha=32) — text branch           │
+  │  ⬜ L3    Mistral + CLAP audio — text + audio                   │
+  │  ⬜ L4    Mistral + LLaVA video — text + video                  │
+  │  ⬜ L5    Full LLM stack — text + audio + video                 │
+  └────────────────────────────────────────────────────────────────┘
+
+  ⏱️  Estimated time:
+     L0:    instant (reuse Phase 5)
+     L1:    ~2-3 hours (first-time Mistral extraction + 30 epochs training)
+     L2:    ~3-4 hours (LoRA extraction + training on Mistral)
+     L3:    ~2-3 hours (CLAP audio extraction + Mistral text)
+     L4:    ~3-4 hours (LLaVA video extraction + Mistral text)
+     L5:    ~4-5 hours (full stack extraction)
+     Total: ~14-19 hours (first run on A6000 48GB)
+
+     ⚡ After caching: ~1-3 hours total (use --skip_extraction)
+
+  Continue? [Y/n] ./scripts/run_phase08_all.sh: line 300: read: read error: 0: Bad file descriptor

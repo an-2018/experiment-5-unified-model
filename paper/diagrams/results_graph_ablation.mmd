@@ -1,0 +1,57 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+flowchart LR
+    subgraph V0["V0: No Graph"]
+        V0_D["DAIC<br/>0.712"]
+        V0_M["MOSEI<br/>0.680"]
+        V0_E["MOSEI_emo<br/>0.756"]
+        V0_F["FI<br/>0.440"]
+    end
+
+    subgraph V1["V1: GraphSAGE"]
+        V1_D["DAIC<br/>0.635"]
+        V1_M["MOSEI<br/>0.544"]
+        V1_E["MOSEI_emo<br/>0.547"]
+        V1_F["FI<br/>0.296"]
+    end
+
+    subgraph V2["V2: GAT"]
+        V2_D["DAIC<br/>0.851"]
+        V2_M["MOSEI<br/>0.342"]
+        V2_E["MOSEI_emo<br/>0.761"]
+        V2_F["FI<br/>0.344"]
+    end
+
+    subgraph V3["V3: GAT+Transductive"]
+        V3_D["DAIC<br/>0.897"]
+        V3_M["MOSEI<br/>0.520"]
+        V3_E["MOSEI_emo<br/>0.599"]
+        V3_F["FI<br/>0.231"]
+    end
+
+    subgraph V4["V4: GAT+LLM"]
+        V4_D["DAIC<br/>0.835"]
+        V4_M["MOSEI<br/>0.554"]
+        V4_E["MOSEI_emo<br/>0.587"]
+        V4_F["FI<br/>0.503"]
+    end
+
+    style V0_D fill:#9d4edd
+    style V1_D fill:#0f3460
+    style V2_D fill:#2d6a4f
+    style V3_D fill:#2d6a4f
+    style V4_D fill:#2d6a4f
+    style V0_M fill:#9d4edd
+    style V1_M fill:#0f3460
+    style V2_M fill:#e63946
+    style V3_M fill:#0f3460
+    style V4_M fill:#0f3460
+    style V0_E fill:#9d4edd
+    style V1_E fill:#0f3460
+    style V2_E fill:#2d6a4f
+    style V3_E fill:#0f3460
+    style V4_E fill:#0f3460
+    style V0_F fill:#9d4edd
+    style V1_F fill:#e63946
+    style V2_F fill:#0f3460
+    style V3_F fill:#e63946
+    style V4_F fill:#2d6a4f

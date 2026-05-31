@@ -1,0 +1,25 @@
+\begin{table}[htbp]
+\centering
+\caption{Architecture Component Summary. Feature dimensions are after projection to the common 256-d space. Modality dropout rate 0.1 during training. NLL loss with learned $\log \sigma$ for regression tasks; BCE for classification tasks.}
+\label{tab:architecture_summary}
+\begin{tabular}{lc}
+\toprule
+Component & Configuration \\
+\midrule
+Text encoder & RoBERTa-base, 768-d $\to$ 256-d projector \\
+Audio encoder & WavLM-large, 1536-d $\to$ 256-d projector \\
+Video encoder & ViT-B/16, 1536-d $\to$ 256-d projector \\
+Fusion & GatedLateFusion, 3-modality learnable gates \\
+MMoEEx & 8 experts, 256-d hidden, 2 shared + 6 exclusive \\
+Expert diversity & Orthogonality regularizer $\mathcal{L}_{\text{excl}}$ \\
+Task gates & 4 gates (depression, sentiment, emotion, personality) \\
+Graph & KNN (K=10 or K=15), cosine similarity, inductive/split-local/transductive \\
+Router & 2-layer GraphSAGE, mean aggregation, 256-d $\to$ 8-d output \\
+Combination & Log-space fusion: $\tilde{w} = \text{softmax}(\log g + \lambda \log r)$ \\
+Depression head & Binary classifier, BCE loss, 256-d $\to$ 1-d \\
+Sentiment head & Regressor, NLL loss, learned $\sigma$, 256-d $\to$ 1-d \\
+Emotion head & Multi-label classifier, BCE per label, 256-d $\to$ 6-d \\
+Personality head & 5 regressors, NLL per trait, 256-d $\to$ 5-d \\
+\bottomrule
+\end{tabular}
+\end{table}

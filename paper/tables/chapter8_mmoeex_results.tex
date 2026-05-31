@@ -1,0 +1,20 @@
+\begin{table}[htbp]
+\centering
+\caption{MMoEEx Results vs Best Standalone Baselines. MMoEEx uses 8 experts (2 shared, 6 exclusive), NLL loss, temperature-balanced sampling (T=2.0). Per-dataset routing: DAIC→text-only, MOSEI→multimodal, FI→video-only. See \S\ref{sec:mmoeex_results}. Source: \texttt{artifacts/tables/mmoe\_ex\_results.csv}.}
+\label{tab:mmoeex_results}
+\begin{tabular}{lcc}
+\toprule
+Task & MMoEEx & Best Standalone \\
+\midrule
+DAIC Depression (AUROC) & 0.4928 & 0.5346 (text-only) \\
+MOSEI Sentiment (CCC) & 0.4979 & 0.6229 (gated fusion) \\
+MOSEI Emotion (macro-AUROC) & 0.7222 & 0.7709 (gated fusion, emotion only) \\
+FI Personality (Avg CCC) & \textbf{0.5793} & 0.4578 (video-only) \\
+ FI Extraversion (CCC) & 0.6054 & 0.4667 (video-only) \\
+ FI Neuroticism (CCC) & 0.5635 & 0.4402 (video-only) \\
+ FI Agreeableness (CCC) & 0.4807 & 0.3181 (video-only) \\
+ FI Conscientiousness (CCC) & \textbf{0.6807} & 0.6095 (video-only) \\
+ FI Openness (CCC) & 0.5659 & 0.4546 (video-only) \\
+\bottomrule
+\end{tabular}
+\end{table}

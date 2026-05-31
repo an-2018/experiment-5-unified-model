@@ -1,7 +1,7 @@
 {
   "graph_type": "split-local",
   "k": 10,
-  "router": "none",
+  "router": "both",
   "hidden_dim": 256,
   "num_samples": 32966,
   "train_edges": 223720,

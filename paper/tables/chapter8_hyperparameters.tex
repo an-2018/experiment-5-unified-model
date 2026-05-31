@@ -1,0 +1,26 @@
+\begin{table}[htbp]
+\centering
+\caption{Architecture Hyperparameters. Encoder dimensions are after projection to 256-d common space. Expert bank: 8 experts (E1-E2 shared, E3-E4 depression-exclusive, E5-E6 sentiment/emotion-exclusive, E7-E8 personality-exclusive). Router: 2-layer GraphSAGE with mean aggregation.}
+\label{tab:hyperparameters}
+\begin{tabular}{lc}
+\toprule
+Parameter & Value \\
+\midrule
+Text encoder & RoBERTa-base (768d $\to$ 256d) \\
+Audio encoder & WavLM-large (1536d $\to$ 256d) \\
+Video encoder & ViT-B/16 (1536d $\to$ 256d) \\
+Projection dim & 256 \\
+Fusion type & GatedLateFusion (rejected: CrossAttention, LMF) \\
+MMoEEx experts & $K=8$ (2 shared, 6 exclusive) \\
+Expert hidden dim & 256 \\
+Task gates & 4 (dep, sent, emo, pers) \\
+Graph construction & KNN cosine similarity, K $\in$ {10, 15} \\
+Graph router & 2-layer GraphSAGE, mean aggregation \\
+Router combination & $\tilde{w}_{t,i} = \text{softmax}(\log g_t + \lambda \log r_i)$, $\lambda=1.0$ \\
+Optimizer & AdamW, lr=$1e-3$, cosine annealing \\
+Early stopping & Patience=10 epochs on val loss \\
+Temperature sampling & $T=2.0$ (for MOSEI dominance mitigation) \\
+Uncertainty weighting & Learned $\log \sigma_t$ per task (NLL loss) \\
+\bottomrule
+\end{tabular}
+\end{table}

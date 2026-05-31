@@ -253,6 +253,10 @@ class JointTrainingPipeline(nn.Module):
                     return False
         return True
 
+    def should_unfreeze(self, epoch: int) -> bool:
+        """Return True if projectors should be unfrozen at given epoch."""
+        return epoch >= self.freeze_epochs and not self.unfrozen
+
     def forward(
         self,
         text_feat: torch.Tensor,
@@ -541,7 +545,16 @@ def load_feature_tensor(path_str, dim):
 
 def concatenate_all_splits(all_embeddings: dict, all_metadata: dict,
                            hidden_dim: int = 256) -> tuple:
-    """Concatenate all splits into single arrays for graph construction."""
+    """Concatenate all splits into single arrays for graph construction.
+
+    Returns:
+        global_embeddings: (N, D) concatenated embeddings
+        dataset_ids: list of actual sample IDs (NOT dataset names)
+        global_split_ids: (N,) array of split labels (0=train, 1=val, 2=test)
+        global_task_ids: (N,) array of task IDs
+        index_map: {(dataset, split): (global_start, global_end)} — global positions
+                   into the concatenated arrays
+    """
     all_embs = []
     dataset_ids = []
     split_ids = []
@@ -549,7 +562,7 @@ def concatenate_all_splits(all_embeddings: dict, all_metadata: dict,
     index_map = {}
 
     split_map = {'train': 0, 'val': 1, 'test': 2}
-    split_row_counts = {0: 0, 1: 0, 2: 0}
+    global_cumulative = 0  # Track global position across ALL concatenated arrays
 
     for dataset in ['daic', 'mosei', 'fi']:
         for split in ['train', 'val', 'test']:
@@ -559,16 +572,17 @@ def concatenate_all_splits(all_embeddings: dict, all_metadata: dict,
             meta = all_metadata[dataset][split]
 
             split_id = split_map[split]
-            local_start = split_row_counts[split_id]
-            local_end = local_start + len(embs)
-            split_row_counts[split_id] = local_end
+            global_start = global_cumulative
+            global_end = global_start + len(embs)
+            global_cumulative = global_end
 
             all_embs.append(embs)
-            dataset_ids.extend([dataset] * len(embs))
+            dataset_ids.extend(meta['ids'])
             split_ids.extend([split_id] * len(embs))
             task_ids.extend(meta['task_ids'])
 
-            index_map[(dataset, split)] = (local_start, local_end)
+            # Store GLOBAL positions (not local-within-split)
+            index_map[(dataset, split)] = (global_start, global_end)
 
     global_embeddings = np.vstack(all_embs) if all_embs else np.empty((0, hidden_dim))
     global_split_ids = np.array(split_ids, dtype=np.int64)
@@ -660,7 +674,14 @@ class GraphEnhancedDataset(Dataset):
     def __init__(self, embeddings: np.ndarray, task_ids: np.ndarray,
                  split_ids: np.ndarray, index_map: dict, dataset_ids: list,
                  all_labels: dict, manifest_data: list,
-                 feature_dims: dict, temperature: float = 3.0):
+                 feature_dims: dict, temperature: float = 3.0,
+                 target_split: str = None):
+        """Graph-enhanced dataset.
+
+        Args:
+            target_split: If set, only include samples from this split
+                          (e.g., 'train', 'val', 'test'). If None, includes all.
+        """
         self.samples = []
         self.embeddings = embeddings  # Global (N, D) embeddings
         self.task_ids = task_ids
@@ -670,10 +691,13 @@ class GraphEnhancedDataset(Dataset):
         self.all_labels = all_labels
         self.manifest_data = manifest_data
         self.feature_dims = feature_dims
+        self.target_split = target_split
 
         # Build dataset-specific splits
+        # Only iterate over the target split to avoid train/val data leakage
+        splits_to_iterate = [target_split] if target_split else ['train', 'val', 'test']
         for dataset in ['daic', 'mosei', 'fi']:
-            for split in ['train', 'val', 'test']:
+            for split in splits_to_iterate:
                 if (dataset, split) not in index_map:
                     continue
 
@@ -904,7 +928,7 @@ def collate_graph_enhanced(batch):
 # ---------------------------------------------------------------------------
 
 def train_epoch(model, dataloader, optimizer, loss_fn, scheduler, device, scaler,
-                epoch, edge_index_dict, split_row_counts, monitor, router):
+                epoch, edge_index_dict, split_row_counts, monitor, router, global_embeddings):
     """Train one epoch with graph-enhanced routing."""
     model.train()
     total_loss = 0.0
@@ -951,15 +975,48 @@ def train_epoch(model, dataloader, optimizer, loss_fn, scheduler, device, scaler
                 task_val = tid.item() if isinstance(tid, torch.Tensor) else tid
 
                 # Get appropriate edge index for this batch
-                # We use train graph edges for training
+                # Remap global edge indices to local batch indices to avoid CUDA index errors
                 if router != "none" and edge_index_dict is not None and 'train' in edge_index_dict:
-                    train_edge = edge_index_dict['train']
-                    train_edge_device = train_edge.to(device)
-                    # Use batch-global indices to build local edge subgraph
-                    # For simplicity, use full train graph during training
-                    batch_edge_index = train_edge_device
+                    train_edge = edge_index_dict['train'].to(device)
+                    src, dst = train_edge[0], train_edge[1]
+
+                    # SAFETY: also filter by valid data range to handle graph/dataset size mismatch
+                    # The graph has 32966 nodes but dataset may have ~32473 samples.
+                    # Edges with src/dst >= len(global_embeddings) are always invalid.
+                    n_total = global_embeddings.shape[0]
+                    valid_range = (src < n_total) & (dst < n_total)
+
+                    # Batch membership check
+                    src_in = torch.isin(src, global_indices)
+                    dst_in = torch.isin(dst, global_indices)
+
+                    edge_mask = valid_range & src_in & dst_in
+
+                    if edge_mask.sum() == 0:
+                        batch_edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+                    else:
+                        filtered_src = src[edge_mask]
+                        filtered_dst = dst[edge_mask]
+                        # Build dict-based global->local mapper
+                        g2l = {g.item(): i for i, g in enumerate(global_indices)}
+                        src_local = torch.tensor(
+                            [g2l[n.item()] for n in filtered_src],
+                            dtype=torch.long, device=device
+                        )
+                        dst_local = torch.tensor(
+                            [g2l[n.item()] for n in filtered_dst],
+                            dtype=torch.long, device=device
+                        )
+                        batch_edge_index = torch.stack([src_local, dst_local], dim=0)
                 else:
                     batch_edge_index = None
+
+                # SAFETY: if edge indices exceed h.size(0), skip graph routing
+                if batch_edge_index is not None and batch_edge_index.numel() > 0:
+                    max_idx = batch_edge_index.max().item()
+                    if max_idx >= t_text.size(0):
+                        # Out-of-bounds edges — skip graph routing for this batch
+                        batch_edge_index = None
 
                 # Forward pass - returns expert mixture (not task output)
                 expert_out, routing_weights = model(
@@ -1016,7 +1073,7 @@ def train_epoch(model, dataloader, optimizer, loss_fn, scheduler, device, scaler
     return avg_loss, task_losses, avg_entropy
 
 
-def evaluate(model, dataloader, device, edge_index_dict, router):
+def evaluate(model, dataloader, device, edge_index_dict, router, global_embeddings):
     """Evaluate model on all tasks."""
     model.eval()
 
@@ -1031,9 +1088,11 @@ def evaluate(model, dataloader, device, edge_index_dict, router):
         for batch in dataloader:
             # Handle both 8-item (collate_joint) and 9-item (collate_graph_enhanced) batches
             if len(batch) == 9:
-                text, audio, video, mask, labels, task_ids, weights, routings, _ = batch
+                text, audio, video, mask, labels, task_ids, weights, routings, global_indices = batch
+                global_indices = global_indices.to(device) if global_indices is not None else None
             else:  # 8 items from Phase 5 collate_joint
                 text, audio, video, mask, labels, task_ids, weights, routings = batch
+                global_indices = None
 
             text = text.to(device)
             audio = audio.to(device)
@@ -1057,11 +1116,37 @@ def evaluate(model, dataloader, device, edge_index_dict, router):
                 routing = t_routings[0] if t_routings else "multimodal"
                 task_val = tid.item() if isinstance(tid, torch.Tensor) else tid
 
-                # Use val graph for validation
+                # Use val graph for validation — filter and remap to local batch indices
                 batch_edge_index = None
                 if router != "none" and edge_index_dict is not None:
-                    if 'val' in edge_index_dict:
-                        batch_edge_index = edge_index_dict['val'].to(device)
+                    if 'val' in edge_index_dict and global_indices is not None:
+                        val_edge = edge_index_dict['val'].to(device)
+                        src, dst = val_edge[0], val_edge[1]
+                        n_total = global_embeddings.shape[0]
+                        valid_range = (src < n_total) & (dst < n_total)
+                        src_in = torch.isin(src, global_indices)
+                        dst_in = torch.isin(dst, global_indices)
+                        edge_mask = valid_range & src_in & dst_in
+                        if edge_mask.sum() > 0:
+                            filtered_src = src[edge_mask]
+                            filtered_dst = dst[edge_mask]
+                            g2l = {g.item(): i for i, g in enumerate(global_indices)}
+                            src_local = torch.tensor(
+                                [g2l[n.item()] for n in filtered_src],
+                                dtype=torch.long, device=device
+                            )
+                            dst_local = torch.tensor(
+                                [g2l[n.item()] for n in filtered_dst],
+                                dtype=torch.long, device=device
+                            )
+                            batch_edge_index = torch.stack([src_local, dst_local], dim=0)
+                        else:
+                            batch_edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+
+                # SAFETY: skip graph routing if indices exceed batch size
+                if batch_edge_index is not None and batch_edge_index.numel() > 0:
+                    if batch_edge_index.max().item() >= t_text.size(0):
+                        batch_edge_index = None
 
                 out, _ = model(t_text, t_audio, t_video, t_mask_feat, task_val, routing, batch_edge_index)
 
@@ -1290,6 +1375,7 @@ def main():
         print("  Skipping full graph building for quick test (using local batch graphs)")
         edge_index_dict = None
         split_row_counts = None
+        global_embeddings = None
     else:
         print(f"  Loading embeddings for graph construction (hidden_dim={HIDDEN_DIM})...")
         all_embs, all_meta = load_all_dataset_embeddings(device, HIDDEN_DIM)
@@ -1324,6 +1410,7 @@ def main():
             manifest_data=manifest_data,
             feature_dims=FEATURE_DIMS,
             temperature=args.temperature,
+            target_split='train',
         )
         val_ds = GraphEnhancedDataset(
             embeddings=global_embeddings,
@@ -1334,6 +1421,7 @@ def main():
             all_labels=all_labels,
             manifest_data=manifest_data,
             feature_dims=FEATURE_DIMS,
+            target_split='val',
             temperature=1.0,  # No sampling bias for val
         )
     if edge_index_dict is None:
@@ -1427,7 +1515,7 @@ def main():
 
     for epoch in range(start_epoch, args.epochs):
         # Check if we should unfreeze projectors
-        if epoch >= args.freeze_epochs and not model.unfrozen:
+        if model.should_unfreeze(epoch):
             print(f"\n  ⚡ Epoch {epoch+1}: Unfreezing projector layers")
             model.unfreeze_top_layers(num_layers=2)
             # Re-create optimizer to include newly unfrozen params
@@ -1436,7 +1524,8 @@ def main():
 
         avg_loss, task_losses, avg_entropy = train_epoch(
             model, train_loader, optimizer, loss_fn, scheduler, device, scaler,
-            epoch, edge_index_dict, split_row_counts, monitor, args.router
+            epoch, edge_index_dict, split_row_counts, monitor, args.router,
+            global_embeddings
         )
 
         entropy_history.append(avg_entropy)
@@ -1448,7 +1537,7 @@ def main():
         # Evaluate every 5 epochs (or every epoch for quick test)
         eval_interval = 1 if args.quick_test else 5
         if (epoch + 1) % eval_interval == 0 or epoch == args.epochs - 1:
-            results = evaluate(model, val_loader, device, edge_index_dict, args.router)
+            results = evaluate(model, val_loader, device, edge_index_dict, args.router, global_embeddings)
 
             daic_auroc = results["daic"]["auroc"]
             mosei_sent_ccc = results["mosei_sentiment"]["ccc"]
@@ -1514,7 +1603,7 @@ def main():
         ckpt_str = f"{ckpt_auroc:.4f}" if ckpt_auroc is not None else "N/A"
         print(f"  Loaded best checkpoint (epoch {best_checkpoint['epoch']+1}, DAIC AUROC={ckpt_str})")
 
-    final_results = evaluate(model, val_loader, device, edge_index_dict, args.router)
+    final_results = evaluate(model, val_loader, device, edge_index_dict, args.router, global_embeddings)
 
     # Safely format metrics
     daic_auroc_final = final_results['daic']['auroc']

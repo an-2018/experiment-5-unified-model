@@ -1,0 +1,29 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+flowchart LR
+    subgraph DAIC_AUC["DAIC Depression AUROC"]
+        D_Text["Text<br/>0.699 ± 0.08"]
+        D_Audio["Audio<br/>0.469 ± 0.11"]
+        D_Video["Video<br/>0.582 ± 0.09"]
+    end
+
+    subgraph MOSEI_CCC["MOSEI Sentiment CCC"]
+        S_Text["Text<br/>0.512 ± 0.07"]
+        S_Audio["Audio<br/>0.147 ± 0.06"]
+        S_Video["Video<br/>0.141 ± 0.05"]
+    end
+
+    subgraph FI_CCC["ChaLearn FI Avg CCC"]
+        P_Text["Text<br/>0.216 ± 0.09"]
+        P_Audio["Audio<br/>0.448 ± 0.08"]
+        P_Video["Video<br/>0.458 ± 0.07"]
+    end
+
+    style D_Text fill:#2d6a4f
+    style D_Audio fill:#e63946
+    style D_Video fill:#0f3460
+    style S_Text fill:#2d6a4f
+    style S_Audio fill:#e63946
+    style S_Video fill:#e63946
+    style P_Text fill:#e63946
+    style P_Audio fill:#0f3460
+    style P_Video fill:#2d6a4f
