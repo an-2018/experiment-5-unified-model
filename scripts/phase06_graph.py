@@ -714,8 +714,8 @@ class GraphMoETrainer:
         ).to(self.device)
 
         # Set graph weight
-        if hasattr(self.model, 'mmoe') and hasattr(self.model.mmoe, 'graph_weight'):
-            self.model.mmoe.graph_weight = graph_weight
+        if hasattr(self.model, 'graph_weight'):
+            self.model.graph_weight = graph_weight
 
         # Optimizer
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=1e-3, weight_decay=0.01)
