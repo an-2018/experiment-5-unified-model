@@ -29,6 +29,9 @@ def build_knn_graph(
     """
     n = embeddings.shape[0]
 
+    if k >= n:
+        raise ValueError(f"k={k} must be less than number of samples n={n}")
+
     # Use brute-force for cosine (more reliable for normalized embeddings)
     nn = NearestNeighbors(n_neighbors=k + 1, metric=metric, algorithm="brute")
     nn.fit(embeddings)
@@ -58,18 +61,19 @@ def build_split_local_graph(
     embeddings: np.ndarray,
     split_ids: np.ndarray,
     k: int = 10,
-    cross_dataset_edges: bool = True,
 ) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, bool]]:
     """Build separate KNN graphs per split (train/val/test).
 
     Critical: train graph uses only train embeddings, val graph only val embeddings,
     test graph only test embeddings. No cross-split edges allowed.
 
+    Note: cross-dataset edges within the same split are handled by build_multimodal_graph.
+    This function is strictly split-local.
+
     Args:
         embeddings: (N, D) full embedding matrix
         split_ids: (N,) array with 0=train, 1=val, 2=test
         k: number of nearest neighbors
-        cross_dataset_edges: if True, allow cross-dataset edges within same split
 
     Returns:
         graphs: dict with keys "train", "val", "test" → (edge_index, edge_weight)
@@ -86,9 +90,27 @@ def build_split_local_graph(
         # Mask for this split
         mask = split_ids == split_value
         split_embeddings = embeddings[mask]
+        split_size = split_embeddings.shape[0]
 
-        # Build KNN graph for this split only
-        edge_index, edge_weight = build_knn_graph(split_embeddings, k=k)
+        # Handle empty splits - return empty edge arrays
+        if split_size == 0:
+            graphs[split_name] = (np.empty((2, 0), dtype=np.int64), np.empty(0, dtype=np.float64))
+            continue
+
+        # Handle splits with fewer than k samples
+        if split_size < k:
+            # Warn but still build graph with available neighbors
+            import warnings
+            warnings.warn(
+                f"Split '{split_name}' has {split_size} samples < k={k}. "
+                f"Building graph with reduced neighbors.",
+                RuntimeWarning
+            )
+            # Build with k=split_size-1 (at least 1 neighbor if possible)
+            effective_k = max(1, split_size - 1)
+            edge_index, edge_weight = build_knn_graph(split_embeddings, k=effective_k)
+        else:
+            edge_index, edge_weight = build_knn_graph(split_embeddings, k=k)
 
         graphs[split_name] = (edge_index, edge_weight)
 
@@ -179,11 +201,20 @@ def validate_graph_leakage(
         val_size: number of val nodes
 
     Returns dict with keys:
+        - 'train_leakage_free': True if train edges stay within [0, train_size)
         - 'val_leakage_free': True if val edges only touch [train_size, train_size+val_size)
         - 'test_leakage_free': True if test edges only touch [0, train_size+val_size)
     """
     val_start = train_size
     val_end = train_size + val_size
+
+    # Check train edges (must be within train node range)
+    train_src = train_edge_index[0]
+    train_dst = train_edge_index[1]
+    train_edges_within_bounds = (
+        np.all((train_src >= 0) & (train_src < train_size)) and
+        np.all((train_dst >= 0) & (train_dst < train_size))
+    )
 
     # Check val edges (must be within val node range)
     val_src = val_edge_index[0]
@@ -207,6 +238,7 @@ def validate_graph_leakage(
     )
 
     return {
+        "train_leakage_free": bool(train_edges_within_bounds),
         "val_leakage_free": bool(val_edges_within_bounds),
         "test_leakage_free": bool(test_edges_within_bounds),
     }
@@ -251,10 +283,10 @@ def build_multimodal_graph(
 
     # Determine edge types (same vs cross dataset)
     if cross_dataset_edges:
-        src_datasets = np.array([dataset_ids[i] for i in src_nodes])
-        dst_datasets = np.array([dataset_ids[i] for i in dst_nodes])
-        edge_flags = (src_datasets != dst_datasets).astype(np.int32)
+        src_datasets = np.array(dataset_ids, dtype=object)[src_nodes]
+        dst_datasets = np.array(dataset_ids, dtype=object)[dst_nodes]
+        edge_flags = (src_datasets != dst_datasets).astype(np.int64)
     else:
-        edge_flags = np.zeros(len(src_nodes), dtype=np.int32)
+        edge_flags = np.zeros(len(src_nodes), dtype=np.int64)
 
     return edge_index, edge_weights, edge_flags
