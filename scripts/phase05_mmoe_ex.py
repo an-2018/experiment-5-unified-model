@@ -249,17 +249,6 @@ class JointMultimodalDataset(Dataset):
                 a_key = feat_map.get("audio_wavlm")
                 v_key = feat_map.get("video_vit") if ds_name != "daic" else feat_map.get("video_openface")
 
-                # Determine task_id and routing strategy
-                if ds_name == "daic":
-                    task_id = TASK_IDS["daic_depression"]
-                    routing = "text_only"  # Fusion fails on DAIC small-n
-                elif ds_name == "mosei":
-                    task_id = TASK_IDS["mosei_sentiment"]
-                    routing = "multimodal"
-                else:
-                    task_id = TASK_IDS["fi_personality"]
-                    routing = "video_only"  # Fusion collapses on FI regression
-
                 t_ok, t_vec = self._try_load_feature(t_key, feature_dims["text"])
                 a_ok, a_vec = self._try_load_feature(a_key, feature_dims["audio"])
                 v_ok, v_vec = self._try_load_feature(v_key, feature_dims["video"])
@@ -270,20 +259,70 @@ class JointMultimodalDataset(Dataset):
 
                 label = all_labels[label_key]
 
-                self.samples.append({
-                    "id": sample_id,
-                    "label_key": label_key,
-                    "dataset": ds_name,
-                    "split": split,
-                    "task_id": task_id,
-                    "routing": routing,
-                    "text": t_vec,
-                    "audio": a_vec,
-                    "video": v_vec,
-                    "modality_mask": [t_ok, a_ok, v_ok],
-                    "label": label,
-                    "sample_weight": 1.0,
-                })
+                if ds_name == "daic":
+                    # Single task: depression
+                    self.samples.append({
+                        "id": sample_id,
+                        "label_key": label_key,
+                        "dataset": ds_name,
+                        "split": split,
+                        "task_id": TASK_IDS["daic_depression"],
+                        "routing": "text_only",
+                        "text": t_vec,
+                        "audio": a_vec,
+                        "video": v_vec,
+                        "modality_mask": [t_ok, a_ok, v_ok],
+                        "label": label,
+                        "sample_weight": 1.0,
+                    })
+                elif ds_name == "mosei":
+                    # MOSEI has TWO tasks: sentiment (task 1) and emotion (task 2)
+                    # Both share the same features but have different labels
+                    # Sentiment: label[0] (scalar), Emotion: label[1:7] (6 binary labels)
+                    self.samples.append({
+                        "id": f"{sample_id}_sentiment",
+                        "label_key": label_key,
+                        "dataset": ds_name,
+                        "split": split,
+                        "task_id": TASK_IDS["mosei_sentiment"],
+                        "routing": "multimodal",
+                        "text": t_vec,
+                        "audio": a_vec,
+                        "video": v_vec,
+                        "modality_mask": [t_ok, a_ok, v_ok],
+                        "label": label,
+                        "sample_weight": 1.0,
+                    })
+                    self.samples.append({
+                        "id": f"{sample_id}_emotion",
+                        "label_key": label_key,
+                        "dataset": ds_name,
+                        "split": split,
+                        "task_id": TASK_IDS["mosei_emotion"],
+                        "routing": "multimodal",
+                        "text": t_vec,
+                        "audio": a_vec,
+                        "video": v_vec,
+                        "modality_mask": [t_ok, a_ok, v_ok],
+                        "label": label,  # label[1:7] = 6 emotions
+                        "sample_weight": 1.0,
+                    })
+                else:
+                    # FI personality
+                    self.samples.append({
+                        "id": sample_id,
+                        "label_key": label_key,
+                        "dataset": ds_name,
+                        "split": split,
+                        "task_id": TASK_IDS["fi_personality"],
+                        "routing": "video_only",
+                        "text": t_vec,
+                        "audio": a_vec,
+                        "video": v_vec,
+                        "modality_mask": [t_ok, a_ok, v_ok],
+                        "label": label,
+                        "sample_weight": 1.0,
+                    })
 
         self._compute_sampling_weights(temperature)
         print(f"  JointDataset: {len(self)} samples across {len(datasets_splits)} dataset splits")
@@ -638,7 +677,9 @@ class TaskLosses:
 
     def emotion_loss(self, logits, labels):
         # Labels are padded to max_size=6; indices 0-5 are valid for 6 emotions
-        return self.bce_multi(logits, labels[:, :6]).mean()
+        # Binarize at 0.3 threshold to capture more positives (fear only has 0.3% at 0.5)
+        binary_labels = (labels[:, :6] >= 0.3).float()
+        return self.bce_multi(logits, binary_labels).mean()
 
     def personality_loss(self, preds_dict, labels):
         """MSE loss per personality trait + NLL for overall uncertainty."""
@@ -816,11 +857,13 @@ def evaluate(model, dataloader, device):
     try:
         y_true = np.vstack(results["mosei_emotion"]["all_labels"])
         y_pred = np.vstack(results["mosei_emotion"]["all_preds"])
+        # Binarize at 0.3 threshold to match training
+        y_true_binary = (y_true >= 0.3).astype(int)
         from sklearn.metrics import roc_auc_score
         aucs = []
-        for i in range(y_true.shape[1]):
-            if len(np.unique(y_true[:, i])) >= 2:
-                aucs.append(roc_auc_score(y_true[:, i], y_pred[:, i]))
+        for i in range(y_true_binary.shape[1]):
+            if len(np.unique(y_true_binary[:, i])) >= 2:
+                aucs.append(roc_auc_score(y_true_binary[:, i], y_pred[:, i]))
         results["mosei_emotion"]["auc"] = np.mean(aucs) if aucs else None
     except Exception:
         results["mosei_emotion"]["auc"] = None
