@@ -83,11 +83,11 @@ class MMoEEx(nn.Module):
         self.gat_router = None
         if graph_router_type == "graphsage":
             self.graphsage_router = GraphSAGERouter(
-                in_dim=input_dim, hidden_dim=128, out_dim=num_experts
+                in_dim=input_dim, hidden_dim=126, out_dim=num_experts
             )
         elif graph_router_type == "gat":
             self.gat_router = GATRouter(
-                in_dim=input_dim, hidden_dim=128, out_dim=num_experts, num_heads=4
+                in_dim=input_dim, hidden_dim=126, out_dim=num_experts, num_heads=3
             )
 
         # Task-specific output projections (one per task)
@@ -206,8 +206,33 @@ class MMoEEx(nn.Module):
                 combined_log_probs = torch.log(gate_probs + 1e-8) + 0.5 * torch.log(graph_probs + 1e-8)
                 routing_weights = F.softmax(combined_log_probs, dim=-1)
 
-        # Weighted expert mixture
+        # Weighted expert mixture via compute_expert_mixture
+        out = self.compute_expert_mixture(x, routing_weights, task_ids)
+        return out, routing_weights
+
+    def compute_expert_mixture(
+        self,
+        x: torch.Tensor,
+        routing_weights: torch.Tensor,
+        task_ids: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute weighted mixture of expert outputs for each task.
+
+        Args:
+            x: fused multimodal embedding (batch, input_dim)
+            routing_weights: expert routing distribution (batch, num_experts)
+            task_ids: task identifier per sample (batch,)
+
+        Returns:
+            out: task-specific output (batch, 1)
+        """
+        batch_size = x.size(0)
+        device = x.device
+
+        # Compute all expert outputs
         expert_outputs = torch.stack([expert(x) for expert in self.experts], dim=1)  # (batch, num_experts, expert_dim)
+
+        # Weight experts by routing_weights
         weighted = (routing_weights.unsqueeze(-1) * expert_outputs).sum(dim=1)  # (batch, expert_dim)
 
         # Task-specific output projection per sample
@@ -215,7 +240,7 @@ class MMoEEx(nn.Module):
         for i in range(batch_size):
             task_id = task_ids[i].item()
             out[i] = self.task_heads[task_id](weighted[i:i+1])
-        return out, routing_weights
+        return out
 
 
 class GraphGatedRouter(nn.Module):
