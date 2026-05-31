@@ -1,50 +1,81 @@
 import torch
 import pytest
-import sys
 from pathlib import Path
+import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.models.gnn_router import GraphSAGERouter
+from src.models.gnn_router import GraphSAGERouter, GATRouter
 
 
-def test_graphsage_router_basic():
-    """Test basic forward pass."""
-    router = GraphSAGERouter(in_dim=256, hidden_dim=128, out_dim=8, num_layers=2)
-    node_features = torch.randn(32, 256)
-    edge_index = torch.randint(0, 32, (2, 100))
-    out = router(node_features, edge_index)
-    assert out.shape == (32, 8)
-    assert torch.allclose(out.sum(dim=-1), torch.ones(32), atol=1e-5)
-
-
-def test_graphsage_router_three_layers():
-    """Test 3-layer GraphSAGE."""
-    router = GraphSAGERouter(in_dim=256, hidden_dim=128, out_dim=8, num_layers=3)
-    node_features = torch.randn(32, 256)
-    edge_index = torch.randint(0, 32, (2, 100))
-    out = router(node_features, edge_index)
-    assert out.shape == (32, 8)
-    assert torch.allclose(out.sum(dim=-1), torch.ones(32), atol=1e-5)
-
-
-def test_graphsage_gradient_flow():
-    """Test gradients flow through neighborhood aggregation."""
-    router = GraphSAGERouter(in_dim=256, hidden_dim=128, out_dim=8)
-    node_features = torch.randn(32, 256, requires_grad=True)
-    edge_index = torch.randint(0, 32, (2, 100))
-    out = router(node_features, edge_index)
-    loss = out.sum()
-    loss.backward()
-    assert node_features.grad is not None
-    assert not torch.isnan(node_features.grad).any()
-
-
-def test_graphsage_different_k():
-    """Test with varying edge density."""
-    router = GraphSAGERouter(in_dim=256, hidden_dim=128, out_dim=8)
-    for k in [5, 20, 50]:
-        node_features = torch.randn(32, 256)
-        edge_index = torch.randint(0, 32, (2, k * 32))
-        out = router(node_features, edge_index)
+class TestGraphSAGERouter:
+    def test_basic(self):
+        router = GraphSAGERouter(in_dim=256, hidden_dim=128, out_dim=8, num_layers=2)
+        x = torch.randn(32, 256)
+        edge_index = torch.randint(0, 32, (2, 100))
+        out = router(x, edge_index)
         assert out.shape == (32, 8)
         assert torch.allclose(out.sum(dim=-1), torch.ones(32), atol=1e-5)
+
+    def test_three_layers(self):
+        router = GraphSAGERouter(in_dim=256, hidden_dim=128, out_dim=8, num_layers=3)
+        x = torch.randn(32, 256)
+        edge_index = torch.randint(0, 32, (2, 100))
+        out = router(x, edge_index)
+        assert out.shape == (32, 8)
+        assert torch.allclose(out.sum(dim=-1), torch.ones(32), atol=1e-5)
+
+    def test_gradient_flow(self):
+        router = GraphSAGERouter(in_dim=256, hidden_dim=128, out_dim=8)
+        x = torch.randn(32, 256, requires_grad=True)
+        edge_index = torch.randint(0, 32, (2, 100))
+        out = router(x, edge_index)
+        loss = out.sum()
+        loss.backward()
+        assert x.grad is not None
+        assert not torch.isnan(x.grad).any()
+
+    def test_different_edge_density(self):
+        router = GraphSAGERouter(in_dim=256, hidden_dim=128, out_dim=8)
+        for k in [5, 20, 50]:
+            x = torch.randn(32, 256)
+            edge_index = torch.randint(0, 32, (2, k * 32))
+            out = router(x, edge_index)
+            assert out.shape == (32, 8)
+            assert torch.allclose(out.sum(dim=-1), torch.ones(32), atol=1e-5)
+
+
+class TestGATRouter:
+    def test_basic(self):
+        router = GATRouter(in_dim=256, hidden_dim=128, out_dim=8, num_heads=4)
+        x = torch.randn(32, 256)
+        edge_index = torch.randint(0, 32, (2, 100))
+        out = router(x, edge_index)
+        assert out.shape == (32, 8)
+        assert torch.allclose(out.sum(dim=-1), torch.ones(32), atol=1e-5)
+
+    def test_divisible_hidden_dim(self):
+        # hidden_dim=128 divisible by num_heads=4 → head_dim=32
+        router = GATRouter(in_dim=256, hidden_dim=128, out_dim=8, num_heads=4)
+        x = torch.randn(32, 256)
+        edge_index = torch.randint(0, 32, (2, 100))
+        out = router(x, edge_index)
+        assert out.shape == (32, 8)
+
+    def test_non_divisible_error(self):
+        # hidden_dim=64 NOT divisible by num_heads=3 → should raise AssertionError
+        try:
+            router = GATRouter(in_dim=256, hidden_dim=64, out_dim=8, num_heads=3)
+            # If we get here without error, the assertion failed
+            assert False, "Expected AssertionError for non-divisible hidden_dim"
+        except AssertionError as e:
+            assert "must be divisible" in str(e)
+
+    def test_gradient_flow(self):
+        router = GATRouter(in_dim=256, hidden_dim=128, out_dim=8, num_heads=4)
+        x = torch.randn(32, 256, requires_grad=True)
+        edge_index = torch.randint(0, 32, (2, 100))
+        out = router(x, edge_index)
+        loss = out.sum()
+        loss.backward()
+        assert x.grad is not None
+        assert not torch.isnan(x.grad).any()

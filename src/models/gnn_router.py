@@ -64,8 +64,9 @@ class GraphSAGERouter(nn.Module):
 class GATRouter(nn.Module):
     """GAT (Graph Attention Network) router for attention-weighted expert routing."""
 
-    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, num_heads: int = 4, dropout: float = 0.1):
+    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, num_heads: int = 3, dropout: float = 0.1):
         super().__init__()
+        assert hidden_dim % num_heads == 0, f"hidden_dim ({hidden_dim}) must be divisible by num_heads ({num_heads})"
         self.num_heads = num_heads
         self.head_dim = hidden_dim // num_heads
 
