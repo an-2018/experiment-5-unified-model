@@ -488,8 +488,10 @@ def compute_graph_statistics(edge_index: np.ndarray, num_nodes: int,
         'min_degree': degrees.min(),
         'cross_dataset_ratio': cross_dataset.mean() if len(cross_dataset) > 0 else 0,
         'avg_weight': edge_weights.mean() if len(edge_weights) > 0 else 0,
+        'avg_similarity': edge_weights.mean() if len(edge_weights) > 0 else 0,
         'degrees': degrees,
         'cross_dataset_mask': cross_dataset,
+        'edge_weights': edge_weights,  # FIX: was missing, needed by KNN histogram
     }
 
     return stats
@@ -1606,6 +1608,9 @@ def main():
     print("\n[Step 4] Computing graph statistics...")
 
     all_stats = {}
+    # Build global index_map from concatenate_all_splits
+    _, _, _, _, index_map = concatenate_all_splits(all_embeddings, all_metadata)
+
     for dataset in ['daic', 'mosei', 'fi']:
         all_stats[dataset] = {}
         for split, edge_idx, edge_w in [
@@ -1615,9 +1620,24 @@ def main():
         ]:
             if dataset in all_embeddings and split in all_embeddings[dataset]:
                 n_nodes = all_embeddings[dataset][split].shape[0]
-                stats = compute_graph_statistics(edge_idx, n_nodes, dataset_ids, edge_w)
+
+                # FIX: Filter global edge_index to only edges within this dataset-split's node range
+                if (dataset, split) in index_map:
+                    start_idx, end_idx = index_map[(dataset, split)]
+                    # Edges where BOTH src and dst are in this dataset-split's node range
+                    mask = (edge_idx[0] >= start_idx) & (edge_idx[0] < end_idx) & \
+                           (edge_idx[1] >= start_idx) & (edge_idx[1] < end_idx)
+                    filtered_edges = edge_idx[:, mask]
+                    filtered_weights = edge_w[mask]
+                else:
+                    # Fallback: use all edges but warn
+                    filtered_edges = edge_idx
+                    filtered_weights = edge_w
+                    print(f"  Warning: no index_map for {dataset}/{split}, using all edges")
+
+                stats = compute_graph_statistics(filtered_edges, n_nodes, dataset_ids, filtered_weights)
                 all_stats[dataset][split] = stats
-                print(f"  {dataset}/{split}: nodes={n_nodes}, edges={edge_idx.shape[1]}, "
+                print(f"  {dataset}/{split}: nodes={n_nodes}, edges={filtered_edges.shape[1]}, "
                       f"avg_degree={stats['avg_degree']:.2f}, cross_dataset={stats['cross_dataset_ratio']:.3f}")
 
     # =========================================================================
