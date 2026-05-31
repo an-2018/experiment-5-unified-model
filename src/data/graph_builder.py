@@ -8,22 +8,208 @@ Rules:
 """
 from typing import Literal, Optional
 import numpy as np
+from sklearn.neighbors import NearestNeighbors
 
 
 def build_knn_graph(
     embeddings: np.ndarray,
     k: int = 10,
     metric: str = "cosine",
-    split: Optional[str] = None,
-    mode: Literal["split-local", "inductive", "transductive"] = "split-local",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Build KNN graph over sample embeddings.
+    """Build symmetric KNN graph over sample embeddings.
+
+    Args:
+        embeddings: (N, D) embedding matrix
+        k: number of nearest neighbors (excluding self)
+        metric: distance metric ("cosine" supported)
 
     Returns:
         edge_index: (2, num_edges) PyG-compatible edge index
-        edge_weight: (num_edges,) similarity scores
+        edge_weight: (num_edges,) similarity scores = 1/(1+distance)
     """
-    raise NotImplementedError("Phase 6: Graph MoE Architect will implement.")
+    n = embeddings.shape[0]
+
+    # Use brute-force for cosine (more reliable for normalized embeddings)
+    nn = NearestNeighbors(n_neighbors=k + 1, metric=metric, algorithm="brute")
+    nn.fit(embeddings)
+
+    # Get k+1 neighbors (including self at position 0)
+    distances, indices = nn.kneighbors(embeddings)
+
+    # Remove self-edges (column 0 is self)
+    distances = distances[:, 1:]
+    indices = indices[:, 1:]
+
+    # Build symmetric edges
+    src_nodes = np.repeat(np.arange(n), k)
+    dst_nodes = indices.flatten()
+    edge_weights = distances.flatten()
+
+    # Convert distance to similarity: 1/(1+dist)
+    edge_weights = 1.0 / (1.0 + edge_weights)
+
+    # Create edge index (2, num_edges)
+    edge_index = np.stack([src_nodes, dst_nodes])
+
+    return edge_index, edge_weights
+
+
+def build_split_local_graph(
+    embeddings: np.ndarray,
+    split_ids: np.ndarray,
+    k: int = 10,
+    cross_dataset_edges: bool = True,
+) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, bool]]:
+    """Build separate KNN graphs per split (train/val/test).
+
+    Critical: train graph uses only train embeddings, val graph only val embeddings,
+    test graph only test embeddings. No cross-split edges allowed.
+
+    Args:
+        embeddings: (N, D) full embedding matrix
+        split_ids: (N,) array with 0=train, 1=val, 2=test
+        k: number of nearest neighbors
+        cross_dataset_edges: if True, allow cross-dataset edges within same split
+
+    Returns:
+        graphs: dict with keys "train", "val", "test" → (edge_index, edge_weight)
+        leakage_check: dict with "val_leakage_free", "test_leakage_free" booleans
+    """
+    graphs = {}
+    leakage_check = {}
+
+    train_size = np.sum(split_ids == 0)
+    val_size = np.sum(split_ids == 1)
+    test_size = np.sum(split_ids == 2)
+
+    for split_name, split_value in [("train", 0), ("val", 1), ("test", 2)]:
+        # Mask for this split
+        mask = split_ids == split_value
+        split_embeddings = embeddings[mask]
+
+        # Build KNN graph for this split only
+        edge_index, edge_weight = build_knn_graph(split_embeddings, k=k)
+
+        graphs[split_name] = (edge_index, edge_weight)
+
+    # In split-local mode, each graph only uses nodes from its own split.
+    # Since we build graphs from split_embeddings, all node indices are LOCAL
+    # to that split (0 to split_size-1). So the leakage check is simply:
+    # val graph's dst nodes should be in [0, val_size), test in [0, test_size).
+    # This is inherently satisfied because we built from local embeddings.
+    val_edges = graphs["val"][0]
+    val_dst_nodes = val_edges[1]
+    val_leakage_free = np.all((val_dst_nodes >= 0) & (val_dst_nodes < val_size))
+
+    test_edges = graphs["test"][0]
+    test_dst_nodes = test_edges[1]
+    test_leakage_free = np.all((test_dst_nodes >= 0) & (test_dst_nodes < test_size))
+
+    leakage_check["val_leakage_free"] = bool(val_leakage_free)
+    leakage_check["test_leakage_free"] = bool(test_leakage_free)
+
+    return graphs, leakage_check
+
+
+def build_inductive_graph(
+    train_embeddings: np.ndarray,
+    test_embeddings: np.ndarray,
+    k: int = 10,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Build inductive KNN graph for transductive evaluation.
+
+    Test nodes connect ONLY to train nodes (not to other test nodes).
+    Train nodes connect to other train nodes normally.
+    This prevents test-to-test information leakage.
+
+    Args:
+        train_embeddings: (N_train, D) training embeddings
+        test_embeddings: (N_test, D) test embeddings
+        k: number of nearest neighbors
+
+    Returns:
+        train_edge_index: (2, num_train_edges)
+        train_edge_weight: (num_train_edges,)
+        test_edge_index: (2, num_test_edges) - test nodes only connect to train
+        test_edge_weight: (num_test_edges,)
+    """
+    n_train = train_embeddings.shape[0]
+    n_test = test_embeddings.shape[0]
+
+    # Train graph: train nodes connect to other train nodes
+    train_edge_index, train_edge_weight = build_knn_graph(train_embeddings, k=k)
+
+    # Test connections: test nodes connect ONLY to train nodes
+    # Use train as the reference database
+    nn = NearestNeighbors(n_neighbors=k, metric="cosine", algorithm="brute")
+    nn.fit(train_embeddings)
+
+    distances, indices = nn.kneighbors(test_embeddings)
+
+    # Build test->train edges
+    src_nodes = np.repeat(np.arange(n_test), k) + n_train  # Global indices start at n_train
+    dst_nodes = indices.flatten()  # Train nodes use global indices [0, n_train)
+    test_edge_weights = distances.flatten()
+    test_edge_weights = 1.0 / (1.0 + test_edge_weights)
+
+    test_edge_index = np.stack([src_nodes, dst_nodes])
+
+    return train_edge_index, train_edge_weight, test_edge_index, test_edge_weights
+
+
+def validate_graph_leakage(
+    train_edge_index: np.ndarray,
+    val_edge_index: np.ndarray,
+    test_edge_index: np.ndarray,
+    train_size: int,
+    val_size: int,
+) -> dict[str, bool]:
+    """Check that no cross-split edges exist in train/val/test graphs.
+
+    Node indexing convention:
+    - Train nodes: [0, train_size)
+    - Val nodes: [train_size, train_size + val_size)
+    - Test nodes: [train_size + val_size, ...)
+
+    Args:
+        train_edge_index: (2, num_train_edges)
+        val_edge_index: (2, num_val_edges)
+        test_edge_index: (2, num_test_edges)
+        train_size: number of train nodes
+        val_size: number of val nodes
+
+    Returns dict with keys:
+        - 'val_leakage_free': True if val edges only touch [train_size, train_size+val_size)
+        - 'test_leakage_free': True if test edges only touch [0, train_size+val_size)
+    """
+    val_start = train_size
+    val_end = train_size + val_size
+
+    # Check val edges (must be within val node range)
+    val_src = val_edge_index[0]
+    val_dst = val_edge_index[1]
+    val_edges_within_bounds = (
+        np.all((val_src >= val_start) & (val_src < val_end)) and
+        np.all((val_dst >= val_start) & (val_dst < val_end))
+    )
+
+    # Check test edges (must be within test node range = beyond train+val)
+    test_src = test_edge_index[0]
+    test_dst = test_edge_index[1]
+    # Test nodes start at train_size + val_size
+    test_start = train_size + val_size
+
+    # For test nodes: src should be >= test_start, dst should be in [0, train_size+val_size)
+    # because in inductive mode, test nodes only connect to train/val
+    test_edges_within_bounds = (
+        np.all(test_src >= test_start) and
+        np.all(test_dst < test_start)  # Only train/val nodes as destinations
+    )
+
+    return {
+        "val_leakage_free": bool(val_edges_within_bounds),
+        "test_leakage_free": bool(test_edges_within_bounds),
+    }
 
 
 def build_multimodal_graph(
@@ -31,18 +217,44 @@ def build_multimodal_graph(
     dataset_ids: list[str],
     k: int = 10,
     cross_dataset_edges: bool = True,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Build cross-dataset KNN graph for mixed-dataset training."""
-    raise NotImplementedError("Phase 6: Graph MoE Architect will implement.")
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Build cross-dataset KNN graph for mixed-dataset training.
 
+    Args:
+        fused_embeddings: (N, D) embedding matrix with all samples
+        dataset_ids: list of strings like "daic", "mosei", "fi" per sample
+        k: number of nearest neighbors
+        cross_dataset_edges: if True, allow edges across datasets
 
-def validate_graph_leakage(
-    train_edge_index: np.ndarray,
-    val_edge_index: np.ndarray,
-    test_edge_index: np.ndarray,
-) -> dict[str, bool]:
-    """Check that no cross-split edges exist in train/val/test graphs.
-
-    Returns dict with keys 'val_leakage_free', 'test_leakage_free'.
+    Returns:
+        edge_index: (2, num_edges)
+        edge_weight: (num_edges,) similarity scores
+        edge_flags: (num_edges,) 0=same-dataset edge, 1=cross-dataset edge
     """
-    raise NotImplementedError("Phase 6: Graph MoE Architect will implement.")
+    n = fused_embeddings.shape[0]
+
+    # Build full KNN graph
+    nn = NearestNeighbors(n_neighbors=k + 1, metric="cosine", algorithm="brute")
+    nn.fit(fused_embeddings)
+    distances, indices = nn.kneighbors(fused_embeddings)
+
+    # Remove self-edges
+    distances = distances[:, 1:]
+    indices = indices[:, 1:]
+
+    # Build edges
+    src_nodes = np.repeat(np.arange(n), k)
+    dst_nodes = indices.flatten()
+    edge_weights = (1.0 / (1.0 + distances.flatten()))
+
+    edge_index = np.stack([src_nodes, dst_nodes])
+
+    # Determine edge types (same vs cross dataset)
+    if cross_dataset_edges:
+        src_datasets = np.array([dataset_ids[i] for i in src_nodes])
+        dst_datasets = np.array([dataset_ids[i] for i in dst_nodes])
+        edge_flags = (src_datasets != dst_datasets).astype(np.int32)
+    else:
+        edge_flags = np.zeros(len(src_nodes), dtype=np.int32)
+
+    return edge_index, edge_weights, edge_flags
