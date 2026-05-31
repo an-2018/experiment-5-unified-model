@@ -79,6 +79,35 @@ def load_manifest():
         return json.load(f)
 
 
+def load_feature_tensor(path: Path) -> torch.Tensor:
+    """Load a feature file and extract the pooled feature vector.
+
+    Feature files can be:
+    - Direct torch tensors (.pt containing a tensor)
+    - Dictionaries with 'pooled_features' (audio/video) or 'pooled_embedding' (text) keys
+
+    Returns:
+        feature tensor of shape (D,) for the pooled/aggregated representation
+    """
+    data = torch.load(path, map_location='cpu')
+    if isinstance(data, dict):
+        # Audio/video features use 'pooled_features'
+        if 'pooled_features' in data:
+            return data['pooled_features'].float()
+        # Text features use 'pooled_embedding'
+        elif 'pooled_embedding' in data:
+            return data['pooled_embedding'].float()
+        # Fallback: mean of sequence features
+        elif 'features' in data:
+            return data['features'].float().mean(0)
+        elif 'embedding' in data:
+            return data['embedding'].float().mean(0)
+        else:
+            raise ValueError(f"Unknown dict keys in {path}: {list(data.keys())}")
+    else:
+        return data.float()
+
+
 def get_sample_embeddings_for_dataset(dataset: str, split: str,
                                        device: torch.device, hidden_dim: int = 256) -> tuple:
     """Load sample features and create fused embeddings via GatedLateFusion.
@@ -119,31 +148,31 @@ def get_sample_embeddings_for_dataset(dataset: str, split: str,
 
     text_dim = audio_dim = video_dim = 0
 
-    # Detect text dim
+# Detect text dim
     for key in ['text_roberta', 'text']:
         if key in feats:
-            path = FEATURES_ROOT / feats[key]
+            path = ROOT / feats[key]
             if path.exists():
-                t = torch.load(path, map_location='cpu').float()
-                text_dim = t.numel() if t.dim() == 1 else t.shape[-1]
+                t = load_feature_tensor(path)
+                text_dim = t.numel()
                 break
 
     # Detect audio dim
     for key in ['audio_wavlm', 'audio_egemaps', 'audio']:
         if key in feats:
-            path = FEATURES_ROOT / feats[key]
+            path = ROOT / feats[key]
             if path.exists():
-                a = torch.load(path, map_location='cpu').float()
-                audio_dim = a.numel() if a.dim() == 1 else a.shape[-1]
+                a = load_feature_tensor(path)
+                audio_dim = a.numel()
                 break
 
     # Detect video dim
     for key in ['video_openface', 'video_vit', 'video']:
         if key in feats:
-            path = FEATURES_ROOT / feats[key]
+            path = ROOT / feats[key]
             if path.exists():
-                v = torch.load(path, map_location='cpu').float()
-                video_dim = v.numel() if v.dim() == 1 else v.shape[-1]
+                v = load_feature_tensor(path)
+                video_dim = v.numel()
                 break
 
     # If dimensions not detected, use defaults
@@ -178,25 +207,25 @@ def get_sample_embeddings_for_dataset(dataset: str, split: str,
         # Text
         for key in ['text_roberta', 'text']:
             if key in feats:
-                path = FEATURES_ROOT / feats[key]
+                path = ROOT / feats[key]
                 if path.exists():
-                    text_feat = torch.load(path, map_location='cpu').float()
+                    text_feat = load_feature_tensor(path)
                     break
 
         # Audio - prefer wavlm, then egemaps
         for key in ['audio_wavlm', 'audio_egemaps', 'audio']:
             if key in feats:
-                path = FEATURES_ROOT / feats[key]
+                path = ROOT / feats[key]
                 if path.exists():
-                    audio_feat = torch.load(path, map_location='cpu').float()
+                    audio_feat = load_feature_tensor(path)
                     break
 
         # Video - prefer openface, then vit
         for key in ['video_openface', 'video_vit', 'video']:
             if key in feats:
-                path = FEATURES_ROOT / feats[key]
+                path = ROOT / feats[key]
                 if path.exists():
-                    video_feat = torch.load(path, map_location='cpu').float()
+                    video_feat = load_feature_tensor(path)
                     break
 
         # Handle missing modalities by creating zero vectors
@@ -207,7 +236,16 @@ def get_sample_embeddings_for_dataset(dataset: str, split: str,
         if video_feat is None:
             video_feat = torch.zeros(video_dim)
 
-        # Flatten if needed (for sequence features, take mean)
+        # Pad features to expected dimension if they're smaller (data inconsistency)
+        # Some FI samples have 70D openface instead of 5140D
+        if text_feat.numel() < text_dim:
+            text_feat = F.pad(text_feat, (0, text_dim - text_feat.numel()))
+        if audio_feat.numel() < audio_dim:
+            audio_feat = F.pad(audio_feat, (0, audio_dim - audio_feat.numel()))
+        if video_feat.numel() < video_dim:
+            video_feat = F.pad(video_feat, (0, video_dim - video_feat.numel()))
+
+        # Flatten if needed (for sequence features, take mean) - shouldn't happen after padding
         if text_feat.dim() > 1:
             text_feat = text_feat.mean(0)
         if audio_feat.dim() > 1:
@@ -218,12 +256,12 @@ def get_sample_embeddings_for_dataset(dataset: str, split: str,
         embeddings_list.append((text_feat, audio_feat, video_feat))
         sample_ids.append(sample_id)
 
-        # Build modality mask based on whether feature paths exist (not tensor values)
+# Build modality mask based on whether feature paths exist (not tensor values)
         # This is robust: a legitimately all-zero feature is still "available"
         mask = [
-            any(key in feats and (FEATURES_ROOT / feats[key]).exists() for key in ['text_roberta', 'text']),
-            any(key in feats and (FEATURES_ROOT / feats[key]).exists() for key in ['audio_wavlm', 'audio_egemaps', 'audio']),
-            any(key in feats and (FEATURES_ROOT / feats[key]).exists() for key in ['video_openface', 'video_vit', 'video']),
+            any(key in feats and (ROOT / feats[key]).exists() for key in ['text_roberta', 'text']),
+            any(key in feats and (ROOT / feats[key]).exists() for key in ['audio_wavlm', 'audio_egemaps', 'audio']),
+            any(key in feats and (ROOT / feats[key]).exists() for key in ['video_openface', 'video_vit', 'video']),
         ]
         # Force base mask (FI has no text, etc.)
         for i in range(3):
@@ -486,33 +524,58 @@ def plot_degree_distribution(all_stats: dict, out_dir: Path):
     print(f"  Saved: {out_dir / 'degree_distribution.png'}")
 
 
-def plot_cross_dataset_heatmap(all_stats: dict, dataset_ids: list, out_dir: Path):
-    """Plot cross-dataset edge heatmap."""
+def plot_cross_dataset_heatmap(all_stats: dict, dataset_ids: list, out_dir: Path,
+                                train_edge_index=None, val_edge_index=None, test_edge_index=None):
+    """Plot cross-dataset edge heatmap.
+
+    Counts edges between dataset pairs using global edge indices.
+    For split-local, each split's graph is built from all embeddings but filtered by split_id.
+    """
     datasets = ['daic', 'mosei', 'fi']
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 4))
     splits = ['train', 'val', 'test']
+    split_edge_indices = {
+        'train': train_edge_index,
+        'val': val_edge_index,
+        'test': test_edge_index,
+    }
 
     for ax, split in zip(axes, splits):
         heatmap = np.zeros((3, 3))
+        edge_idx = split_edge_indices.get(split)
 
-        for si, src_dataset in enumerate(datasets):
-            for di, dst_dataset in enumerate(datasets):
-                if src_dataset in all_stats and split in all_stats[src_dataset]:
-                    stats = all_stats[src_dataset][split]
-                    src_nodes = np.where(np.array(dataset_ids, dtype=object) == src_dataset)[0]
-                    # Count edges from src to dst
-                    edge_mask = stats.get('cross_dataset_mask', np.array([]))
-                    # Simplified: just show total edges per dataset pair
-                    heatmap[si, di] = stats['num_edges'] / (stats['num_nodes'] + 1e-8)
+        if edge_idx is not None and len(edge_idx[0]) > 0:
+            src_nodes = edge_idx[0]
+            dst_nodes = edge_idx[1]
+
+            # Map global node indices to dataset labels
+            all_datasets_arr = np.array(dataset_ids, dtype=object)
+            src_datasets_arr = all_datasets_arr[src_nodes]
+            dst_datasets_arr = all_datasets_arr[dst_nodes]
+
+            # Count edges for each (src_dataset, dst_dataset) pair
+            for si, src_ds in enumerate(datasets):
+                for di, dst_ds in enumerate(datasets):
+                    mask = (src_datasets_arr == src_ds) & (dst_datasets_arr == dst_ds)
+                    heatmap[si, di] = mask.sum()
 
         im = ax.imshow(heatmap, cmap='Blues')
         ax.set_xticks(range(3))
         ax.set_yticks(range(3))
         ax.set_xticklabels(datasets)
         ax.set_yticklabels(datasets)
-        ax.set_title(f"{split.capitalize()} Edge Density")
+        ax.set_title(f"{split.capitalize()} Edge Counts")
         plt.colorbar(im, ax=ax)
+
+        # Annotate cells with counts
+        for si in range(3):
+            for di in range(3):
+                count = int(heatmap[si, di])
+                if count > 0:
+                    text_color = 'white' if heatmap[si, di] > heatmap.max() / 2 else 'black'
+                    ax.text(di, si, str(count), ha='center', va='center',
+                            color=text_color, fontsize=9, fontweight='bold')
 
     plt.tight_layout()
     plt.savefig(out_dir / "cross_dataset_heatmap.png", dpi=150, bbox_inches="tight")
@@ -941,11 +1004,19 @@ def plot_local_subgraphs(global_embeddings: np.ndarray, dataset_ids: list,
 
     3 rows (DAIC, MOSEI, FI) × 3 columns (different k values).
     Shows ego network of selected node with its k nearest neighbors.
+    Uses PCA to reduce 256D embeddings to 2D for visualization.
     """
+    from sklearn.decomposition import PCA
+
     datasets = ['daic', 'mosei', 'fi']
     dataset_labels = {'daic': 'DAIC (Depression)', 'mosei': 'MOSEI (Sentiment)', 'fi': 'FI (Personality)'}
     task_names = ['Depression', 'Sentiment', 'Emotion', 'Personality']
     task_colors = ['red', 'blue', 'orange', 'green']
+
+    # Reduce to 2D for visualization using PCA
+    pca = PCA(n_components=2, random_state=42)
+    emb_2d = pca.fit_transform(global_embeddings)
+    print(f"  PCA explained variance ratio: {pca.explained_variance_ratio_.sum():.3f}")
 
     # Select one node per dataset to be the ego center
     centers = {}
@@ -965,35 +1036,35 @@ def plot_local_subgraphs(global_embeddings: np.ndarray, dataset_ids: list,
             continue
 
         ego_idx = centers[ds]
-        ego_emb = global_embeddings[ego_idx]
+        ego_emb_2d = emb_2d[ego_idx]
         task_id = global_task_ids[ego_idx]
 
         for col, k in enumerate(k_values):
             ax = axes[row, col]
 
-            # Find k nearest neighbors (excluding self)
-            distances = np.linalg.norm(global_embeddings - ego_emb, axis=1)
+            # Find k nearest neighbors (excluding self) using original 256D distances
+            distances = np.linalg.norm(global_embeddings - global_embeddings[ego_idx], axis=1)
             distances[ego_idx] = np.inf  # Exclude self
             knn_indices = np.argsort(distances)[:k]
 
-            # Plot nodes
+            # Plot nodes using PCA-reduced coordinates
             for ni in knn_indices:
                 neighbor_ds = dataset_ids[ni]
                 color = {'daic': 'red', 'mosei': 'blue', 'fi': 'green'}[neighbor_ds]
                 marker = 'o' if ni == ego_idx else 's'
                 size = 100 if ni == ego_idx else 50
-                ax.scatter(global_embeddings[ni, 0], global_embeddings[ni, 1],
+                ax.scatter(emb_2d[ni, 0], emb_2d[ni, 1],
                           c=color, s=size, alpha=0.7, marker=marker, edgecolors='black', linewidth=0.5)
 
-            # Draw edges (ego to neighbors)
+            # Draw edges (ego to neighbors) using PCA-reduced coordinates
             for ni in knn_indices:
-                ax.plot([ego_emb[0], global_embeddings[ni, 0]],
-                       [ego_emb[1], global_embeddings[ni, 1]],
+                ax.plot([ego_emb_2d[0], emb_2d[ni, 0]],
+                       [ego_emb_2d[1], emb_2d[ni, 1]],
                        'gray', alpha=0.3, linewidth=0.5)
 
             ax.set_title(f"{ds.upper()} k={k}")
-            ax.set_xlabel("Dim 1")
-            ax.set_ylabel("Dim 2")
+            ax.set_xlabel("PC1")
+            ax.set_ylabel("PC2")
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
 
@@ -1508,6 +1579,12 @@ def main():
           f"mosei={sum(1 for d in dataset_ids if d=='mosei')}, "
           f"fi={sum(1 for d in dataset_ids if d=='fi')}")
 
+    # Handle NaN values in embeddings (can occur from fusion on edge cases)
+    nan_count = np.isnan(global_embeddings).sum()
+    if nan_count > 0:
+        print(f"  ⚠  Found {nan_count} NaN values in embeddings — replacing with small values")
+        global_embeddings = np.nan_to_num(global_embeddings, nan=0.0)
+
     # =========================================================================
     # Step 3: Build KNN graphs based on graph_type
     # =========================================================================
@@ -1550,7 +1627,8 @@ def main():
         print("\n[Step 5] Generating visualizations...")
 
         plot_degree_distribution(all_stats, out_dir)
-        plot_cross_dataset_heatmap(all_stats, dataset_ids, out_dir)
+        plot_cross_dataset_heatmap(all_stats, dataset_ids, out_dir,
+                                   train_edge_index, val_edge_index, test_edge_index)
         plot_knn_similarity_histogram(all_stats, out_dir)
 
         # UMAP with edges (subsampled for performance)
