@@ -1,0 +1,16 @@
+dataset,fusion_type,metric,value,ci_lower,ci_upper,accuracy,f1,mae,r2,avg_mae,param_count,beats_unimodal,unimodal_baseline,epochs_trained
+daic,gated,AUROC,0.4978,nan,nan,0.7021,0.0,,,,56736,False,0.6991,41
+mosei,gated,CCC,0.6163,0.595,0.6342,,,0.6299,0.4236,,159232,True,0.5123,50
+fi,gated,Avg CCC,-0.0,-0.05,0.05,,,,,0.1586,827392,False,0.4578,50
+fi,gated,CCC_extraversion,-0.0,-0.0,0.0,,,,,,827392,False,0.4667,50
+fi,gated,CCC_neuroticism,0.0,0.0,0.0,,,,,,827392,False,0.4402,50
+fi,gated,CCC_agreeableness,-0.0,-0.0,0.0,,,,,,827392,False,0.3181,50
+fi,gated,CCC_conscientiousness,0.0,-0.0,0.0,,,,,,827392,False,0.6095,50
+fi,gated,CCC_openness,0.0,-0.0,0.0,,,,,,827392,False,0.4546,50
+mosei_emotion,gated,Avg Emotion AUROC,0.7336,0.7336,0.7336,,,,,,159232,True,0,41
+mosei_emotion,gated,AUROC_happiness,0.8219,,,,,,,,159232,True,0.5,41
+mosei_emotion,gated,AUROC_sadness,0.7555,,,,,,,,159232,True,0.5,41
+mosei_emotion,gated,AUROC_anger,0.7458,,,,,,,,159232,True,0.5,41
+mosei_emotion,gated,AUROC_fear,0.6025,,,,,,,,159232,True,0.5,41
+mosei_emotion,gated,AUROC_disgust,0.8297,,,,,,,,159232,True,0.5,41
+mosei_emotion,gated,AUROC_surprise,0.646,,,,,,,,159232,True,0.5,41

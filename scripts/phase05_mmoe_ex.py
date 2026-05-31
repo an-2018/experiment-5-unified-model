@@ -68,8 +68,18 @@ BATCH_SIZE = 32
 EPOCHS_DEFAULT = 150
 LR_DEFAULT = 3e-4
 WEIGHT_DECAY = 1e-4
-PATIENCE = 15
-TEMPERATURE = 2.0   # Sampling temperature for MOSEI dominance mitigation
+PATIENCE = 20           # More patience for DAIC (was 15)
+TEMPERATURE = 3.0       # Stronger upweighting for DAIC (was 2.0)
+EXPERT_ISOLATION = True  # CRITICAL FIX: isolate DAIC experts from MOSEI
+
+# Expert isolation mapping: each task gets isolated experts
+# DAIC gets 0-1 (ISOLATED from MOSEI), MOSEI gets 2-3 (shared sentiment+emotion), FI gets 4-5
+TASK_TO_EXPERTS = {
+    0: [0, 1],     # DAIC depression - ISOLATED
+    1: [2, 3],     # MOSEI sentiment - shared with emotion
+    2: [2, 3],     # MOSEI emotion - shared with sentiment
+    3: [4, 5],     # FI personality - separate from MOSEI
+}
 
 # Feature dimensions (from Phase 2)
 FEATURE_DIMS = {
@@ -131,18 +141,19 @@ def load_all_labels():
             pid = str(int(float(parts[0])))
             labels[f"daic_{pid}"] = int(float(parts[idx]))
 
-    # MOSEI labels — key format: "mosei_{id}" where id already includes split
-    data_path = MOSEI_DATA / "mosei_senti_data.pkl"
-    if data_path.exists():
-        with open(data_path, "rb") as f:
-            data = pickle.load(f)
-        for split_name, mosei_key in [("train", "train"), ("val", "valid"), ("test", "test")]:
-            if mosei_key not in data:
-                continue
-            split_data = data[mosei_key]
-            label_arr = np.array(split_data["labels"]).squeeze()
-            for i, lab in enumerate(label_arr):
-                labels[f"mosei_{split_name}_{i:05d}"] = float(lab)
+    # MOSEI labels — use emotion_labels.json which has sentiment + 6 emotions per sample
+    # Key format: "mosei_{split}_{i:05d}"
+    emotion_path = MOSEI_DATA / "mosei_emotion_labels.json"
+    if emotion_path.exists():
+        with open(emotion_path, "r") as f:
+            mosei_labels_data = json.load(f)
+        for key, label_data in mosei_labels_data.items():
+            # label_data has: sentiment, happiness, sadness, anger, fear, disgust, surprise
+            # Store as array: [sentiment, anger, disgust, fear, happiness, sadness, surprise]
+            # This matches the expected format for sentiment (index 0) and emotions (indices 0-5 after sentiment)
+            sentiment = float(label_data.get("sentiment", 0.0))
+            emotions = [float(label_data.get(e, 0.0)) for e in EMOTION_LABELS]
+            labels[key] = [sentiment] + emotions  # List with 7 values: [sentiment, 6 emotions]
 
     # FI labels — key format: "fi_{split}_{clip_id}"
     train_ann = FI_DATA / "train" / "annotation_training.pkl"
@@ -381,8 +392,8 @@ def collate_joint(batch):
         weights.append(w)
         routings.append(r)
 
-    # Pad labels to max size (5 for FI Big-Five)
-    max_label_size = 6  # Max of 1 (DAIC/MOSEI sentiment) and 5 (FI) and 6 (MOSEI emotion)
+    # Pad labels to max size (7 for MOSEI: sentiment + 6 emotions)
+    max_label_size = 7  # Max of 1 (DAIC), 1 (MOSEI sentiment), 6 (MOSEI emotion), 5 (FI)
     padded_labels = []
     for label in labels:
         if label.shape[0] < max_label_size:
@@ -500,13 +511,15 @@ class UnifiedMMoEEx(nn.Module):
             nn.GELU(),
         )
 
-        # MMoEEx backbone
+        # MMoEEx backbone with expert isolation
         self.mmoe = MMoEEx(
             input_dim=hidden_dim,
             num_experts=num_experts,
             expert_dim=expert_dim,
             num_tasks=num_tasks,
             num_shared=num_shared,
+            expert_isolation=EXPERT_ISOLATION,
+            task_to_experts=TASK_TO_EXPERTS,
         )
 
         # Task-specific heads

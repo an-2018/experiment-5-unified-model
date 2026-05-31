@@ -106,6 +106,9 @@ def load_daic_labels():
     return labels
 
 
+EMOTION_TRAITS = ["happiness", "sadness", "anger", "fear", "disgust", "surprise"]
+
+
 def load_mosei_labels():
     data_path = MOSEI_DATA / "mosei_senti_data.pkl"
     with open(data_path, "rb") as f:
@@ -118,6 +121,34 @@ def load_mosei_labels():
             labels[f"mosei_{split_name}_{i:05d}"] = float(lab)
     print(f"  Loaded MOSEI labels for {len(labels)} utterances")
     return labels
+
+
+def load_mosei_emotion_labels():
+    """Load MOSEI emotion labels (7-dim: sentiment + 6 emotions).
+    
+    Returns:
+        sentiment_labels: dict keyed by sample_id -> float (sentiment score)
+        emotion_labels: dict keyed by sample_id -> list of 6 floats (emotion intensities 0-3)
+    """
+    import json
+    emotion_path = MOSEI_DATA / "mosei_emotion_labels.json"
+    with open(emotion_path, "r") as f:
+        emotion_data = json.load(f)
+    
+    sentiment_labels = {}
+    emotion_labels = {}
+    
+    for sample_id, data in emotion_data.items():
+        sentiment_labels[sample_id] = float(data["sentiment"])
+        # Extract 6 emotion values, binarize at 0.5 for classification
+        emotion_values = [
+            float(data[trait]) for trait in EMOTION_TRAITS
+        ]
+        emotion_labels[sample_id] = emotion_values
+    
+    print(f"  Loaded MOSEI emotion labels for {len(emotion_labels)} utterances")
+    print(f"    Emotion traits: {EMOTION_TRAITS}")
+    return sentiment_labels, emotion_labels
 
 
 def load_fi_labels():
@@ -320,6 +351,137 @@ def collate_multimodal(batch):
         torch.stack(video_tensors),
         torch.stack(masks),
         torch.stack(labels),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Multimodal dataset with emotion labels (for MOSEI emotion task)
+# ---------------------------------------------------------------------------
+
+class MultimodalEmotionDataset(Dataset):
+    """Dataset that provides all 3 modalities + sentiment label + 6 emotion labels for MOSEI."""
+
+    def __init__(self, samples, labels_func, feature_dims):
+        self.samples = samples
+        self.labels_func = labels_func
+        self.feature_dims = feature_dims
+        self.sentiment_labels, self.emotion_labels = labels_func()
+        self.feature_keys = MODALITY_FEATURE_MAP["mosei"]
+
+        self.X_text = []
+        self.X_audio = []
+        self.X_video = []
+        self.y_sentiment = []
+        self.y_emotion = []
+        self.ids = []
+        self.modality_masks = []
+
+        skipped = 0
+        for s in samples:
+            if s["dataset"] != "mosei":
+                skipped += 1
+                continue
+
+            feat_map = s["features"]
+            t_key = self.feature_keys["text"]
+            a_key = self.feature_keys["audio"]
+            v_key = self.feature_keys["video"]
+
+            t_path_str = feat_map.get(t_key)
+            a_path_str = feat_map.get(a_key)
+            v_path_str = feat_map.get(v_key)
+
+            t_ok = t_path_str is not None and (ROOT / t_path_str).exists()
+            a_ok = a_path_str is not None and (ROOT / t_path_str).exists()
+            v_ok = v_path_str is not None and (ROOT / v_path_str).exists()
+
+            if not (t_ok or a_ok or v_ok):
+                skipped += 1
+                continue
+
+            def load_single(path_str, dim, name):
+                if path_str is None or not (ROOT / path_str).exists():
+                    return np.zeros(dim, dtype=np.float32), False
+                try:
+                    feat = load_feature_tensor(ROOT / path_str)
+                    feat = np.array(feat, dtype=np.float32).flatten()
+                    if not np.all(np.isfinite(feat)):
+                        return np.zeros(dim, dtype=np.float32), False
+                    if feat.shape[0] < dim:
+                        feat = np.pad(feat, (0, dim - feat.shape[0]))
+                    elif feat.shape[0] > dim:
+                        feat = feat[:dim]
+                    return feat, True
+                except Exception:
+                    return np.zeros(dim, dtype=np.float32), False
+
+            t_vec, t_ok = load_single(t_path_str, feature_dims["text"], "text")
+            a_vec, a_ok = load_single(a_path_str, feature_dims["audio"], "audio")
+            v_vec, v_ok = load_single(v_path_str, feature_dims["video"], "video")
+
+            sent_entry = self.sentiment_labels.get(s["id"])
+            emot_entry = self.emotion_labels.get(s["id"])
+            if sent_entry is None or emot_entry is None:
+                skipped += 1
+                continue
+
+            self.X_text.append(t_vec)
+            self.X_audio.append(a_vec)
+            self.X_video.append(v_vec)
+            self.y_sentiment.append(float(sent_entry))
+            # Binarize emotion labels at 0.5 threshold
+            self.y_emotion.append([1.0 if e >= 0.5 else 0.0 for e in emot_entry])
+            self.ids.append(s["id"])
+            self.modality_masks.append((t_ok, a_ok, v_ok))
+
+        if skipped > 0:
+            print(f"    Skipped {skipped} samples (wrong dataset or no features)")
+
+        self.X_text = np.stack(self.X_text) if self.X_text else np.zeros((0, feature_dims["text"]), dtype=np.float32)
+        self.X_audio = np.stack(self.X_audio) if self.X_audio else np.zeros((0, feature_dims["audio"]), dtype=np.float32)
+        self.X_video = np.stack(self.X_video) if self.X_video else np.zeros((0, feature_dims["video"]), dtype=np.float32)
+        self.y_sentiment = np.array(self.y_sentiment, dtype=np.float32)
+        self.y_emotion = np.array(self.y_emotion, dtype=np.float32)
+        self.modality_masks = list(self.modality_masks)
+
+        print(f"    MultimodalEmotionDataset: {len(self)} samples, "
+              f"text={self.X_text.shape}, audio={self.X_audio.shape}, video={self.X_video.shape}")
+        print(f"    Emotion labels: {self.y_emotion.shape} (6 emotions, binarized at 0.5)")
+
+    def __len__(self):
+        return len(self.y_emotion)
+
+    def __getitem__(self, idx):
+        return (
+            torch.from_numpy(self.X_text[idx]),
+            torch.from_numpy(self.X_audio[idx]),
+            torch.from_numpy(self.X_video[idx]),
+            torch.tensor(self.modality_masks[idx], dtype=torch.bool),
+            torch.from_numpy(self.y_emotion[idx]),  # 6 emotions, binary
+        )
+
+
+def collate_emotion(batch):
+    """Custom collate for emotion dataset."""
+    text_tensors = []
+    audio_tensors = []
+    video_tensors = []
+    masks = []
+    emotion_labels = []
+
+    for t, a, v, m, y in batch:
+        text_tensors.append(t)
+        audio_tensors.append(a)
+        video_tensors.append(v)
+        masks.append(m)
+        emotion_labels.append(y)
+
+    return (
+        torch.stack(text_tensors),
+        torch.stack(audio_tensors),
+        torch.stack(video_tensors),
+        torch.stack(masks),
+        torch.stack(emotion_labels),
     )
 
 
@@ -829,6 +991,156 @@ def train_regression(train_loader, val_loader, test_loader, dataset_name, fusion
         }
 
 
+def train_mosei_emotion(train_loader, val_loader, test_loader, fusion_type, device, epochs=50, lr=1e-3):
+    """Train and evaluate MOSEI emotion prediction (multi-label, 6 emotions)."""
+    from sklearn.metrics import roc_auc_score
+
+    text_dim = FEATURE_DIMS["mosei"]["text"]
+    audio_dim = FEATURE_DIMS["mosei"]["audio"]
+    video_dim = FEATURE_DIMS["mosei"]["video"]
+    hidden_dim = HIDDEN_DIM["mosei"]
+
+    # Model: regression fusion + 6-output head for multi-label emotion
+    model = FusionRegression(text_dim, audio_dim, video_dim, fusion_type, hidden_dim, n_traits=6, dataset_name="mosei").to(device)
+
+    # Modify head to output 6 logits (one per emotion)
+    with torch.no_grad():
+        modules_list = list(model.head.modules())
+        for module in reversed(modules_list):
+            if isinstance(module, nn.Linear) and module.out_features == 6:
+                nn.init.normal_(module.weight, 0, 0.05)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0.0)
+                print(f"  Emotion head: 6 outputs, weight std=0.05, bias init=0.0")
+                break
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
+    criterion = nn.BCEWithLogitsLoss()
+
+    best_val_loss = float("inf")
+    best_state = None
+    wait = 0
+    history = {"epoch": [], "train_loss": [], "val_loss": []}
+
+    for epoch in range(epochs):
+        model.train()
+        train_loss = 0.0
+        n_batches = 0
+
+        for t, a, v, mask, y_emotion in train_loader:
+            t, a, v, mask, y_emotion = t.to(device), a.to(device), v.to(device), mask.to(device), y_emotion.to(device)
+
+            optimizer.zero_grad()
+            logits = model(t, a, v, mask)  # Shape: (batch, 6)
+            loss = criterion(logits, y_emotion)
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+
+            train_loss += loss.item()
+            n_batches += 1
+
+        avg_train_loss = train_loss / max(n_batches, 1)
+
+        # Validation
+        model.eval()
+        val_loss = 0.0
+        val_batches = 0
+
+        with torch.no_grad():
+            for t, a, v, mask, y_emotion in val_loader:
+                t, a, v, mask, y_emotion = t.to(device), a.to(device), v.to(device), mask.to(device), y_emotion.to(device)
+                logits = model(t, a, v, mask)
+                loss = criterion(logits, y_emotion)
+                val_loss += loss.item()
+                val_batches += 1
+
+        avg_val_loss = val_loss / max(val_batches, 1)
+        scheduler.step(avg_val_loss)
+
+        history["epoch"].append(epoch)
+        history["train_loss"].append(avg_train_loss)
+        history["val_loss"].append(avg_val_loss)
+
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+            wait = 0
+        else:
+            wait += 1
+            if wait >= PATIENCE:
+                break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    # Test evaluation: compute per-emotion AUROC
+    model.eval()
+    all_test_labels = []
+    all_test_probs = []
+
+    with torch.no_grad():
+        for t, a, v, mask, y_emotion in test_loader:
+            t, a, v, mask, y_emotion = t.to(device), a.to(device), v.to(device), mask.to(device), y_emotion.to(device)
+            logits = model(t, a, v, mask)
+            probs = torch.sigmoid(logits).cpu().numpy()  # (batch, 6)
+            all_test_labels.append(y_emotion.cpu().numpy())
+            all_test_probs.append(probs)
+
+    all_test_labels = np.concatenate(all_test_labels)   # (N, 6)
+    all_test_probs = np.concatenate(all_test_probs)     # (N, 6)
+
+    # Per-emotion AUROC
+    emotion_aucs = {}
+    valid_emotions = 0
+    for i, emotion in enumerate(EMOTION_TRAITS):
+        y_t = all_test_labels[:, i]
+        y_p = all_test_probs[:, i]
+        try:
+            auc = roc_auc_score(y_t, y_p)
+            emotion_aucs[emotion] = auc
+            valid_emotions += 1
+        except Exception:
+            emotion_aucs[emotion] = float("nan")
+
+    avg_auc = np.nanmean(list(emotion_aucs.values()))
+    ci_lo, ci_hi = bootstrap_ci(
+        all_test_labels.flatten(), all_test_probs.flatten(),
+        lambda t, p: np.mean([roc_auc_score(all_test_labels[:, i], all_test_probs[:, i]) 
+                              for i in range(6) if len(np.unique(all_test_labels[:, i])) > 1])
+    )
+
+    print(f"  Emotion AUROC per trait:")
+    for emotion, auc in emotion_aucs.items():
+        print(f"    {emotion:12s}: {auc:.4f}")
+    print(f"    {'Average':12s}: {avg_auc:.4f}")
+
+    # Compute CCC for each emotion as secondary metric
+    emotion_cccs = {}
+    for i, emotion in enumerate(EMOTION_TRAITS):
+        y_t = all_test_labels[:, i].astype(float)
+        y_p = all_test_probs[:, i].astype(float)
+        ccc = compute_ccc(y_t, y_p)
+        emotion_cccs[emotion] = ccc
+
+    return {
+        "avg_auroc": avg_auc,
+        "emotion_auroc": emotion_aucs,
+        "emotion_ccc": emotion_cccs,
+        "ci_auroc": (ci_lo, ci_hi),
+        "y_true": all_test_labels,
+        "y_pred": all_test_probs,
+        "beats_trivial": avg_auc > 0.5,
+        "primary_metric": avg_auc,
+        "metric_name": "Avg Emotion AUROC",
+        "model": model,
+        "history": history,
+        "param_count": model.fusion.param_count(),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Modality dropout robustness test
 # ---------------------------------------------------------------------------
@@ -1227,6 +1539,70 @@ def run_experiment(dataset_name, fusion_type, epochs, lr, device):
     return result, None
 
 
+def run_mosei_emotion_experiment(fusion_type, epochs, lr, device):
+    """Run MOSEI emotion prediction experiment (6 emotions, multi-label classification)."""
+    print(f"\n{'='*60}")
+    print(f"  MOSEI EMOTION / {fusion_type.upper()} FUSION")
+    print(f"{'='*60}")
+
+    samples = load_manifest()
+    feature_dims = FEATURE_DIMS["mosei"]
+
+    # Group samples by split
+    by_split = {"train": [], "val": [], "test": []}
+    for s in samples:
+        if s["dataset"] == "mosei" and s["split"] in by_split:
+            by_split[s["split"]].append(s)
+
+    print(f"  Samples: train={len(by_split['train'])}, val={len(by_split['val'])}, test={len(by_split['test'])}")
+
+    # Build emotion datasets
+    train_ds = MultimodalEmotionDataset(by_split["train"], load_mosei_emotion_labels, feature_dims)
+    val_ds   = MultimodalEmotionDataset(by_split["val"],   load_mosei_emotion_labels, feature_dims) if by_split["val"] else None
+    test_ds  = MultimodalEmotionDataset(by_split["test"],  load_mosei_emotion_labels, feature_dims)
+
+    if len(train_ds) == 0 or len(test_ds) == 0:
+        return {"status": "error", "dataset": "mosei_emotion", "fusion_type": fusion_type,
+                "error": "No train or test data"}
+
+    batch_size = BATCH_SIZE["mosei"]
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=collate_emotion)
+
+    if val_ds is None or len(val_ds) == 0:
+        print(f"  [Note: val split empty — splitting train 80/20]")
+        n = len(train_ds)
+        split = int(0.8 * n)
+        val_indices = list(range(split, n))
+        train_indices = list(range(0, split))
+        train_ds_subset = torch.utils.data.Subset(train_ds, train_indices)
+        val_ds_subset = torch.utils.data.Subset(train_ds, val_indices)
+        train_loader = DataLoader(train_ds_subset, batch_size=batch_size, shuffle=True, collate_fn=collate_emotion)
+        val_loader = DataLoader(val_ds_subset, batch_size=batch_size, shuffle=False, collate_fn=collate_emotion)
+    else:
+        val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, collate_fn=collate_emotion)
+
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, collate_fn=collate_emotion)
+
+    print(f"  Train: {len(train_ds)} samples, Val: {len(val_ds) if val_ds else len(val_ds_subset)}, Test: {len(test_ds)} samples")
+
+    # Train emotion model
+    result = train_mosei_emotion(train_loader, val_loader, test_loader, fusion_type, device, epochs, lr)
+
+    result["dataset"] = "mosei_emotion"
+    result["fusion_type"] = fusion_type
+    result["status"] = "ok"
+    result["epochs_trained"] = len(result["history"]["epoch"]) if result.get("history") else 0
+
+    # Print summary
+    pm = result["primary_metric"]
+    mn = result.get("metric_name", "?")
+    print(f"  {mn}={pm:.4f} | beats_trivial={result.get('beats_trivial', '?')}")
+    print(f"  Fusion params: {result.get('param_count', '?')}")
+
+    return result, None
+
+
 # ---------------------------------------------------------------------------
 # Best unimodal baselines (from Phase 3)
 # ---------------------------------------------------------------------------
@@ -1322,6 +1698,27 @@ def write_results_csv(all_results, out_path):
                 "r2": round(r.get("r2", 0), 4),
                 "avg_mae": "",
             })
+        elif ds == "mosei_emotion":
+            # MOSEI emotion: 6 emotions, multi-label, report average AUROC
+            ci_lo, ci_hi = r.get("ci_auroc", (0, 0))
+            new_rows.append({
+                **row_base,
+                "metric": mn, "value": round(pm, 4),
+                "ci_lower": round(ci_lo, 4), "ci_upper": round(ci_hi, 4),
+                "accuracy": "", "f1": "", "mae": "", "r2": "", "avg_mae": "",
+            })
+            # Per-emotion AUROC rows
+            emotion_auroc = r.get("emotion_auroc", {})
+            for emotion in EMOTION_TRAITS:
+                auc = emotion_auroc.get(emotion, float("nan"))
+                new_rows.append({
+                    **row_base,
+                    "metric": f"AUROC_{emotion}", "value": round(auc, 4),
+                    "ci_lower": "", "ci_upper": "",
+                    "accuracy": "", "f1": "", "mae": "", "r2": "", "avg_mae": "",
+                    "beats_unimodal": auc > 0.5,
+                    "unimodal_baseline": 0.5,
+                })
         elif ds == "fi":
             ci_lo_val = pm - 0.05
             ci_hi_val = pm + 0.05
@@ -1364,7 +1761,7 @@ def write_results_csv(all_results, out_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Phase 4: Multimodal Fusion Baselines")
-    parser.add_argument("--dataset", type=str, choices=["daic", "mosei", "fi", "all"], required=True)
+    parser.add_argument("--dataset", type=str, choices=["daic", "mosei", "fi", "mosei_emotion", "all"], required=True)
     parser.add_argument("--fusion", type=str, choices=["gated", "lmf", "cross_attention", "all"], required=True)
     parser.add_argument("--epochs", type=int, default=EPOCHS_DEFAULT)
     parser.add_argument("--lr", type=float, default=LR_DEFAULT)
@@ -1378,7 +1775,12 @@ def main():
     results_csv_path = ROOT / args.results_csv
 
     # Determine which combos to run
-    datasets = ["daic", "mosei", "fi"] if args.dataset == "all" else [args.dataset]
+    if args.dataset == "all":
+        datasets = ["daic", "mosei", "fi", "mosei_emotion"]
+    elif args.dataset == "mosei":
+        datasets = ["mosei", "mosei_emotion"]  # Run both sentiment and emotion for MOSEI
+    else:
+        datasets = [args.dataset]
     fusion_types = ["gated", "lmf"] if args.fusion == "all" else [args.fusion]
 
     all_results = []
@@ -1387,7 +1789,11 @@ def main():
 
     for ds in datasets:
         for ft in fusion_types:
-            result, error = run_experiment(ds, ft, args.epochs, args.lr, device)
+            # Special handling for MOSEI emotion task
+            if ds == "mosei_emotion":
+                result, error = run_mosei_emotion_experiment(ft, args.epochs, args.lr, device)
+            else:
+                result, error = run_experiment(ds, ft, args.epochs, args.lr, device)
             if result is not None:
                 all_results.append(result)
                 write_results_csv(all_results, results_csv_path)

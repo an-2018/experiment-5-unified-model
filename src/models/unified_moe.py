@@ -33,7 +33,11 @@ class Expert(nn.Module):
 
 
 class MMoEEx(nn.Module):
-    """Multi-Task Multi-Expert with task-specific gates."""
+    """Multi-Task Multi-Expert with task-specific gates and optional expert isolation.
+
+    Expert isolation prevents MOSEI gradient dominance over DAIC by assigning
+    isolated expert subsets to each task group.
+    """
 
     def __init__(
         self,
@@ -42,16 +46,26 @@ class MMoEEx(nn.Module):
         expert_dim: int = 256,
         num_tasks: int = 4,
         num_shared: int = 2,
+        expert_isolation: bool = False,
+        task_to_experts: dict = None,
     ):
         super().__init__()
         self.num_shared = num_shared
         self.num_experts = num_experts
+        self.expert_isolation = expert_isolation
+
+        # Task-to-expert mapping for isolation mode
+        # Default: each task gets its own pair of experts
+        if task_to_experts is None:
+            task_to_experts = {i: [i * 2, i * 2 + 1] for i in range(num_tasks)}
+        self.task_to_experts = task_to_experts
 
         self.experts = nn.ModuleList([
             Expert(input_dim, expert_dim, expert_dim) for _ in range(num_experts)
         ])
 
         # Task-specific gates
+        # In isolation mode, gate outputs only for the task's assigned experts
         self.gates = nn.ModuleList([
             nn.Linear(input_dim, num_experts, bias=False) for _ in range(num_tasks)
         ])
@@ -63,13 +77,38 @@ class MMoEEx(nn.Module):
         """Route sample x through experts for given task_id.
 
         Returns weighted expert mixture output.
+
+        In expert_isolation mode, only the task's assigned experts are used,
+        preventing gradient contamination between task groups.
         """
         gate_logits = self.gates[task_id](x)
-        weights = torch.softmax(gate_logits, dim=-1)  # [batch, num_experts]
 
-        expert_outputs = torch.stack([expert(x) for expert in self.experts], dim=1)  # [batch, num_experts, expert_dim]
-        weighted = (weights.unsqueeze(-1) * expert_outputs).sum(dim=1)  # [batch, expert_dim]
-        return weighted
+        if self.expert_isolation and task_id in self.task_to_experts:
+            # Restrict to task-specific experts only
+            expert_indices = self.task_to_experts[task_id]
+            mask = torch.zeros(self.num_experts, device=x.device, dtype=torch.bool)
+            mask[expert_indices] = True
+
+            # Mask gate logits to only include assigned experts
+            masked_logits = gate_logits.clone()
+            # Expand mask to [batch, num_experts] for proper broadcasting
+            mask_expanded = mask.unsqueeze(0).expand_as(masked_logits)  # [batch, num_experts]
+            masked_logits[~mask_expanded] = float('-inf')
+            weights = torch.softmax(masked_logits, dim=-1)  # [batch, num_experts]
+
+            # Compute outputs only for assigned experts
+            expert_outputs = torch.stack([self.experts[idx](x) for idx in expert_indices], dim=1)  # [batch, num_assigned, expert_dim]
+
+            # Use only the weights for assigned experts and compute weighted sum
+            selected_weights = weights[:, expert_indices].unsqueeze(-1)  # [batch, num_assigned, 1]
+            weighted = (selected_weights * expert_outputs).sum(dim=1)  # [batch, expert_dim]
+            return weighted
+        else:
+            # Standard routing through all experts
+            weights = torch.softmax(gate_logits, dim=-1)  # [batch, num_experts]
+            expert_outputs = torch.stack([expert(x) for expert in self.experts], dim=1)  # [batch, num_experts, expert_dim]
+            weighted = (weights.unsqueeze(-1) * expert_outputs).sum(dim=1)  # [batch, expert_dim]
+            return weighted
 
     def get_task_weights(self) -> torch.Tensor:
         """Returns exp(-log_weights) for multi-task loss weighting."""

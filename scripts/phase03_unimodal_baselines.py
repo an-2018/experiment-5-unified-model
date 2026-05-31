@@ -45,6 +45,7 @@ warnings.filterwarnings("ignore")
 ROOT = Path("/home/anilson/thesis/thesis-experiment-5-unified-model")
 FEATURES_ROOT = ROOT / "data" / "features"
 MANIFEST_PATH = ROOT / "data" / "features" / "manifest.json"
+TABLES_DIR = ROOT / "artifacts" / "tables"
 
 # Data roots
 DAIC_DATA = ROOT / "data" / "daic"
@@ -111,21 +112,43 @@ def load_daic_labels():
     return labels
 
 
-def load_mosei_labels():
-    """Load MOSEI sentiment labels from pickle. Returns dict: sample_idx → float score."""
-    data_path = MOSEI_DATA / "mosei_senti_data.pkl"
-    with open(data_path, "rb") as f:
-        data = pickle.load(f)
+def load_mosei_labels(use_emotion=False):
+    """Load MOSEI labels from pickle (sentiment) or manifest (emotion).
 
-    labels = {}
-    for split_name, mosei_key in [("train", "train"), ("val", "valid"), ("test", "test")]:
-        split_data = data[mosei_key]
-        label_arr = np.array(split_data["labels"]).squeeze()
-        for i, lab in enumerate(label_arr):
-            labels[f"mosei_{split_name}_{i:05d}"] = float(lab)
+    Args:
+        use_emotion: If True, load emotion labels (6 emotions) from manifest instead of
+                     sentiment from pickle. Returns dict: sample_id → dict of emotion values.
+    """
+    if not use_emotion:
+        # Original: load sentiment from pickle
+        data_path = MOSEI_DATA / "mosei_senti_data.pkl"
+        with open(data_path, "rb") as f:
+            data = pickle.load(f)
 
-    print(f"  Loaded MOSEI labels for {len(labels)} utterances")
-    return labels
+        labels = {}
+        for split_name, mosei_key in [("train", "train"), ("val", "valid"), ("test", "test")]:
+            split_data = data[mosei_key]
+            label_arr = np.array(split_data["labels"]).squeeze()
+            for i, lab in enumerate(label_arr):
+                labels[f"mosei_{split_name}_{i:05d}"] = float(lab)
+
+        print(f"  Loaded MOSEI sentiment labels for {len(labels)} utterances")
+        return labels
+    else:
+        # Load emotion labels from manifest
+        EMOTIONS = ["happiness", "sadness", "anger", "fear", "disgust", "surprise"]
+        samples = load_manifest()
+        labels = {}
+        for s in samples:
+            if s["dataset"] != "mosei":
+                continue
+            emo = s.get("emotion_labels")
+            if emo is None:
+                continue
+            labels[s["id"]] = {e: float(emo[e]) for e in EMOTIONS}
+
+        print(f"  Loaded MOSEI emotion labels for {len(labels)} utterances")
+        return labels
 
 
 def load_fi_labels():
@@ -241,10 +264,15 @@ def build_dataset(samples, dataset_name, labels_func, modality):
                 continue
 
             # FI labels are dicts {trait: float}; convert to ordered list of floats
+            # MOSEI emotion labels are dicts {emotion: float} — keep as dict for emotion training
             if isinstance(label_entry, dict):
-                # Use a fixed trait order (same as load_fi_labels uses)
-                FI_TRAITS = ["extraversion", "neuroticism", "agreeableness", "conscientiousness", "openness"]
-                label_entry = [label_entry[t] for t in FI_TRAITS]
+                # If the dict keys match emotion names, keep as dict for MOSEI emotion
+                if set(label_entry.keys()) == set(EMOTION_LIST):
+                    pass  # keep as dict for emotion training
+                else:
+                    # FI personality traits — convert to ordered list of floats
+                    FI_TRAITS = ["extraversion", "neuroticism", "agreeableness", "conscientiousness", "openness"]
+                    label_entry = [label_entry[t] for t in FI_TRAITS]
 
             X_list.append(feat_vec)
             y_list.append(label_entry)
@@ -259,20 +287,33 @@ def build_dataset(samples, dataset_name, labels_func, modality):
             continue
 
         X = np.array(X_list, dtype=np.float32)
-        y = np.array(y_list, dtype=np.float32)
+        # Emotion labels are dicts — use object dtype so dicts are preserved
+        if y_list and isinstance(y_list[0], dict):
+            y = np.array(y_list, dtype=object)
+        else:
+            y = np.array(y_list, dtype=np.float32)
         out[split_name] = (X, y, ids_list)
 
     return out
 
 
-def prepare_data_for_task(dataset_name, modality):
-    """Load features and labels and return train/val/test splits."""
+def prepare_data_for_task(dataset_name, modality, task_type="default"):
+    """Load features and labels and return train/val/test splits.
+
+    Args:
+        dataset_name: "daic", "mosei", or "fi"
+        modality: "text", "audio", or "video"
+        task_type: "default" or "emotion" (for MOSEI emotion labels)
+    """
     samples = load_manifest()
 
     if dataset_name == "daic":
         data = build_dataset(samples, "daic", load_daic_labels, modality)
     elif dataset_name == "mosei":
-        data = build_dataset(samples, "mosei", load_mosei_labels, modality)
+        if task_type == "emotion":
+            data = build_dataset(samples, "mosei", lambda: load_mosei_labels(use_emotion=True), modality)
+        else:
+            data = build_dataset(samples, "mosei", load_mosei_labels, modality)
     elif dataset_name == "fi":
         data = build_dataset(samples, "fi", load_fi_labels, modality)
     else:
@@ -586,6 +627,74 @@ def train_and_evaluate_mosei_sentiment(X_train, y_train, X_val, y_val, X_test, y
     }
 
 
+EMOTION_LIST = ["happiness", "sadness", "anger", "fear", "disgust", "surprise"]
+
+
+def train_and_evaluate_mosei_emotion(X_train, y_train, X_val, y_val, X_test, y_test, modality):
+    """Train and evaluate MOSEI emotion labels (6 emotions, each 0-3 continuous regression).
+    
+    Returns dict with per-emotion CCC and average CCC across all 6 emotions.
+    """
+    X_train = X_train.reshape(X_train.shape[0], -1)
+    X_val   = X_val.reshape(X_val.shape[0], -1)
+    X_test  = X_test.reshape(X_test.shape[0], -1)
+
+    scaler = StandardScaler()
+    X_train_s = scaler.fit_transform(X_train)
+    X_val_s   = scaler.transform(X_val)
+    X_test_s  = scaler.transform(X_test)
+
+    # y_train is dict: emotion → float array (N samples)
+    results = {}
+    all_preds = {}
+    all_true = {}
+
+    for emo in EMOTION_LIST:
+        y_tr = np.array([y_train[i][emo] for i in range(len(y_train))], dtype=np.float32)
+        y_va = np.array([y_val[i][emo] for i in range(len(y_val))], dtype=np.float32) if y_val is not None and len(y_val) > 0 else None
+        y_te = np.array([y_test[i][emo] for i in range(len(y_test))], dtype=np.float32)
+
+        trivial = trivial_baseline_regression(y_tr)
+
+        model = RidgeCV(alphas=np.logspace(-3, 3, 20))
+        model.fit(X_train_s, y_tr)
+
+        y_pred = model.predict(X_test_s)
+        mae = np.abs(y_te - y_pred).mean()
+        ccc = compute_ccc(y_te, y_pred)
+
+        ci_lo_mae, ci_hi_mae = bootstrap_ci(y_te, y_pred, lambda t, p: np.abs(t - p).mean())
+        ci_lo_ccc, ci_hi_ccc = bootstrap_ci(y_te, y_pred, compute_ccc)
+
+        results[emo] = {
+            "mae": float(mae), "ccc": float(ccc),
+            "ci_mae": (float(ci_lo_mae), float(ci_hi_mae)),
+            "ci_ccc": (float(ci_lo_ccc), float(ci_hi_ccc)),
+            "y_true": y_te, "y_pred": y_pred,
+            "trivial_baseline_mae": float(trivial),
+            "beats_trivial": bool(mae < trivial),
+        }
+        all_preds[emo] = y_pred
+        all_true[emo] = y_te
+
+    # Average CCC and MAE across emotions
+    avg_ccc = np.mean([results[e]["ccc"] for e in EMOTION_LIST])
+    avg_mae = np.mean([results[e]["mae"] for e in EMOTION_LIST])
+
+    return {
+        **results,
+        "avg_ccc": float(avg_ccc),
+        "avg_mae": float(avg_mae),
+        "emotion_list": EMOTION_LIST,
+        "modality": modality,
+        "beats_trivial": any(results[e]["beats_trivial"] for e in EMOTION_LIST),
+        "primary_metric": avg_ccc,
+        "metric_name": "Avg Emotion CCC",
+        "dataset": "mosei_emotion",
+        "task_type": "emotion",
+    }
+
+
 def train_and_evaluate_fi_personality(X_train, y_train, X_val, y_val, X_test, y_test, modality):
     """Train and evaluate FI Big-5 personality traits (5 regression tasks)."""
     X_train = X_train.reshape(X_train.shape[0], -1)
@@ -675,7 +784,7 @@ ALL_DATASETS   = ["daic", "mosei", "fi"]
 
 
 def run_experiment(dataset_name, modality_name):
-    """Run a single (dataset, modality) experiment."""
+    """Run a single (dataset, modality) experiment. Returns list of results (MOSEI returns 2: sentiment + emotion)."""
     print(f"\n{'='*60}")
     print(f"  {dataset_name.upper()} / {modality_name.upper()}")
     print(f"{'='*60}")
@@ -735,6 +844,8 @@ def run_experiment(dataset_name, modality_name):
 
     print(f"  Train: {X_train.shape[0]} samples, Val: {X_val.shape[0] if X_val is not None else 0}, Test: {X_test.shape[0]}")
 
+    results_list = []  # Always return a list
+
     if dataset_name == "daic":
         # Try Logistic Regression first
         result_lr = train_and_evaluate_daic(X_train, y_train, X_val, y_val, X_test, y_test, modality_name)
@@ -766,22 +877,58 @@ def run_experiment(dataset_name, modality_name):
         result["modality"] = modality_name
         # For DAIC, beats_trivial means AUROC > 0.5 (random baseline), not accuracy
         result["beats_trivial"] = result["auroc"] > 0.5
+        result["status"] = "ok"
+        results_list.append(result)
 
     elif dataset_name == "mosei":
-        result = train_and_evaluate_mosei_sentiment(X_train, y_train, X_val, y_val, X_test, y_test, modality_name)
-        result["primary_metric"] = result["ccc"]
-        result["metric_name"] = "CCC"
-        result["dataset"] = "mosei"
+        # Sentiment task (single float regression)
+        result_sent = train_and_evaluate_mosei_sentiment(X_train, y_train, X_val, y_val, X_test, y_test, modality_name)
+        result_sent["primary_metric"] = result_sent["ccc"]
+        result_sent["metric_name"] = "CCC"
+        result_sent["dataset"] = "mosei"
+        result_sent["status"] = "ok"
+        results_list.append(result_sent)
+
+        # Emotion task (6 emotions from manifest) — load separate emotion data
+        print(f"  [MOSEI emotion evaluation]")
+        try:
+            emo_data = prepare_data_for_task("mosei", modality_name, task_type="emotion")
+            emo_train = emo_data.get("train")
+            emo_val   = emo_data.get("val")
+            emo_test  = emo_data.get("test")
+
+            if emo_train is not None and emo_test is not None:
+                eX_tr, ey_tr, _ = emo_train
+                eX_va, ey_va, _ = emo_val if emo_val is not None and emo_val[0] is not None else (None, None, None)
+                eX_te, ey_te, _ = emo_test
+
+                # Handle val split if missing (reuse same logic as above)
+                if eX_va is None or len(eX_va) == 0:
+                    n = len(eX_tr)
+                    split = int(0.8 * n)
+                    eX_va, ey_va = eX_tr[split:], ey_tr[split:]
+                    eX_tr, ey_tr = eX_tr[:split], ey_tr[:split]
+
+                result_emo = train_and_evaluate_mosei_emotion(eX_tr, ey_tr, eX_va, ey_va, eX_te, ey_te, modality_name)
+                result_emo["status"] = "ok"
+                results_list.append(result_emo)
+                print(f"  Emotion Avg CCC={result_emo['avg_ccc']:.4f}")
+            else:
+                print(f"  [Warning: emotion data unavailable for {modality_name}]")
+        except Exception as e:
+            print(f"  [Warning: emotion evaluation failed for {modality_name}: {e}]")
 
     elif dataset_name == "fi":
         result = train_and_evaluate_fi_personality(X_train, y_train, X_val, y_val, X_test, y_test, modality_name)
         result["primary_metric"] = result["avg_ccc"]
         result["metric_name"] = "Avg CCC"
         result["dataset"] = "fi"
+        result["status"] = "ok"
+        results_list.append(result)
 
-    result["status"] = "ok"
-    print(f"  {result['metric_name']}={result['primary_metric']:.4f} | beats_trivial={result.get('beats_trivial', '?')}")
-    return result, None
+    for r in results_list:
+        print(f"  {r['metric_name']}={r['primary_metric']:.4f} | beats_trivial={r.get('beats_trivial', '?')}")
+    return results_list, None
 
 
 # ---------------------------------------------------------------------------
@@ -907,27 +1054,76 @@ def plot_daic_confusion_matrix(results_by_combo, out_dir):
 
 
 def plot_mosei_emotion_f1(all_results, out_dir):
-    """Figure 3: Per-class F1 bars for MOSEI (placeholder — no multi-class labels in MOSEI).
-    
-    We show sentiment MAE distribution as histogram instead, since MOSEI only has sentiment.
-    """
+    """Figure 3: MOSEI sentiment MAE and emotion Avg CCC by modality."""
     import matplotlib.pyplot as plt
 
-    # Find MOSEI results and show sentiment MAE per modality
-    fig, ax = plt.subplots(figsize=(8, 5))
-    for mod in ["text", "audio", "video"]:
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Panel 1: Sentiment MAE
+    ax = axes[0]
+    mod_colors = ["#2196F3", "#FF9800", "#4CAF50"]
+    for i, mod in enumerate(["text", "audio", "video"]):
         r = next((x for x in all_results if x.get("dataset") == "mosei" and x.get("modality") == mod and x.get("status") == "ok"), None)
         if r:
-            ax.bar(mod, r["mae"], color=["#2196F3", "#FF9800", "#4CAF50"][["text","audio","video"].index(mod)], alpha=0.8)
-            ax.text(mod, r["mae"] + 0.01, f"{r['mae']:.3f}", ha="center", va="bottom", fontsize=10)
+            ax.bar(mod, r["mae"], color=mod_colors[i], alpha=0.8, edgecolor="black", linewidth=0.5)
+            ax.text(mod, r["mae"] + 0.02, f"{r['mae']:.3f}", ha="center", va="bottom", fontsize=10)
 
     ax.set_ylabel("Sentiment MAE (lower = better)")
     ax.set_title("MOSEI Sentiment MAE by Modality")
     ax.set_ylim(0, 1.0)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+
+    # Panel 2: Emotion Avg CCC
+    ax2 = axes[1]
+    for i, mod in enumerate(["text", "audio", "video"]):
+        r = next((x for x in all_results if x.get("dataset") == "mosei_emotion" and x.get("modality") == mod and x.get("status") == "ok"), None)
+        if r:
+            ax2.bar(mod, r["avg_ccc"], color=mod_colors[i], alpha=0.8, edgecolor="black", linewidth=0.5)
+            ax2.text(mod, r["avg_ccc"] + 0.02, f"{r['avg_ccc']:.3f}", ha="center", va="bottom", fontsize=10)
+
+    ax2.set_ylabel("Avg Emotion CCC (higher = better)")
+    ax2.set_title("MOSEI Emotion Avg CCC by Modality")
+    ax2.set_ylim(0, 0.6)
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["right"].set_visible(False)
+
     plt.tight_layout()
     save_figure(fig, "mosei_emotion_f1.png", out_dir)
+
+
+def plot_mosei_emotion_heatmap(all_results, out_dir):
+    """Figure 3b: Per-emotion CCC heatmap for MOSEI across modalities."""
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    # Collect emotion CCC data
+    emo_data = {}
+    for mod in ["text", "audio", "video"]:
+        r = next((x for x in all_results if x.get("dataset") == "mosei_emotion" and x.get("modality") == mod and x.get("status") == "ok"), None)
+        if r:
+            for emo in EMOTION_LIST:
+                if emo in r:
+                    emo_data.setdefault(emo, {})[mod] = r[emo].get("ccc", 0)
+
+    if not emo_data:
+        print("  Skipping MOSEI emotion heatmap: no emotion data")
+        return
+
+    # Build matrix
+    import numpy as np
+    mat = np.array([[emo_data.get(emo, {}).get(mod, np.nan) for mod in ["text", "audio", "video"]] for emo in EMOTION_LIST])
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.heatmap(mat, annot=True, fmt=".3f", cmap="YlOrRd",
+                xticklabels=["Text", "Audio", "Video"],
+                yticklabels=[e.capitalize() for e in EMOTION_LIST],
+                vmin=0, vmax=0.5, ax=ax)
+    ax.set_title("MOSEI Emotion CCC by Modality")
+    ax.set_ylabel("Emotion")
+    ax.set_xlabel("Modality")
+    plt.tight_layout()
+    save_figure(fig, "mosei_emotion_heatmap.png", out_dir)
 
 
 def plot_fi_scatter(all_results, out_dir):
@@ -1302,6 +1498,37 @@ def write_results_csv(all_results, out_path, merge_existing=True):
                 "trivial_value": round(r.get("trivial_baseline_mae", 0), 4),
             })
 
+        elif ds == "mosei_emotion":
+            # Per-emotion CCC and MAE (6 emotions)
+            for emo in r.get("emotion_list", EMOTION_LIST):
+                er = r.get(emo, {})
+                if not er:
+                    continue
+                new_rows.append({
+                    "dataset": "mosei_emotion", "modality": mod,
+                    "metric": f"CCC_{emo}", "value": round(er.get("ccc", 0), 4),
+                    "ci_lower": round(er.get("ci_ccc", (0, 0))[0], 4),
+                    "ci_upper": round(er.get("ci_ccc", (0, 0))[1], 4),
+                    "beats_trivial": er.get("beats_trivial", False),
+                    "trivial_value": round(er.get("trivial_baseline_mae", 0), 4),
+                })
+                new_rows.append({
+                    "dataset": "mosei_emotion", "modality": mod,
+                    "metric": f"MAE_{emo}", "value": round(er.get("mae", 0), 4),
+                    "ci_lower": round(er.get("ci_mae", (0, 0))[0], 4),
+                    "ci_upper": round(er.get("ci_mae", (0, 0))[1], 4),
+                    "beats_trivial": er.get("beats_trivial", False),
+                    "trivial_value": round(er.get("trivial_baseline_mae", 0), 4),
+                })
+            new_rows.append({
+                "dataset": "mosei_emotion", "modality": mod,
+                "metric": "Avg_CCC", "value": round(r.get("avg_ccc", 0), 4),
+                "ci_lower": round(r.get("avg_ccc", 0) - 0.05, 4),
+                "ci_upper": round(r.get("avg_ccc", 0) + 0.05, 4),
+                "beats_trivial": r.get("beats_trivial", False),
+                "trivial_value": 0,
+            })
+
         elif ds == "fi":
             for trait in r.get("traits", []):
                 tr = r[trait]
@@ -1454,9 +1681,9 @@ def main():
 
         for ds in datasets:
             for mod in modalities:
-                result, error = run_experiment(ds, mod)
-                if result is not None:
-                    all_results.append(result)
+                results_list, error = run_experiment(ds, mod)
+                if results_list is not None:
+                    all_results.extend(results_list)
                     # Save incremental results — merge with existing by removing overwritten combos
                     write_results_csv(all_results, results_csv_path)
 
@@ -1548,6 +1775,32 @@ def main():
                 result["primary_metric"] = result["avg_ccc"]
                 result["metric_name"] = "Avg CCC"
 
+            elif ds == "mosei_emotion":
+                result["emotion_list"] = EMOTION_LIST
+                for _, row in group.iterrows():
+                    metric = row["metric"]
+                    if metric.startswith("CCC_"):
+                        emo = metric[4:]
+                        if emo in EMOTION_LIST:
+                            if emo not in result:
+                                result[emo] = {}
+                            result[emo]["ccc"] = row["value"]
+                            result[emo]["ci_ccc"] = (row["ci_lower"], row["ci_upper"])
+                            result[emo]["beats_trivial"] = bool(row["beats_trivial"])
+                            result[emo]["trivial_baseline_mae"] = row["trivial_value"]
+                    elif metric.startswith("MAE_"):
+                        emo = metric[4:]
+                        if emo in EMOTION_LIST:
+                            if emo not in result:
+                                result[emo] = {}
+                            result[emo]["mae"] = row["value"]
+                            result[emo]["ci_mae"] = (row["ci_lower"], row["ci_upper"])
+                    elif metric == "Avg_CCC":
+                        result["avg_ccc"] = row["value"]
+                        result["beats_trivial"] = bool(row["beats_trivial"])
+                result["primary_metric"] = result.get("avg_ccc", 0)
+                result["metric_name"] = "Avg Emotion CCC"
+
             all_results.append(result)
 
         if not all_results:
@@ -1580,27 +1833,31 @@ def main():
     plt.rcParams["figure.dpi"] = 150
 
     # Figure 1: baseline metrics bar
-    print("  [1/6] baseline_metrics_bar.png")
+    print("  [1/7] baseline_metrics_bar.png")
     plot_baseline_metrics_bar(all_results, out_dir)
 
     # Figure 2: DAIC confusion matrix
-    print("  [2/6] daic_confusion_matrix.png")
+    print("  [2/7] daic_confusion_matrix.png")
     plot_daic_confusion_matrix(all_results, out_dir)
 
-    # Figure 3: MOSEI emotion F1 (MAE bars)
-    print("  [3/6] mosei_emotion_f1.png")
+    # Figure 3: MOSEI sentiment MAE and emotion CCC
+    print("  [3/7] mosei_emotion_f1.png")
     plot_mosei_emotion_f1(all_results, out_dir)
 
+    # Figure 3b: MOSEI emotion heatmap
+    print("  [3b/7] mosei_emotion_heatmap.png")
+    plot_mosei_emotion_heatmap(all_results, out_dir)
+
     # Figure 4: FI scatter
-    print("  [4/6] fi_scatter.png")
+    print("  [4/7] fi_scatter.png")
     plot_fi_scatter(all_results, out_dir)
 
     # Figure 5: error distribution
-    print("  [5/6] error_distribution.png")
+    print("  [5/7] error_distribution.png")
     plot_error_distribution(all_results, out_dir)
 
     # Figure 6: UMAP
-    print("  [6/6] umap_unimodal.png")
+    print("  [6/7] umap_unimodal.png")
     plot_umap_unimodal(all_results, out_dir)
 
     # Write final CSV

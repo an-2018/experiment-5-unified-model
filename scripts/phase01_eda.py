@@ -538,6 +538,134 @@ def plot_split_distribution_plots(daic_df):
     plt.close()
     print("Saved: 08_split_distributions.png")
 
+def plot_class_imbalance_and_emotions():
+    """9. DAIC class imbalance plot and 10. MOSEI emotion distribution."""
+    import h5py
+
+    # =============================================================================
+    # FIGURE 09: DAIC Class Imbalance Analysis
+    # =============================================================================
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Data (already known from task description)
+    splits_data = {
+        'Train': {'total': 107, 'depressed': 30, 'non_depressed': 77},
+        'Val': {'total': 35, 'depressed': 12, 'non_depressed': 23},
+        'Test': {'total': 47, 'depressed': 14, 'non_depressed': 33}
+    }
+
+    # Left panel: grouped bar chart
+    ax = axes[0]
+    x = np.arange(3)
+    width = 0.35
+
+    non_dep_counts = [splits_data[s]['non_depressed'] for s in ['Train', 'Val', 'Test']]
+    dep_counts = [splits_data[s]['depressed'] for s in ['Train', 'Val', 'Test']]
+
+    bars1 = ax.bar(x - width/2, non_dep_counts, width, label='Non-depressed', color='green', edgecolor='black')
+    bars2 = ax.bar(x + width/2, dep_counts, width, label='Depressed', color='red', edgecolor='black')
+
+    ax.set_xlabel('Split')
+    ax.set_ylabel('Count')
+    ax.set_title('DAIC Class Distribution by Split')
+    ax.set_xticks(x)
+    ax.set_xticklabels(['Train', 'Val', 'Test'])
+    ax.legend()
+
+    # Add value labels on bars
+    for bar, count in zip(bars1, non_dep_counts):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, str(count),
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+    for bar, count in zip(bars2, dep_counts):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, str(count),
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+    # Right panel: pie chart (overall distribution)
+    ax = axes[1]
+    total_depressed = sum(splits_data[s]['depressed'] for s in ['Train', 'Val', 'Test'])
+    total_non_depressed = sum(splits_data[s]['non_depressed'] for s in ['Train', 'Val', 'Test'])
+    total = total_depressed + total_non_depressed
+
+    wedges, texts, autotexts = ax.pie([total_non_depressed, total_depressed],
+                                       labels=['Non-depressed\n(70.4%)', 'Depressed\n(29.6%)'],
+                                       autopct='%1.1f%%',
+                                       colors=['#90EE90', '#FF6B6B'],
+                                       explode=(0, 0.05),
+                                       startangle=90)
+    ax.set_title(f'DAIC Overall Class Distribution\n(n={total})')
+
+    fig.suptitle("DAIC Class Imbalance Analysis — Mild (1:2.4), No SMOTE Needed", fontsize=13, fontweight='bold')
+
+    # Add annotation
+    fig.text(0.5, 0.02, "Clinical threshold: PHQ-8 ≥ 10 | Imbalance ratio 1:2.4 | Weighted BCE sufficient",
+             ha='center', fontsize=10, style='italic')
+
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    plt.savefig(ARTIFACTS_DIR / '09_daic_class_imbalance.png', dpi=150, bbox_inches='tight')
+    plt.close()
+    print("Saved: 09_daic_class_imbalance.png")
+
+    # =============================================================================
+    # FIGURE 10: MOSEI Emotion Distribution
+    # =============================================================================
+    h5_path = WORK_DIR / 'data' / 'mosei' / 'mosei.hdf5'
+
+    # Collect emotion data from HDF5 All Labels
+    emotion_data = {emotion: [] for emotion in ['happiness', 'sadness', 'anger', 'fear', 'disgust', 'surprise']}
+
+    with h5py.File(h5_path, 'r') as f:
+        all_labels = f['All Labels']
+        for key in all_labels.keys():
+            feat = all_labels[key]['features'][:].squeeze()
+            # feat[0] = sentiment, feat[1:7] = 6 emotions
+            for i, emotion in enumerate(['happiness', 'sadness', 'anger', 'fear', 'disgust', 'surprise']):
+                emotion_data[emotion].append(feat[i+1])
+
+    # Krippendorff alpha values
+    alpha_values = {
+        'happiness': 0.41,
+        'sadness': 0.12,
+        'anger': 0.18,
+        'fear': 0.02,
+        'disgust': 0.21,
+        'surprise': 0.09
+    }
+
+    # Create 2x3 subplots
+    fig, axes = plt.subplots(2, 3, figsize=(14, 8))
+    axes = axes.flatten()
+
+    emotions = ['happiness', 'sadness', 'anger', 'fear', 'disgust', 'surprise']
+    colors = ['gold', 'steelblue', 'red', 'purple', 'brown', 'orange']
+
+    for idx, (emotion, color) in enumerate(zip(emotions, colors)):
+        ax = axes[idx]
+        data = emotion_data[emotion]
+
+        # Count occurrences of each Likert value (0, 1, 2, 3)
+        counts = [0, 0, 0, 0]
+        for val in data:
+            if 0 <= val <= 3:
+                counts[int(val)] += 1
+
+        ax.bar([0, 1, 2, 3], counts, color=color, edgecolor='black', alpha=0.7)
+        ax.set_xlabel('Likert Scale')
+        ax.set_ylabel('Count')
+        ax.set_title(f'{emotion.capitalize()} (α={alpha_values[emotion]:.2f})')
+        ax.set_xticks([0, 1, 2, 3])
+
+    fig.suptitle("MOSEI Emotion Label Distribution (from HDF5 All Labels)", fontsize=14, fontweight='bold')
+
+    # Add note below figure
+    fig.text(0.5, 0.02,
+             "Note: Fear (α=0.02) and Surprise (α=0.09) are unreliable labels. Happiness (α=0.41) is most reliable.",
+             ha='center', fontsize=10, style='italic')
+
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    plt.savefig(ARTIFACTS_DIR / '10_mosei_emotion_distribution.png', dpi=150, bbox_inches='tight')
+    plt.close()
+    print("Saved: 10_mosei_emotion_distribution.png")
+
 # =============================================================================
 # DATASET CONTRACT CREATION
 # =============================================================================
@@ -818,6 +946,9 @@ def main():
 
     print("  - 08_split_distributions.png")
     plot_split_distribution_plots(daic_df)
+
+    print("  - 09_daic_class_imbalance.png + 10_mosei_emotion_distribution.png")
+    plot_class_imbalance_and_emotions()
 
     # Create dataset contract
     print("\n[5/6] Creating dataset contract...")
