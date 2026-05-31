@@ -1,0 +1,9 @@
+{
+  "level": "L1",
+  "daic_auroc": 0.5072463768115942,
+  "mosei_sentiment_ccc": 0.508713991448721,
+  "mosei_emotion_auc": 0.6985380203961422,
+  "fi_avg_ccc": 0.443916298448683,
+  "gpu_hours": 0.0,
+  "note": "Classical features (fallback - no LLM cache)"
+}

@@ -1,0 +1,7 @@
+level,daic_auroc,mosei_sentiment_ccc,mosei_emotion_auc,fi_avg_ccc,gpu_hours,note
+L0,0.5471,0.5397,0.623,0.4578,0,Reused Phase 5 MMoEEx results
+L1,0.5072463768115942,0.508713991448721,0.6985380203961422,0.443916298448683,0.0,Classical features (fallback - no LLM cache)
+L2,,,,,,
+L3,,,,,,
+L4,,,,,,
+L5,,,,,,

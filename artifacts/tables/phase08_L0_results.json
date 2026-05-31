@@ -1,0 +1,10 @@
+{
+  "level": "L0",
+  "daic_auroc": 0.5471,
+  "daic_auroc_text_only": 0.6991,
+  "mosei_sentiment_ccc": 0.5397,
+  "mosei_emotion_auc": 0.623,
+  "fi_avg_ccc": 0.4578,
+  "gpu_hours": 0,
+  "note": "Reused Phase 5 MMoEEx results"
+}
