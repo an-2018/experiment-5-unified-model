@@ -95,6 +95,9 @@ class MMoEEx(nn.Module):
             nn.Linear(expert_dim, 1) for _ in range(num_tasks)
         ])
 
+        # Graph weight for combining MMoE gates with graph router (GG-MoE)
+        self.graph_weight = 0.5
+
     def forward(self, x: torch.Tensor, task_id: int) -> torch.Tensor:
         """Route sample x through experts for given task_id.
 
@@ -187,11 +190,13 @@ class MMoEEx(nn.Module):
 
         # MMoE gate logits per sample
         # Gate probs shape: (batch, num_experts)
+        # Vectorized: group samples by task_id for batched matmul
         gate_probs = torch.zeros(batch_size, self.num_experts, device=device)
-        for i in range(batch_size):
-            task_id = task_ids[i].item()
-            gate_logits = self.gates[task_id](x[i:i+1])  # (1, num_experts)
-            gate_probs[i] = torch.softmax(gate_logits.squeeze(0), dim=-1)
+        unique_tasks = task_ids.unique()
+        for t in unique_tasks:
+            mask = (task_ids == t)
+            gate_logits = self.gates[t.item()](x[mask])  # (num_in_task, num_experts)
+            gate_probs[mask] = torch.softmax(gate_logits, dim=-1)
 
         # Graph routing (combine with MMoE gates)
         routing_weights = gate_probs
@@ -199,11 +204,11 @@ class MMoEEx(nn.Module):
         if router_type and edge_index is not None:
             if router_type == "graphsage" and self.graphsage_router is not None:
                 graph_probs = self.graphsage_router(x, edge_index)  # (batch, num_experts)
-                combined_log_probs = torch.log(gate_probs + 1e-8) + 0.5 * torch.log(graph_probs + 1e-8)
+                combined_log_probs = torch.log(gate_probs + 1e-8) + self.graph_weight * torch.log(graph_probs + 1e-8)
                 routing_weights = F.softmax(combined_log_probs, dim=-1)
             elif router_type == "gat" and self.gat_router is not None:
                 graph_probs = self.gat_router(x, edge_index)  # (batch, num_experts)
-                combined_log_probs = torch.log(gate_probs + 1e-8) + 0.5 * torch.log(graph_probs + 1e-8)
+                combined_log_probs = torch.log(gate_probs + 1e-8) + self.graph_weight * torch.log(graph_probs + 1e-8)
                 routing_weights = F.softmax(combined_log_probs, dim=-1)
 
         # Weighted expert mixture via compute_expert_mixture
@@ -236,10 +241,15 @@ class MMoEEx(nn.Module):
         weighted = (routing_weights.unsqueeze(-1) * expert_outputs).sum(dim=1)  # (batch, expert_dim)
 
         # Task-specific output projection per sample
+        # Bounds check on task_id + vectorized grouping by task
+        max_task = len(self.task_heads) - 1
+        assert task_ids.max().item() <= max_task, f"task_id {task_ids.max().item()} exceeds task_heads count {len(self.task_heads)}"
         out = torch.zeros(batch_size, 1, device=device)
-        for i in range(batch_size):
-            task_id = task_ids[i].item()
-            out[i] = self.task_heads[task_id](weighted[i:i+1])
+        unique_tasks = task_ids.unique()
+        for t in unique_tasks:
+            mask = (task_ids == t)
+            t_idx = t.item()
+            out[mask] = self.task_heads[t_idx](weighted[mask])
         return out
 
 
