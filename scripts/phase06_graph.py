@@ -352,21 +352,28 @@ def concatenate_all_splits(all_embeddings: dict, all_metadata: dict,
 
     split_map = {'train': 0, 'val': 1, 'test': 2}
 
+    # FIX: Track per-split row counts (LOCAL indices within each split's graph)
+    # build_knn_graph operates on split-masked embeddings, returning LOCAL indices
+    # So we need local ranges, not global ranges
+    split_row_counts = {0: 0, 1: 0, 2: 0}  # train=0, val=1, test=2
+
     for dataset in ['daic', 'mosei', 'fi']:
         for split in ['train', 'val', 'test']:
             if dataset in all_embeddings and split in all_embeddings[dataset]:
                 embs = all_embeddings[dataset][split]
                 meta = all_metadata[dataset][split]
 
-                start_idx = len(all_embs)
-                end_idx = start_idx + len(embs)
+                split_id = split_map[split]
+                local_start = split_row_counts[split_id]  # LOCAL index within this split's graph
+                local_end = local_start + len(embs)
+                split_row_counts[split_id] = local_end
 
                 all_embs.append(embs)
                 dataset_ids.extend([dataset] * len(embs))
-                split_ids.extend([split_map[split]] * len(embs))
+                split_ids.extend([split_id] * len(embs))
                 task_ids.extend(meta['task_ids'])
 
-                index_map[(dataset, split)] = (start_idx, end_idx)
+                index_map[(dataset, split)] = (local_start, local_end)
 
     global_embeddings = np.vstack(all_embs) if all_embs else np.empty((0, hidden_dim))
     global_split_ids = np.array(split_ids, dtype=np.int64)
