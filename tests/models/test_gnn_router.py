@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.models.gnn_router import GraphSAGERouter, GATRouter
+from src.models.unified_moe import MMoEEx
 
 
 class TestGraphSAGERouter:
@@ -75,6 +76,72 @@ class TestGATRouter:
         x = torch.randn(32, 256, requires_grad=True)
         edge_index = torch.randint(0, 32, (2, 100))
         out = router(x, edge_index)
+        loss = out.sum()
+        loss.backward()
+        assert x.grad is not None
+        assert not torch.isnan(x.grad).any()
+
+
+class TestGGMoEIntegration:
+    def test_ggmoe_integration(self):
+        model = MMoEEx(
+            input_dim=256,
+            num_experts=8,
+            expert_dim=256,
+            num_tasks=4,
+            graph_router_type="graphsage",
+        )
+        x = torch.randn(16, 256)
+        task_ids = torch.randint(0, 4, (16,))
+        edge_index = torch.randint(0, 16, (2, 50))
+        out, weights = model.forward_ggmoe(x, task_ids, edge_index, "graphsage")
+        assert out.shape == (16, 1)
+        assert weights.shape == (16, 8)
+        assert torch.allclose(weights.sum(dim=-1), torch.ones(16), atol=1e-5)
+
+    def test_ggmoe_gat(self):
+        model = MMoEEx(
+            input_dim=256,
+            num_experts=8,
+            expert_dim=256,
+            num_tasks=4,
+            graph_router_type="gat",
+        )
+        x = torch.randn(16, 256)
+        task_ids = torch.randint(0, 4, (16,))
+        edge_index = torch.randint(0, 16, (2, 50))
+        out, weights = model.forward_ggmoe(x, task_ids, edge_index, "gat")
+        assert out.shape == (16, 1)
+        assert weights.shape == (16, 8)
+        assert torch.allclose(weights.sum(dim=-1), torch.ones(16), atol=1e-5)
+
+    def test_ggmoe_no_graph(self):
+        model = MMoEEx(
+            input_dim=256,
+            num_experts=8,
+            expert_dim=256,
+            num_tasks=4,
+            graph_router_type=None,
+        )
+        x = torch.randn(16, 256)
+        task_ids = torch.randint(0, 4, (16,))
+        out, weights = model.forward_ggmoe(x, task_ids, edge_index=None, graph_router_type=None)
+        assert out.shape == (16, 1)
+        assert weights.shape == (16, 8)
+        assert torch.allclose(weights.sum(dim=-1), torch.ones(16), atol=1e-5)
+
+    def test_ggmoe_gradient_flow(self):
+        model = MMoEEx(
+            input_dim=256,
+            num_experts=8,
+            expert_dim=256,
+            num_tasks=4,
+            graph_router_type="graphsage",
+        )
+        x = torch.randn(16, 256, requires_grad=True)
+        task_ids = torch.randint(0, 4, (16,))
+        edge_index = torch.randint(0, 16, (2, 50))
+        out, weights = model.forward_ggmoe(x, task_ids, edge_index, "graphsage")
         loss = out.sum()
         loss.backward()
         assert x.grad is not None

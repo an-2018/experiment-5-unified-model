@@ -6,6 +6,9 @@ Task heads: DAIC depression (binary), MOSEI sentiment (regression), MOSEI emotio
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+from .gnn_router import GraphSAGERouter, GATRouter
 
 
 class Expert(nn.Module):
@@ -48,6 +51,7 @@ class MMoEEx(nn.Module):
         num_shared: int = 2,
         expert_isolation: bool = False,
         task_to_experts: dict = None,
+        graph_router_type: str = None,
     ):
         super().__init__()
         self.num_shared = num_shared
@@ -72,6 +76,24 @@ class MMoEEx(nn.Module):
 
         # Homoscedastic uncertainty weights per task (learned)
         self.log_task_weights = nn.Parameter(torch.zeros(num_tasks))
+
+        # Graph routers for GG-MoE
+        self.graph_router_type = graph_router_type
+        self.graphsage_router = None
+        self.gat_router = None
+        if graph_router_type == "graphsage":
+            self.graphsage_router = GraphSAGERouter(
+                in_dim=input_dim, hidden_dim=128, out_dim=num_experts
+            )
+        elif graph_router_type == "gat":
+            self.gat_router = GATRouter(
+                in_dim=input_dim, hidden_dim=128, out_dim=num_experts, num_heads=4
+            )
+
+        # Task-specific output projections (one per task)
+        self.task_heads = nn.ModuleList([
+            nn.Linear(expert_dim, 1) for _ in range(num_tasks)
+        ])
 
     def forward(self, x: torch.Tensor, task_id: int) -> torch.Tensor:
         """Route sample x through experts for given task_id.
@@ -137,6 +159,63 @@ class MMoEEx(nn.Module):
         """Reset gate weights to uniform distribution for fair routing."""
         for gate in self.gates:
             nn.init.zeros_(gate.weight)
+
+    def forward_ggmoe(
+        self,
+        x: torch.Tensor,
+        task_ids: torch.Tensor,
+        edge_index: torch.Tensor = None,
+        graph_router_type: str = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Graph-Gated MoE forward pass.
+
+        Combines MMoE task-specific gate logits with GNN graph router
+        neighborhood-aggregated routing weights.
+
+        Args:
+            x: fused multimodal embedding (batch, input_dim)
+            task_ids: task identifier per sample (batch,), values in [0, num_tasks)
+            edge_index: graph connectivity (2, num_edges) or None
+            graph_router_type: "graphsage" | "gat" | None. If None, uses self.graph_router_type.
+
+        Returns:
+            out: task-specific output (batch, 1)
+            routing_weights: expert routing distribution (batch, num_experts)
+        """
+        batch_size = x.size(0)
+        device = x.device
+
+        # MMoE gate logits per sample
+        # Gate probs shape: (batch, num_experts)
+        gate_probs = torch.zeros(batch_size, self.num_experts, device=device)
+        for i in range(batch_size):
+            task_id = task_ids[i].item()
+            gate_logits = self.gates[task_id](x[i:i+1])  # (1, num_experts)
+            gate_probs[i] = torch.softmax(gate_logits.squeeze(0), dim=-1)
+
+        # Graph routing (combine with MMoE gates)
+        routing_weights = gate_probs
+        router_type = graph_router_type or self.graph_router_type
+        if router_type and edge_index is not None:
+            if router_type == "graphsage" and self.graphsage_router is not None:
+                graph_probs = self.graphsage_router(x, edge_index)  # (batch, num_experts)
+                combined_log_probs = torch.log(gate_probs + 1e-8) + 0.5 * torch.log(graph_probs + 1e-8)
+                routing_weights = F.softmax(combined_log_probs, dim=-1)
+            elif router_type == "gat" and self.gat_router is not None:
+                graph_probs = self.gat_router(x, edge_index)  # (batch, num_experts)
+                combined_log_probs = torch.log(gate_probs + 1e-8) + 0.5 * torch.log(graph_probs + 1e-8)
+                routing_weights = F.softmax(combined_log_probs, dim=-1)
+
+        # Weighted expert mixture
+        expert_outputs = torch.stack([expert(x) for expert in self.experts], dim=1)  # (batch, num_experts, expert_dim)
+        weighted = (routing_weights.unsqueeze(-1) * expert_outputs).sum(dim=1)  # (batch, expert_dim)
+
+        # Task-specific output projection per sample
+        out = torch.zeros(batch_size, 1, device=device)
+        for i in range(batch_size):
+            task_id = task_ids[i].item()
+            out[i] = self.task_heads[task_id](weighted[i:i+1])
+        return out, routing_weights
 
 
 class GraphGatedRouter(nn.Module):
