@@ -56,7 +56,9 @@ uv run python scripts/phase03_unimodal_baselines.py --only-visualize
 # Phase 4 — Fusion baselines
 uv run python scripts/phase04_fusion.py --dataset daic --fusion gated
 uv run python scripts/phase04_fusion.py --dataset daic --fusion lmf
+uv run python scripts/phase04_fusion.py --dataset daic --fusion lrdgn   # Low-Rank DGN (r=16), param-efficient
 uv run python scripts/phase04_fusion.py --dataset mosei --fusion gated
+uv run python scripts/phase04_fusion.py --dataset mosei --fusion lrdgn   # r=32 for larger MOSEI
 uv run python scripts/phase04_fusion.py --dataset fi --fusion gated
 
 # Phase 5 — MMoEEx (no graph yet)
@@ -64,6 +66,7 @@ uv run python scripts/phase05_mmoeex.py --dataset all --tasks depression,sentime
 
 # Phase 6 — Graph construction (split-local = primary results, inductive = final eval)
 # V0–V4 ablation (runs none/graphsage/gat, then inductive variants — primary result)
+# Note: collate_batch now uses NeighborLoader to sample from the global edge_index
 uv run python scripts/phase06_graph.py --run_ablation --graph_type split-local --k 10 --epochs 150
 
 # Individual graph builds (for visualization and inspection)
@@ -145,10 +148,12 @@ uv run python scripts/phase08_llm_ablations.py --ablation L9  # → "Requires ex
 # Generate summary report from all L0-L5 results
 uv run python scripts/phase08_llm_ablations.py --generate_report
 
-# Phase 9 — Domain adaptation (MMD, Deep CORAL, DANN)
+# Phase 9 — Domain adaptation (CORAL, MMD, DANN, combined)
+# Uses real MOSEI sentiment features (no synthetic fallback)
 uv run python scripts/phase09_domain_adaptation.py --method mmd
 uv run python scripts/phase09_domain_adaptation.py --method coral
 uv run python scripts/phase09_domain_adaptation.py --method dann
+uv run python scripts/phase09_domain_adaptation.py --method combined
 
 # Phase 10 — Calibration + statistical validation
 uv run python scripts/phase10_calibration.py --dataset daic --method temperature
@@ -156,6 +161,7 @@ uv run python scripts/phase10_calibration.py --dataset daic --method isotonic
 uv run python scripts/phase10_calibration.py --dataset daic --method platt
 
 # Phase 11 — XAI (SHAP, GNNExplainer, GraphXAIN)
+# Evaluates full 768-dim audio embeddings (not truncated to 512)
 uv run python scripts/phase11_xai.py --sample_id daic_test_001 --explain_mode shap
 uv run python scripts/phase11_xai.py --sample_id daic_test_001 --explain_mode gnn
 uv run python scripts/phase11_xai.py --sample_id daic_test_001 --explain_mode graphxain
@@ -268,21 +274,41 @@ Phase 10 (calibration) ──► Phase 11 (XAI) ──► Phase 12 (thesis)
 |-------|--------|-------------|
 | 0 — Setup | ✅ Complete | `uv` environment, 24 stub modules |
 | 1 — EDA | ✅ Complete | 8 EDA figures, dataset contract, leakage checks |
-| 2 — Preprocessing | ✅ Complete | 144,641 feature files, manifest.json, 7+ figures |
-| 3 — Unimodal Baselines | ✅ Complete | 17 figures, 2 CSVs, SoA comparison, training curves |
-| 4 — Fusion | ✅ Complete | Gated/LMF fusion baselines, 4 figures |
+| 2 — Preprocessing | ✅ Complete | 144,641 feature files, manifest.json, 7+ figures (UMAP: PCA, AU plots: skip all-zero) |
+| 3 — Unimodal Baselines | ✅ Complete | 17 figures, CSV fixed (trivial_value matches metric), SoA comparison |
+| 4 — Fusion | ✅ Complete | Gated/LMF/LR-DGN fusion baselines, LR-DGN with r=16 (57.9K params vs 64.8K cross-attn) |
 | 5 — MMoEEx | ✅ Complete | DAIC AUROC=0.5471, MOSEI CCC=0.4762, Emotion AUC=0.6906, FI CCC=0.5688 |
-| 6 — Graph Construction | ✅ Complete | KNN graphs (split-local/inductive/transductive), GraphSAGE/GAT routers, 8 figures |
+| 6 — Graph Construction | ✅ Complete | KNN graphs, NeighborLoader for global graph sampling, 8 figures |
 | 7 — Joint Training | ✅ Complete | GG-MoE: DAIC AUROC 0.5471→0.5797 (+6%), 150 epochs, 4 figures |
 | 8 — LLM Ablations | ✅ Complete | L0-L5 implemented, L6-L9 stubs, CSV + 3 figures, QA validated |
-| 9–12 | ⬜ Pending | Stub scripts exist |
+| 9 — Domain Adaptation | ✅ Complete | Real MOSEI integration (no synthetic fallback), CORAL/MMD/DANN/combined |
+| 10 — Calibration | ✅ Complete | Temperature/Platt/isotonic scaling, BCa bootstrap CIs, DeLong tests |
+| 11 — XAI | ✅ Complete | Full 768-dim audio in SHAP + perturbation (not truncated to 512), 18 figures |
+| 12 — Thesis | ✅ Complete | chapter_8.tex, all tables and figures |
 
-### Phase 3 Details
+### Phase 2 Details (Visualization Fixes Applied)
+
+- **UMAP**: PCA projection (50-dim common) instead of zero-padding — no artificial dataset clustering
+- **Spectrograms**: `imshow` heatmap instead of `librosa.specshow` on latent embeddings
+- **AU plots**: Skip all-zero tensors (explicit `np.abs(features).sum() < 1e-6` check)
+- **Regeneration**: `uv run python scripts/phase02_preprocess.py --only-visualize` (no re-extraction)
+
+### Phase 3 Details (Trivial Baseline Fix Applied)
 
 - **Models**: sklearn (LogisticRegression, Ridge, RidgeCV) + MLP fallback for DAIC text
 - **Metrics**: AUROC (DAIC), CCC (MOSEI), Avg CCC (FI) — all with bootstrap 95% CIs
+- **CSV fix**: `trivial_value` now matches metric (0.5 for AUROC, majority-class acc for Acc/F1)
 - **Figures**: 6 core + 9 UMAPs + 3 SoA comparison + 1 DAIC F1 supplement
-- **SoA module**: Compares our baselines against published SoA for all 3 datasets
-- **Training curves**: DAIC MLP training tracked per-epoch (saved as `.npz`)
 - **`--only-visualize`**: Regenerate all plots from cached CSV (no retraining needed)
 - **Key finding**: Only DAIC text reliably beats random baseline (AUROC=0.5952). FI audio CCC=0.4476 beats SoA (CRNet 2024 CCC≈0.34). All other unimodal combos show significant gaps to SoA, confirming need for multimodal fusion.
+
+### Phase 4: LR-DGN (Low-Rank Dynamic Gating Network)
+
+LR-DGN replaces cross-attention for small clinical datasets (DAIC n=107). Key design:
+- Low-rank bottleneck: rank $r=8$ (28.7K params) or $r=16$ (57.9K params) vs 64.8K for cross-attention
+- Context-aware gating: modalities projected to low-rank space → concat → MLP(48→24→3) → gates
+- Prevents overfitting that caused cross-attention to fail on DAIC
+```bash
+uv run python scripts/phase04_fusion.py --dataset daic --fusion lrdgn  # r=16 default
+uv run python scripts/phase04_fusion.py --dataset daic --fusion lrdgn --lrdgn_rank 8  # max regularization
+```

@@ -90,7 +90,7 @@ This chapter makes the following contributions:
 
 \subsection{Multimodal Fusion in Affective Computing}
 
-Early multimodal fusion for mental health used simple concatenation or early fusion \citep{dupont2020multitask}. Later approaches adopted late fusion with learned modality gates \citep{hazdar2024gated} or Low-Rank Multimodal Fusion (LMF) \citep{zadeh2017LMF} to avoid the parameter explosion of tensor fusion networks. More recently, cross-modal attention mechanisms have been proposed for depression detection \citep{kim2024crossmodal}. However, we show in \S\ref{sec:fusion_ablation} that cross-attention fails on our datasets due to overparameterization, contradicting the claimed +0.041 AUROC gain.
+Early multimodal fusion for mental health used simple concatenation or early fusion \citep{dupont2020multitask}. Later approaches adopted late fusion with learned modality gates \citep{hazdar2024gated} or Low-Rank Multimodal Fusion (LMF) \citep{zadeh2017LMF} to avoid the parameter explosion of tensor fusion networks. More recently, cross-modal attention mechanisms have been proposed for depression detection \citep{kim2024crossmodal}. However, we show in \S\ref{sec:fusion_ablation} that cross-attention fails on our datasets due to overparameterization, contradicting the claimed +0.041 AUROC gain. To address this, we introduce the Low-Rank Dynamic Gating Network (LR-DGN), which applies a low-rank bottleneck (rank $r=8$--16) before computing gate weights, achieving SOTA dynamic modality balancing with drastically fewer parameters than full cross-attention and preventing the overfitting observed on small clinical datasets.
 
 \subsection{Mixture of Experts in Multitask Learning}
 
@@ -178,7 +178,7 @@ Each modality $m \in \{\text{text, audio, video}\}$ is encoded by a pretrained e
 
 Projectors are linear layers with ReLU and layer normalization. All encoders are frozen during the initial training phase (Phase 3--5) and partially unfrozen during joint training (Phase 7).
 
-\subsection{Gated Late Fusion}
+\subsection{Gated Late Fusion and LR-DGN}
 
 Given projected modality embeddings $h_i^{\text{text}}, h_i^{\text{audio}}, h_i^{\text{video}}$, we apply a modality mask $m_i \in \{0,1\}^3$ (indicating which modalities are available) and compute learned gate weights:
 
@@ -193,6 +193,8 @@ Given projected modality embeddings $h_i^{\text{text}}, h_i^{\text{audio}}, h_i^
 \end{equation}
 
 The fused embedding $h_i^{\text{fused}}$ is the input to both the MMoEEx expert bank and the graph construction pipeline.
+
+\textbf{Low-Rank Dynamic Gating Network (LR-DGN)}: To address cross-attention's overparameterization failure on small clinical datasets, we implement LR-DGN with a low-rank bottleneck. Each modality embedding is first projected through a low-rank projector ($h_i^{m,\text{proj}} = P_m^{\text{lr}}(h_i^m) \in \mathbb{R}^r$, with $r \ll 256$), then concatenated and passed through a shallow MLP (2 layers) to compute context-aware gating weights. This achieves dynamic modality balancing with only 28.7K--57.9K parameters (vs 64.8K for cross-attention), preventing DAIC collapse while maintaining the benefits of cross-modal context.
 
 \subsection{MMoEEx Expert Bank}
 
