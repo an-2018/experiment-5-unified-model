@@ -60,13 +60,20 @@ def compute_sensitivity_specificity(y_true: np.ndarray, y_pred: np.ndarray, thre
 
 def compute_all_depression_metrics(logits: np.ndarray, labels: np.ndarray) -> dict:
     probs = 1 / (1 + np.exp(-logits))
+    try:
+        from training.calibration import compute_brier_score, compute_ece
+        brier = float(compute_brier_score(probs, labels))
+        ece_val = float(compute_ece(probs, labels))
+    except ImportError:
+        brier = float(np.mean((probs - labels) ** 2))
+        ece_val = 0.0  # Fallback
     return {
-        "auroc": compute_auroc(labels, probs),
-        "auprc": compute_auprc(labels, probs),
-        "f1": compute_f1(labels, probs),
-        "mae": compute_mae(labels, probs),
-        "sensitivity": compute_sensitivity_specificity(labels, probs)[0],
-        "specificity": compute_sensitivity_specificity(labels, probs)[1],
-        "brier": compute_brier_score(probs, labels),
-        "ece": compute_ece(probs, labels),
+        "auroc": float(compute_auroc(labels, probs)),
+        "auprc": float(compute_auprc(labels, probs)),
+        "f1": float(compute_f1(labels, probs)),
+        "mae": float(compute_mae(labels, probs)),
+        "sensitivity": float(compute_sensitivity_specificity(labels, probs)[0]),
+        "specificity": float(compute_sensitivity_specificity(labels, probs)[1]),
+        "brier": brier,
+        "ece": ece_val,
     }

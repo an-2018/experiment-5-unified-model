@@ -1,0 +1,1024 @@
+{
+  "case_studies": [
+    {
+      "dataset": "daic",
+      "case_id": 0,
+      "sample_id": "302",
+      "task": "depression",
+      "prediction": 0.3068259358406067,
+      "confidence": 0.576110319610198,
+      "true_label": 0.0,
+      "shap_values": {
+        "text": -0.05347976088523865,
+        "audio": 0.1852312758564949,
+        "video": 0.02559944987297058
+      },
+      "perturbation_deltas": {
+        "text": 0.05347976088523865,
+        "audio": -0.1852312758564949,
+        "video": -0.02559944987297058
+      },
+      "counterfactual": {
+        "text": 3.932288408279419,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 4,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 20,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 18,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 7,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 14,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_0": 0.25,
+        "expert_1": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "The model predicts depression with a confidence of 0.58, primarily driven by the audio modality (0.1852 contribution), where a similar sample of a sad-sounding voice was influential in the routing graph. Additionally, the video modality (0.0256 contribution) may have contributed with a subtle expression of sadness, and the text modality (-0.0535 contribution) slightly detracted from the overall prediction but was not the main driver. The model's decision was also influenced by connections to certain nodes in the routing graph, specificallyedges 0\u21924, 0\u21927, 0\u219214, 0\u219218, and"
+    },
+    {
+      "dataset": "daic",
+      "case_id": 1,
+      "sample_id": "307",
+      "task": "depression",
+      "prediction": 0.22009319067001343,
+      "confidence": 0.5548022530139335,
+      "true_label": 0.0,
+      "shap_values": {
+        "text": -0.09055885672569275,
+        "audio": 0.1822042278945446,
+        "video": 0.03951437771320343
+      },
+      "perturbation_deltas": {
+        "text": 0.09055885672569275,
+        "audio": -0.1822042278945446,
+        "video": -0.03951437771320343
+      },
+      "counterfactual": {
+        "text": 4.121700763702393,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 4,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 20,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 18,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 7,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 14,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_0": 0.25,
+        "expert_1": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "The model detected depression based on the patient's speech patterns and facial expressions captured in the audio and video modalities, respectively. In particular, the model was influenced by the connections between the initial node and nodes 14, 4, 20, 18, and 7 in the routing graph for the daic dataset, suggesting these connections carried important features associated with depression."
+    },
+    {
+      "dataset": "daic",
+      "case_id": 2,
+      "sample_id": "331",
+      "task": "depression",
+      "prediction": 0.2549715042114258,
+      "confidence": 0.5633997768674396,
+      "true_label": 0.0,
+      "shap_values": {
+        "text": -0.049278855323791504,
+        "audio": 0.12051969766616821,
+        "video": 0.002507030963897705
+      },
+      "perturbation_deltas": {
+        "text": 0.049278855323791504,
+        "audio": -0.12051969766616821,
+        "video": -0.002507030963897705
+      },
+      "counterfactual": {
+        "text": 3.9746298789978027,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 4,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 20,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 18,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 7,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        },
+        {
+          "id": 14,
+          "distance": 0.0,
+          "dataset": "daic",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_0": 0.25,
+        "expert_1": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "Based on the multimodal graph-gated model's prediction, depression was detected in the provided data with a score of 0.56. The strong contribution from the audio modality (0.1205) suggests that the speech patterns may have indicated signs of depression. Additionally, the influential neighbors in the routing graph, including nodes 4, 7, 14, 18, and 20, could be indicative of common features or patterns associated with depression in this dataset. However, the text modality showed a negative contribution (-0.0493), which may indicate that the text did not provide evidence supporting the depression diagnosis."
+    },
+    {
+      "dataset": "mosei",
+      "case_id": 0,
+      "sample_id": "mosei_val_00000",
+      "task": "sentiment",
+      "prediction": 0.25593867897987366,
+      "confidence": 0.5636376683641707,
+      "true_label": 1.0,
+      "shap_values": {
+        "text": 0.09381885826587677,
+        "audio": -0.03554576635360718,
+        "video": 0.07031606137752533
+      },
+      "perturbation_deltas": {
+        "text": -0.09381885826587677,
+        "audio": 0.03554576635360718,
+        "video": -0.07031606137752533
+      },
+      "counterfactual": {
+        "text": 4.036536693572998,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 8,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 29,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 30,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 22,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 5,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_2": 0.25,
+        "expert_3": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "The model's prediction of a neutral sentiment (0.564) was influenced by the text input, which contributed positively to the prediction (0.0938). Specifically, the model found similar samples in the mosei dataset that were connected to the current sample through the routing graph. These included edges to nodes 5, 8, 29, 30, and 22, indicating a cluster of similar conversations. While the video and audio modalities were also considered, they had a relatively small impact on the prediction, with the video contributing positively (0.0703) and the audio negatively (-0.0355). This suggests that the text"
+    },
+    {
+      "dataset": "mosei",
+      "case_id": 1,
+      "sample_id": "mosei_val_00001",
+      "task": "sentiment",
+      "prediction": 0.258934885263443,
+      "confidence": 0.5643744450066188,
+      "true_label": -0.1111111119389534,
+      "shap_values": {
+        "text": 0.1421816721558571,
+        "audio": 0.0,
+        "video": 0.07415346801280975
+      },
+      "perturbation_deltas": {
+        "text": -0.1421816721558571,
+        "audio": 0.0,
+        "video": -0.07415346801280975
+      },
+      "counterfactual": {
+        "text": 3.9414212703704834,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 8,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 29,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 30,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 22,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 5,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_2": 0.25,
+        "expert_3": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "The model predicted a neutral sentiment with a confidence of 0.56. The text modality contributed the most (0.1422) to the prediction, particularly the words and their context inferred from the mosei dataset, such as those in nodes 5, 8, 29, 30, and 22 of the routing graph. The video and audio modalities had less impact on the prediction, with values of 0.0742 and 0.0000 respectively. The model's prediction was also influenced by the connections to similar samples in the graph, specifically edges 0\u21925, 0\u21928, 0\u219229,"
+    },
+    {
+      "dataset": "mosei",
+      "case_id": 2,
+      "sample_id": "mosei_val_00002",
+      "task": "sentiment",
+      "prediction": 0.22525081038475037,
+      "confidence": 0.5560758053390394,
+      "true_label": -0.1111111119389534,
+      "shap_values": {
+        "text": 0.12361591309309006,
+        "audio": 0.006635874509811401,
+        "video": 0.03538210690021515
+      },
+      "perturbation_deltas": {
+        "text": -0.12361591309309006,
+        "audio": -0.006635874509811401,
+        "video": -0.03538210690021515
+      },
+      "counterfactual": {
+        "text": 4.71684455871582,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 8,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 29,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 30,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 22,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        },
+        {
+          "id": 5,
+          "distance": 0.0,
+          "dataset": "mosei",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_2": 0.25,
+        "expert_3": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "The model predicted a neutral sentiment (value: 0.556) with a confidence of 0.56. The text modality contributed the most (0.1236) and was the most influential in the prediction, possibly due to the use of neutral or ambiguous language. The video and audio modalities contributed less significantly (0.0354 and 0.0066 respectively). The model's prediction was also influenced by similar samples in the Mosei dataset, specifically those connected to the nodes 5, 8, 29, 30, and 22 in the routing graph. These samples may have had similar text, video, or audio features"
+    },
+    {
+      "dataset": "fi",
+      "case_id": 0,
+      "sample_id": "fi_val_-6otZ7M-Mro.003.mp4",
+      "task": "personality",
+      "prediction": 0.1898103803396225,
+      "confidence": 0.5473106380746126,
+      "true_label": 0.7102803587913513,
+      "shap_values": {
+        "text": 0.0,
+        "audio": 0.006472378969192505,
+        "video": 0.09536933153867722
+      },
+      "perturbation_deltas": {
+        "text": 0.0,
+        "audio": -0.006472378969192505,
+        "video": -0.09536933153867722
+      },
+      "counterfactual": {
+        "text": -1.0,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 33,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_4": 0.25,
+        "expert_5": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "The model predicted a personality score of 0.547 for the given individual, with the highest contributions coming from the video and routing graph modalities. Specifically, the model was influenced by interactions with others in the video (edges 0\u21921, 0\u219233, 0\u219234, 0\u21929, 0\u219249) in the context of \"fi.\" This suggests that the model identified certain behaviors or patterns in the video that are associated with a moderately outgoing and extraverted personality type, as indicated by the prediction."
+    },
+    {
+      "dataset": "fi",
+      "case_id": 1,
+      "sample_id": "fi_val_-6otZ7M-Mro.005.mp4",
+      "task": "personality",
+      "prediction": 0.20195549726486206,
+      "confidence": 0.5503179679761399,
+      "true_label": 0.5233644843101501,
+      "shap_values": {
+        "text": 0.0,
+        "audio": 0.034792155027389526,
+        "video": 0.054572299122810364
+      },
+      "perturbation_deltas": {
+        "text": 0.0,
+        "audio": -0.034792155027389526,
+        "video": -0.054572299122810364
+      },
+      "counterfactual": {
+        "text": -1.0,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 33,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_4": 0.25,
+        "expert_5": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "Based on the provided data, the model's prediction of a personality score of 0.55 for the individual from the fi dataset is primarily influenced by the video and audio modalities. Specifically, the model seems to have placed significant weight on characteristics conveyed in the video and audio data from neighbors 1, 33, 34, 9, and 49 in the routing graph, which are similar samples in the dataset. The exact nature of these influential characteristics cannot be definitively determined without further analysis, but it is likely that the model is responding to non-verbal cues such as facial expressions, tone of voice, and speech patterns in the video and audio data."
+    },
+    {
+      "dataset": "fi",
+      "case_id": 2,
+      "sample_id": "fi_val_-8asrRvfJWA.001.mp4",
+      "task": "personality",
+      "prediction": 0.1692427545785904,
+      "confidence": 0.5422099846068259,
+      "true_label": 0.4859813153743744,
+      "shap_values": {
+        "text": 0.0,
+        "audio": 0.07662476599216461,
+        "video": 0.0051165372133255005
+      },
+      "perturbation_deltas": {
+        "text": 0.0,
+        "audio": -0.07662476599216461,
+        "video": -0.0051165372133255005
+      },
+      "counterfactual": {
+        "text": -1.0,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 33,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        },
+        {
+          "id": 0,
+          "distance": 0.0,
+          "dataset": "fi",
+          "weight": 1.0
+        }
+      ],
+      "expert_routing": {
+        "expert_4": 0.25,
+        "expert_5": 0.25,
+        "expert_6": 0.25,
+        "expert_7": 0.25
+      },
+      "narrative": "The model's prediction of a personality score of 0.54, with a confidence of 0.54, was primarily influenced by the audio and video modalities of the sample, with the audio contributing the most (0.0766) and the video contributing slightly (0.0051). In the routing graph, several influential neighbors were identified, including edges to nodes 1, 33, 34, 9, and 49, suggesting that similar samples in the 'fi' dataset influenced the prediction. Specifically, these nodes might represent individuals with certain vocal and visual cues, such as tone of voice or facial expressions, that align with a mid-range personality"
+    }
+  ],
+  "perturbation_results": [
+    {
+      "sample": 0,
+      "modality": "text",
+      "delta": 0.05347976088523865
+    },
+    {
+      "sample": 0,
+      "modality": "audio",
+      "delta": -0.1852312758564949
+    },
+    {
+      "sample": 0,
+      "modality": "video",
+      "delta": -0.02559944987297058
+    },
+    {
+      "sample": 1,
+      "modality": "text",
+      "delta": 0.09055885672569275
+    },
+    {
+      "sample": 1,
+      "modality": "audio",
+      "delta": -0.1822042278945446
+    },
+    {
+      "sample": 1,
+      "modality": "video",
+      "delta": -0.03951437771320343
+    },
+    {
+      "sample": 2,
+      "modality": "text",
+      "delta": 0.049278855323791504
+    },
+    {
+      "sample": 2,
+      "modality": "audio",
+      "delta": -0.12051969766616821
+    },
+    {
+      "sample": 2,
+      "modality": "video",
+      "delta": -0.002507030963897705
+    },
+    {
+      "sample": 3,
+      "modality": "text",
+      "delta": 0.04616251587867737
+    },
+    {
+      "sample": 3,
+      "modality": "audio",
+      "delta": -0.07400688529014587
+    },
+    {
+      "sample": 3,
+      "modality": "video",
+      "delta": -0.007989391684532166
+    },
+    {
+      "sample": 4,
+      "modality": "text",
+      "delta": 0.09045031666755676
+    },
+    {
+      "sample": 4,
+      "modality": "audio",
+      "delta": -0.13824394345283508
+    },
+    {
+      "sample": 4,
+      "modality": "video",
+      "delta": 0.0038408637046813965
+    },
+    {
+      "sample": 5,
+      "modality": "text",
+      "delta": 0.00787922739982605
+    },
+    {
+      "sample": 5,
+      "modality": "audio",
+      "delta": -0.12968067824840546
+    },
+    {
+      "sample": 5,
+      "modality": "video",
+      "delta": -0.11243301630020142
+    },
+    {
+      "sample": 6,
+      "modality": "text",
+      "delta": 0.04305762052536011
+    },
+    {
+      "sample": 6,
+      "modality": "audio",
+      "delta": -0.1291458159685135
+    },
+    {
+      "sample": 6,
+      "modality": "video",
+      "delta": -0.006997287273406982
+    },
+    {
+      "sample": 7,
+      "modality": "text",
+      "delta": 0.007914096117019653
+    },
+    {
+      "sample": 7,
+      "modality": "audio",
+      "delta": -0.10602782666683197
+    },
+    {
+      "sample": 7,
+      "modality": "video",
+      "delta": -0.0008449554443359375
+    },
+    {
+      "sample": 8,
+      "modality": "text",
+      "delta": -0.014585375785827637
+    },
+    {
+      "sample": 8,
+      "modality": "audio",
+      "delta": -0.0925738513469696
+    },
+    {
+      "sample": 8,
+      "modality": "video",
+      "delta": -0.13618934154510498
+    },
+    {
+      "sample": 9,
+      "modality": "text",
+      "delta": -0.017964720726013184
+    },
+    {
+      "sample": 9,
+      "modality": "audio",
+      "delta": -0.06270591914653778
+    },
+    {
+      "sample": 9,
+      "modality": "video",
+      "delta": -0.006322592496871948
+    },
+    {
+      "sample": 0,
+      "modality": "text",
+      "delta": -0.09381885826587677
+    },
+    {
+      "sample": 0,
+      "modality": "audio",
+      "delta": 0.03554576635360718
+    },
+    {
+      "sample": 0,
+      "modality": "video",
+      "delta": -0.07031606137752533
+    },
+    {
+      "sample": 1,
+      "modality": "text",
+      "delta": -0.1421816721558571
+    },
+    {
+      "sample": 1,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 1,
+      "modality": "video",
+      "delta": -0.07415346801280975
+    },
+    {
+      "sample": 2,
+      "modality": "text",
+      "delta": -0.12361591309309006
+    },
+    {
+      "sample": 2,
+      "modality": "audio",
+      "delta": -0.006635874509811401
+    },
+    {
+      "sample": 2,
+      "modality": "video",
+      "delta": -0.03538210690021515
+    },
+    {
+      "sample": 3,
+      "modality": "text",
+      "delta": -0.159080371260643
+    },
+    {
+      "sample": 3,
+      "modality": "audio",
+      "delta": -0.0030023157596588135
+    },
+    {
+      "sample": 3,
+      "modality": "video",
+      "delta": -0.0857258141040802
+    },
+    {
+      "sample": 4,
+      "modality": "text",
+      "delta": -0.18076752126216888
+    },
+    {
+      "sample": 4,
+      "modality": "audio",
+      "delta": -0.028618931770324707
+    },
+    {
+      "sample": 4,
+      "modality": "video",
+      "delta": -0.11858585476875305
+    },
+    {
+      "sample": 5,
+      "modality": "text",
+      "delta": -0.03637117147445679
+    },
+    {
+      "sample": 5,
+      "modality": "audio",
+      "delta": -0.01169295608997345
+    },
+    {
+      "sample": 5,
+      "modality": "video",
+      "delta": -0.10302349925041199
+    },
+    {
+      "sample": 6,
+      "modality": "text",
+      "delta": -0.055959805846214294
+    },
+    {
+      "sample": 6,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 6,
+      "modality": "video",
+      "delta": -0.10446013510227203
+    },
+    {
+      "sample": 7,
+      "modality": "text",
+      "delta": 0.04323536157608032
+    },
+    {
+      "sample": 7,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 7,
+      "modality": "video",
+      "delta": -0.08228851482272148
+    },
+    {
+      "sample": 8,
+      "modality": "text",
+      "delta": -0.006280854344367981
+    },
+    {
+      "sample": 8,
+      "modality": "audio",
+      "delta": 0.011409550905227661
+    },
+    {
+      "sample": 8,
+      "modality": "video",
+      "delta": -0.07886578887701035
+    },
+    {
+      "sample": 9,
+      "modality": "text",
+      "delta": 0.10219818539917469
+    },
+    {
+      "sample": 9,
+      "modality": "audio",
+      "delta": 0.04104921035468578
+    },
+    {
+      "sample": 9,
+      "modality": "video",
+      "delta": -0.05502488650381565
+    },
+    {
+      "sample": 0,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 0,
+      "modality": "audio",
+      "delta": -0.006472378969192505
+    },
+    {
+      "sample": 0,
+      "modality": "video",
+      "delta": -0.09536933153867722
+    },
+    {
+      "sample": 1,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 1,
+      "modality": "audio",
+      "delta": -0.034792155027389526
+    },
+    {
+      "sample": 1,
+      "modality": "video",
+      "delta": -0.054572299122810364
+    },
+    {
+      "sample": 2,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 2,
+      "modality": "audio",
+      "delta": -0.07662476599216461
+    },
+    {
+      "sample": 2,
+      "modality": "video",
+      "delta": -0.0051165372133255005
+    },
+    {
+      "sample": 3,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 3,
+      "modality": "audio",
+      "delta": -0.034745216369628906
+    },
+    {
+      "sample": 3,
+      "modality": "video",
+      "delta": -0.04829845577478409
+    },
+    {
+      "sample": 4,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 4,
+      "modality": "audio",
+      "delta": -0.07645121961832047
+    },
+    {
+      "sample": 4,
+      "modality": "video",
+      "delta": -0.02540077269077301
+    },
+    {
+      "sample": 5,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 5,
+      "modality": "audio",
+      "delta": 0.0027149319648742676
+    },
+    {
+      "sample": 5,
+      "modality": "video",
+      "delta": 0.002819746732711792
+    },
+    {
+      "sample": 6,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 6,
+      "modality": "audio",
+      "delta": -0.08673461526632309
+    },
+    {
+      "sample": 6,
+      "modality": "video",
+      "delta": -0.020458728075027466
+    },
+    {
+      "sample": 7,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 7,
+      "modality": "audio",
+      "delta": -0.06181320548057556
+    },
+    {
+      "sample": 7,
+      "modality": "video",
+      "delta": -0.016352415084838867
+    },
+    {
+      "sample": 8,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 8,
+      "modality": "audio",
+      "delta": -0.017891593277454376
+    },
+    {
+      "sample": 8,
+      "modality": "video",
+      "delta": -0.016018927097320557
+    },
+    {
+      "sample": 9,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 9,
+      "modality": "audio",
+      "delta": -0.02582186460494995
+    },
+    {
+      "sample": 9,
+      "modality": "video",
+      "delta": -0.03930187225341797
+    }
+  ],
+  "counterfactual_results": []
+}

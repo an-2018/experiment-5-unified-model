@@ -97,7 +97,7 @@ Source files: `paper/diagrams/*.mmd` and `artifacts/figures/phase_XX_name/*.png`
 **Script:** `paper/diagrams/results_fusion.mmd`
 **Phase:** Phase 4 (Fusion)
 **Source artifact:** `artifacts/figures/phase_04_fusion/`
-**Caption:** Comparison of GatedLateFusion, Low-Rank Multimodal Fusion (LMF), and Cross-Attention across all three datasets. GatedLateFusion achieves the best results on MOSEI (CCC=0.623) and is the only fusion method used for DAIC and FI due to the small sample sizes. Cross-Attention fails on all three datasets due to overparameterization (65K–2.8M params vs 6K–593K for gated), and this finding contradicts a recent literature report of +0.041 AUROC improvement.
+**Caption:** Comparison of GatedLateFusion, Low-Rank Multimodal Fusion (LMF), and Cross-Attention across all three datasets. GatedLateFusion achieves the best results on MOSEI (CCC=0.623) and is the only fusion method used for DAIC and FI due to the small sample sizes. Cross-Attention fails on all three datasets due to overparameterization (65K–2.8M params vs 57K–827K for gated), and this finding contradicts a recent literature report of +0.041 AUROC improvement.
 
 ---
 
@@ -222,4 +222,4 @@ Source files: `paper/diagrams/*.mmd` and `artifacts/figures/phase_XX_name/*.png`
 **Script:** `paper/diagrams/results_fusion_comparison.mmd`
 **Phase:** Phase 4 (Fusion)
 **Source artifact:** `artifacts/tables/fusion_baselines.csv`
-**Caption:** Comparison of three fusion methods (GatedLateFusion, LMF, CrossAttention) across all three datasets using actual experimental results. MOSEI: Gated=0.6229 (best), LMF=0.5313, CrossAttn=0.5397. DAIC: Gated=0.4632, LMF=0.3636, CrossAttn=0.3117 (all below unimodal text baseline 0.6991). FI: All fusion methods collapse to Avg CCC=0.0 (complete optimization failure). CrossAttention fails on all datasets, contradicting a recent literature claim of +0.041 AUC improvement. Root cause: overparameterization (65K-2.8M params vs 6K-827K for Gated).
+**Caption:** Comparison of three fusion methods (GatedLateFusion, LMF, CrossAttention) across all three datasets using actual experimental results. MOSEI: Gated=0.6229 (best), LMF=0.5313, CrossAttn=0.5397. DAIC: Gated=0.4957, LMF=0.3636, CrossAttn=0.3117 (all below unimodal text baseline 0.5346). FI: All fusion methods collapse to Avg CCC=0.0 (complete optimization failure). CrossAttention fails on all datasets, contradicting a recent literature claim of +0.041 AUC improvement. Root cause: overparameterization (65K-2.8M params vs 57K-827K for Gated).

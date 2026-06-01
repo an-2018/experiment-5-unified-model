@@ -6,6 +6,10 @@ from .losses import (
 )
 from .sampler import TemperatureBalancedSampler, TaskBalancedSampler
 from .calibration import TemperatureScaling, PlattScaling, IsotonicCalibrator, compute_ece, compute_brier_score
+from .domain_adaptation import (
+    CORALLoss, MMDLoss, GradientReversalLayer, DANNLoss,
+    DomainDiscriminator, DomainAdaptationLoss,
+)
 
 __all__ = [
     "MultimodalTrainer", "JointMultitaskTrainer",
@@ -13,4 +17,6 @@ __all__ = [
     "UncertaintyWeightedMultiTaskLoss",
     "TemperatureBalancedSampler", "TaskBalancedSampler",
     "TemperatureScaling", "PlattScaling", "IsotonicCalibrator", "compute_ece", "compute_brier_score",
+    "CORALLoss", "MMDLoss", "GradientReversalLayer", "DANNLoss",
+    "DomainDiscriminator", "DomainAdaptationLoss",
 ]
