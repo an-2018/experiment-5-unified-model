@@ -89,9 +89,10 @@ def compute_shap_modality_importance(model, scaler, X_test, y_test):
 
     print(f"   SHAP computed for {n_shap} samples, shape: {shap_values.shape}")
 
-    # Aggregate importance by modality (audio = first 512, video = rest)
-    # DAIC has 768 audio features, no video
-    audio_importance = np.abs(shap_values[:, :512]).mean()
+    # Aggregate importance by modality (audio = first N, video = rest)
+    # DAIC has 768 audio features (WavLM). Infer dynamically from shap_values shape.
+    n_audio_features = shap_values.shape[1]  # Full audio embedding dimension
+    audio_importance = np.abs(shap_values).mean()  # All features are audio in DAIC
     total_importance = np.abs(shap_values).mean()
 
     print(f"   Audio importance (mean |SHAP|): {audio_importance:.4f}")
@@ -115,9 +116,10 @@ def run_perturbation_tests(model, scaler, X_test, y_test):
     probs = model.predict_proba(X_test_scaled)[:, 1]
     baseline_auc = roc_auc_score(y_test, probs)
 
-    # Perturbation: zero out first 512 features (audio)
+    # Perturbation: zero out all audio features (768 for DAIC/WavLM)
+    n_audio_features = X_test_scaled.shape[1]  # Dynamically infer full audio dimension
     X_perturbed = X_test_scaled.copy()
-    X_perturbed[:, :512] = 0
+    X_perturbed[:, :n_audio_features] = 0
 
     probs_perturbed = model.predict_proba(X_perturbed)[:, 1]
     perturbed_auc = roc_auc_score(y_test, probs_perturbed)

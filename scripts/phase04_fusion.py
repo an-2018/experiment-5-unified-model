@@ -567,6 +567,11 @@ class FusionClassifier(nn.Module):
         elif fusion_type == "cross_attention":
             from models.fusion import CrossAttentionFusion
             self.fusion = CrossAttentionFusion(text_dim, audio_dim, video_dim, hidden_dim, num_heads=4)
+        elif fusion_type == "lrdgn":
+            from models.fusion import LowRankGatingNetwork
+            # Use low rank (16) for small DAIC dataset — prevents overfitting
+            lrdgn_rank = 16
+            self.fusion = LowRankGatingNetwork(text_dim, audio_dim, video_dim, hidden_dim, rank=lrdgn_rank, num_gate_layers=2)
         else:
             raise ValueError(f"Unknown fusion: {fusion_type}")
 
@@ -604,6 +609,11 @@ class FusionRegression(nn.Module):
         elif fusion_type == "cross_attention":
             from models.fusion import CrossAttentionFusion
             self.fusion = CrossAttentionFusion(text_dim, audio_dim, video_dim, hidden_dim, num_heads=4)
+        elif fusion_type == "lrdgn":
+            from models.fusion import LowRankGatingNetwork
+            # Use low rank (16-24) for small datasets, 64 for larger
+            lrdgn_rank = 16 if dataset_name == "daic" else 32
+            self.fusion = LowRankGatingNetwork(text_dim, audio_dim, video_dim, hidden_dim, rank=lrdgn_rank, num_gate_layers=2)
         else:
             raise ValueError(f"Unknown fusion: {fusion_type}")
 
@@ -725,6 +735,20 @@ def train_daic(train_loader, val_loader, test_loader, fusion_type, device, epoch
                         gate_text_hist.append(gt)
                         gate_audio_hist.append(ga)
                         gate_video_hist.append(gv)
+                except Exception:
+                    pass  # Gate analysis not supported for this fusion type
+        elif hasattr(model.fusion, 'gate_mlp') and hasattr(model.fusion, 'get_gate_values'):
+            # LR-DGN: context-aware gates computed from low-rank bottleneck features
+            with torch.no_grad():
+                try:
+                    sample_t = t[:1].float()
+                    sample_a = a[:1].float()
+                    sample_v = v[:1].float()
+                    sample_mask = mask[:1]
+                    gates = model.fusion.get_gate_values(sample_t, sample_a, sample_v, sample_mask)
+                    gate_text_hist.append(gates["gate_text"])
+                    gate_audio_hist.append(gates["gate_audio"])
+                    gate_video_hist.append(gates["gate_video"])
                 except Exception:
                     pass  # Gate analysis not supported for this fusion type
 
@@ -1400,9 +1424,6 @@ def plot_per_sample_gate_heatmap(model, test_loader, device, dataset_name, fusio
     """Figure: Per-case modality contribution heatmap."""
     import matplotlib.pyplot as plt
 
-    if not hasattr(model.fusion, 'text_gate'):
-        return
-
     model.eval()
     gate_text_vals = []
     gate_audio_vals = []
@@ -1411,21 +1432,35 @@ def plot_per_sample_gate_heatmap(model, test_loader, device, dataset_name, fusio
 
     with torch.no_grad():
         try:
-            for t, a, v, mask, y in test_loader:
-                t, a, v = t.to(device), a.to(device), v.to(device)
-                # Get projections
-                t_proj = model.fusion.text_proj(t.float())
-                a_proj = model.fusion.audio_proj(a.float())
-                v_proj = model.fusion.video_proj(v.float())
-                # Only proceed if gate dimensions match
-                if t_proj.shape[-1] == model.fusion.text_gate[0].in_features:
-                    gt = model.fusion.text_gate(t_proj).mean(dim=-1).cpu().numpy()
-                    ga = model.fusion.audio_gate(a_proj).mean(dim=-1).cpu().numpy()
-                    gv = model.fusion.video_gate(v_proj).mean(dim=-1).cpu().numpy()
-                    gate_text_vals.extend(gt.tolist())
-                    gate_audio_vals.extend(ga.tolist())
-                    gate_video_vals.extend(gv.tolist())
-                sample_labels.extend(y[:, 0].numpy().tolist() if y.shape[1] > 1 else y.squeeze().numpy().tolist())
+            if hasattr(model.fusion, 'gate_mlp') and hasattr(model.fusion, 'get_gate_values'):
+                # LR-DGN: use get_gate_values helper (context-aware gates)
+                for t, a, v, mask, y in test_loader:
+                    t, a, v = t.to(device), a.to(device), v.to(device)
+                    mask_device = mask.to(device)
+                    gates_batch = model.fusion.get_gate_values(t.float(), a.float(), v.float(), mask_device)
+                    gate_text_vals.extend(gates_batch["gate_text"] if isinstance(gates_batch["gate_text"], list) else [gates_batch["gate_text"]])
+                    gate_audio_vals.extend(gates_batch["gate_audio"] if isinstance(gates_batch["gate_audio"], list) else [gates_batch["gate_audio"]])
+                    gate_video_vals.extend(gates_batch["gate_video"] if isinstance(gates_batch["gate_video"], list) else [gates_batch["gate_video"]])
+                    sample_labels.extend(y[:, 0].numpy().tolist() if y.shape[1] > 1 else y.squeeze().numpy().tolist())
+            elif hasattr(model.fusion, 'text_gate'):
+                # GatedLateFusion: per-modality independent gates
+                for t, a, v, mask, y in test_loader:
+                    t, a, v = t.to(device), a.to(device), v.to(device)
+                    # Get projections
+                    t_proj = model.fusion.text_proj(t.float())
+                    a_proj = model.fusion.audio_proj(a.float())
+                    v_proj = model.fusion.video_proj(v.float())
+                    # Only proceed if gate dimensions match
+                    if t_proj.shape[-1] == model.fusion.text_gate[0].in_features:
+                        gt = model.fusion.text_gate(t_proj).mean(dim=-1).cpu().numpy()
+                        ga = model.fusion.audio_gate(a_proj).mean(dim=-1).cpu().numpy()
+                        gv = model.fusion.video_gate(v_proj).mean(dim=-1).cpu().numpy()
+                        gate_text_vals.extend(gt.tolist())
+                        gate_audio_vals.extend(ga.tolist())
+                        gate_video_vals.extend(gv.tolist())
+                    sample_labels.extend(y[:, 0].numpy().tolist() if y.shape[1] > 1 else y.squeeze().numpy().tolist())
+            else:
+                return  # Unknown fusion type
         except Exception:
             pass  # Gate analysis not supported for this fusion type
 
@@ -1762,7 +1797,7 @@ def write_results_csv(all_results, out_path):
 def main():
     parser = argparse.ArgumentParser(description="Phase 4: Multimodal Fusion Baselines")
     parser.add_argument("--dataset", type=str, choices=["daic", "mosei", "fi", "mosei_emotion", "all"], required=True)
-    parser.add_argument("--fusion", type=str, choices=["gated", "lmf", "cross_attention", "all"], required=True)
+    parser.add_argument("--fusion", type=str, choices=["gated", "lmf", "cross_attention", "lrdgn", "all"], required=True)
     parser.add_argument("--epochs", type=int, default=EPOCHS_DEFAULT)
     parser.add_argument("--lr", type=float, default=LR_DEFAULT)
     parser.add_argument("--device", type=str, default="cuda")

@@ -32,7 +32,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader as PyGDataLoader
+from torch_geometric.loader import DataLoader as PyGDataLoader, NeighborLoader
 
 ROOT = Path("/home/anilson/thesis/thesis-experiment-5-unified-model")
 sys.path.insert(0, str(ROOT / "src"))
@@ -682,19 +682,20 @@ def plot_umap_with_edges(global_embeddings: np.ndarray, dataset_ids: list,
 # =============================================================================
 
 class QuickTestDataset(torch.utils.data.Dataset):
-    """Dataset for quick training test with optional local graph edges.
+    """Dataset for quick training test with global graph edges.
 
-    For mini-batch GNN, we compute a local k-NN graph among the current batch
-    rather than using global edges.
+    Uses the global edge_index built from the full split, enabling NeighborLoader
+    to sample meaningful subgraphs rather than computing isolated local k-NN graphs.
     """
 
     def __init__(self, embeddings: np.ndarray, task_ids: np.ndarray, split_ids: np.ndarray,
-                 num_tasks: int = 4, k: int = 5):
+                 edge_index: np.ndarray, edge_weight: np.ndarray, num_tasks: int = 4):
         self.embeddings = embeddings
         self.task_ids = task_ids
         self.split_ids = split_ids
+        self.edge_index = edge_index
+        self.edge_weight = edge_weight
         self.num_tasks = num_tasks
-        self.k = k
 
     def __len__(self):
         return len(self.embeddings)
@@ -704,54 +705,25 @@ class QuickTestDataset(torch.utils.data.Dataset):
             'x': torch.tensor(self.embeddings[idx], dtype=torch.float32),
             'task_id': self.task_ids[idx],
             'split': self.split_ids[idx],
+            'node_idx': idx,  # Local node index within this split's graph
         }
 
 
-def collate_batch(batch, k=5):
-    """Collate function that builds local k-NN graph for the batch.
+def create_pygeo_data(embeddings: np.ndarray, task_ids: np.ndarray, split_ids: np.ndarray,
+                      edge_index: np.ndarray, edge_weight: np.ndarray) -> Data:
+    """Create a PyG Data object for use with NeighborLoader.
 
-    This avoids the global edge index problem in mini-batch GNN training.
-    Handles small batches (last batch) by reducing k dynamically.
+    The edge_index should use LOCAL indices [0, num_nodes) matching the embeddings array.
+    NeighborLoader will sample subgraphs from this global edge_index.
     """
-    x = torch.stack([b['x'] for b in batch])
-    task_ids = torch.tensor([b['task_id'] for b in batch], dtype=torch.long)
-    batch_size = x.size(0)
-
-    # Handle small batches - reduce k if needed
-    effective_k = min(k, batch_size - 1)
-    if effective_k < 1:
-        # Single sample batch - no edges needed
-        return {
-            'x': x,
-            'task_ids': task_ids,
-            'edge_index': torch.empty((2, 0), dtype=torch.long, device=x.device),
-            'edge_weight': torch.empty(0, dtype=torch.float32, device=x.device),
-            'batch_size': batch_size,
-        }
-
-    # Build local k-NN graph for this batch using cosine similarity
-    # Compute pairwise distances
-    x_norm = F.normalize(x, dim=1)
-    cos_sim = torch.mm(x_norm, x_norm.T)  # (batch, batch)
-
-    # Get top-k neighbors (excluding self)
-    _, topk_idx = torch.topk(cos_sim, k=effective_k+1, dim=1)
-    topk_idx = topk_idx[:, 1:]  # Remove self
-
-    # Build edge index: for each node, connect to its k nearest neighbors
-    src = torch.arange(batch_size, device=x.device).unsqueeze(1).expand(batch_size, effective_k).flatten()
-    dst = topk_idx.flatten()
-
-    local_edge_index = torch.stack([src, dst])
-    local_edge_weight = cos_sim[src.reshape(batch_size, effective_k), dst.reshape(batch_size, effective_k)].flatten()
-
-    return {
-        'x': x,
-        'task_ids': task_ids,
-        'edge_index': local_edge_index,
-        'edge_weight': local_edge_weight,
-        'batch_size': batch_size,
-    }
+    num_nodes = len(embeddings)
+    return Data(
+        x=torch.tensor(embeddings, dtype=torch.float32),
+        edge_index=torch.tensor(edge_index, dtype=torch.long),
+        edge_attr=torch.tensor(edge_weight, dtype=torch.float32).unsqueeze(-1),
+        y=torch.tensor(task_ids, dtype=torch.long),
+        num_nodes=num_nodes,
+    )
 
 
 class GraphMoETrainer:
@@ -798,10 +770,20 @@ class GraphMoETrainer:
         # Track per-task routing entropy
         self.task_entropy_history = {t: [] for t in range(num_tasks)}
 
-    def forward_step(self, batch: dict) -> tuple:
-        """Single forward pass."""
+    def forward_step(self, batch) -> tuple:
+        """Single forward pass.
+
+        Handles both:
+        - dict from old collate_batch (with 'task_ids' key)
+        - PyG Batch from NeighborLoader (with 'y' attribute for task_ids)
+        """
         x = batch['x'].to(self.device)
-        task_ids = batch['task_ids'].to(self.device)
+        # Handle both dict-style (old collate) and PyG Batch (NeighborLoader)
+        if 'task_ids' in batch:
+            task_ids = batch['task_ids'].to(self.device)
+        else:
+            # PyG Batch uses 'y' for labels (task_ids in our case)
+            task_ids = batch['y'].to(self.device)
         edge_index = batch['edge_index'].to(self.device)
 
         if self.router == "none":
@@ -863,8 +845,8 @@ class GraphMoETrainer:
             entropy = -(routing_weights * torch.log(routing_weights + 1e-8)).sum(dim=-1).mean()
             routing_entropies.append(entropy.item())
 
-            # Per-task routing entropy
-            task_ids = batch['task_ids']
+            # Per-task routing entropy (handle both dict and PyG Batch)
+            task_ids = batch['task_ids'] if 'task_ids' in batch else batch['y']
             for t in range(self.num_tasks):
                 mask = (task_ids == t)
                 if mask.sum() > 0:
@@ -892,10 +874,28 @@ class GraphMoETrainer:
 
 def run_quick_test(global_embeddings: np.ndarray, global_task_ids: np.ndarray,
                    global_split_ids: np.ndarray, device: str, epochs: int = 5, k: int = 5,
-                   router: str = "graphsage", graph_weight: float = 0.5):
+                   router: str = "graphsage", graph_weight: float = 0.5,
+                   train_edge_index: np.ndarray = None, train_edge_weight: np.ndarray = None,
+                   val_edge_index: np.ndarray = None, val_edge_weight: np.ndarray = None):
     """Run quick test of the graph-gated MoE.
 
-    Uses local k-NN graph per batch to avoid global edge index issues.
+    Uses NeighborLoader to sample subgraphs from the GLOBAL edge_index,
+    preserving the graph structure across mini-batches rather than building
+    isolated local k-NN graphs per batch.
+
+    Args:
+        global_embeddings: (N, D) full embedding matrix
+        global_task_ids: (N,) task IDs
+        global_split_ids: (N,) split IDs (0=train, 1=val, 2=test)
+        device: torch device
+        epochs: number of training epochs
+        k: K for KNN graph (passed to NeighborLoader)
+        router: "graphsage", "gat", or "none"
+        graph_weight: weight for graph-based routing
+        train_edge_index: LOCAL edge index for training graph
+        train_edge_weight: LOCAL edge weights for training graph
+        val_edge_index: LOCAL edge index for validation graph
+        val_edge_weight: LOCAL edge weights for validation graph
     """
     print("\n" + "="*60)
     print(f"Running Quick Test ({epochs} epochs, router={router}, graph_weight={graph_weight})")
@@ -913,16 +913,27 @@ def run_quick_test(global_embeddings: np.ndarray, global_task_ids: np.ndarray,
     val_tasks = global_task_ids[val_mask]
     val_splits = global_split_ids[val_mask]
 
-    train_dataset = QuickTestDataset(train_embs, train_tasks, train_splits)
-    val_dataset = QuickTestDataset(val_embs, val_tasks, val_splits)
+    # Create PyG Data objects with global edge_index for NeighborLoader
+    train_data = create_pygeo_data(train_embs, train_tasks, train_splits,
+                                   train_edge_index, train_edge_weight)
+    val_data = create_pygeo_data(val_embs, val_tasks, val_splits,
+                                 val_edge_index, val_edge_weight)
 
-    def collate_fn(batch):
-        return collate_batch(batch, k=k)
+    # Use NeighborLoader to sample subgraphs from the global graph
+    # This properly preserves graph structure across mini-batches
+    train_loader = NeighborLoader(
+        train_data,
+        num_neighbors=[k, k],  # 2-layer sampling
+        batch_size=32,
+        shuffle=True,
+    )
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True,
-                                               collate_fn=collate_fn)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=32, shuffle=False,
-                                              collate_fn=collate_fn)
+    val_loader = NeighborLoader(
+        val_data,
+        num_neighbors=[k, k],
+        batch_size=32,
+        shuffle=False,
+    )
 
     input_dim = global_embeddings.shape[1]
     trainer = GraphMoETrainer(input_dim=input_dim, num_experts=8, expert_dim=128,
@@ -1318,8 +1329,13 @@ def plot_ablation_comparison(output_dir: Path, out_dir: Path):
 def run_ablation_variant(global_embeddings: np.ndarray, global_task_ids: np.ndarray,
                          global_split_ids: np.ndarray, device: str, variant: int,
                          graph_type: str, router: str, epochs: int, k: int,
-                         graph_weight: float, output_dir: Path) -> dict:
+                         graph_weight: float, output_dir: Path,
+                         train_edge_index: np.ndarray = None, train_edge_weight: np.ndarray = None,
+                         val_edge_index: np.ndarray = None, val_edge_weight: np.ndarray = None) -> dict:
     """Run a single ablation variant (V0-V4) for full epoch training.
+
+    Uses NeighborLoader to sample subgraphs from the GLOBAL edge_index,
+    preserving the graph structure across mini-batches.
 
     Returns dict with metrics: daic_auroc, mosei_sentiment_ccc, mosei_emotion_auc, fi_avg_ccc
     """
@@ -1341,16 +1357,26 @@ def run_ablation_variant(global_embeddings: np.ndarray, global_task_ids: np.ndar
     val_tasks = global_task_ids[val_mask]
     val_splits = global_split_ids[val_mask]
 
-    train_dataset = QuickTestDataset(train_embs, train_tasks, train_splits)
-    val_dataset = QuickTestDataset(val_embs, val_tasks, val_splits)
+    # Create PyG Data objects with global edge_index for NeighborLoader
+    train_data = create_pygeo_data(train_embs, train_tasks, train_splits,
+                                   train_edge_index, train_edge_weight)
+    val_data = create_pygeo_data(val_embs, val_tasks, val_splits,
+                                 val_edge_index, val_edge_weight)
 
-    def collate_fn(batch):
-        return collate_batch(batch, k=k)
+    # Use NeighborLoader to sample subgraphs from the global graph
+    train_loader = NeighborLoader(
+        train_data,
+        num_neighbors=[k, k],  # 2-layer sampling
+        batch_size=32,
+        shuffle=True,
+    )
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True,
-                                               collate_fn=collate_fn)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=32, shuffle=False,
-                                              collate_fn=collate_fn)
+    val_loader = NeighborLoader(
+        val_data,
+        num_neighbors=[k, k],
+        batch_size=32,
+        shuffle=False,
+    )
 
     input_dim = global_embeddings.shape[1]
     trainer = GraphMoETrainer(input_dim=input_dim, num_experts=8, expert_dim=128,
@@ -1416,8 +1442,13 @@ def run_ablation_variant(global_embeddings: np.ndarray, global_task_ids: np.ndar
 
 def run_full_ablation(global_embeddings: np.ndarray, global_task_ids: np.ndarray,
                       global_split_ids: np.ndarray, device: str, graph_type: str,
-                      epochs: int, k: int, graph_weight: float, output_dir: Path):
-    """Run the full ablation matrix (V0-V4)."""
+                      epochs: int, k: int, graph_weight: float, output_dir: Path,
+                      train_edge_index: np.ndarray = None, train_edge_weight: np.ndarray = None,
+                      val_edge_index: np.ndarray = None, val_edge_weight: np.ndarray = None):
+    """Run the full ablation matrix (V0-V4).
+
+    Passes edge indices to run_ablation_variant for NeighborLoader sampling.
+    """
     print("\n" + "="*60)
     print("RUNNING FULL ABLATION MATRIX (V0-V4)")
     print("="*60)
@@ -1441,7 +1472,9 @@ def run_full_ablation(global_embeddings: np.ndarray, global_task_ids: np.ndarray
         set_seed(42 + variant)  # Different seed per variant for diversity
         result = run_ablation_variant(
             global_embeddings, global_task_ids, global_split_ids,
-            device, variant, gt, router, epochs, k, graph_weight, output_dir
+            device, variant, gt, router, epochs, k, graph_weight, output_dir,
+            train_edge_index=train_edge_index, train_edge_weight=train_edge_weight,
+            val_edge_index=val_edge_index, val_edge_weight=val_edge_weight
         )
 
         # Append to CSV
@@ -1687,7 +1720,9 @@ def main():
             global_embeddings, global_task_ids, global_split_ids,
             device=args.device, graph_type=args.graph_type,
             epochs=args.epochs, k=args.k, graph_weight=args.graph_weight,
-            output_dir=ablation_dir
+            output_dir=ablation_dir,
+            train_edge_index=train_edge_index, train_edge_weight=train_edge_weight,
+            val_edge_index=val_edge_index, val_edge_weight=val_edge_weight
         )
 
         # Plot ablation comparison with real data from CSV
@@ -1703,7 +1738,9 @@ def main():
         results = run_quick_test(
             global_embeddings, global_task_ids, global_split_ids,
             device=args.device, epochs=3, k=args.k,
-            router=args.router, graph_weight=args.graph_weight
+            router=args.router, graph_weight=args.graph_weight,
+            train_edge_index=train_edge_index, train_edge_weight=train_edge_weight,
+            val_edge_index=val_edge_index, val_edge_weight=val_edge_weight
         )
 
         if matplotlib_available:

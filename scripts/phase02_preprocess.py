@@ -1550,9 +1550,16 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
                     if np.abs(features).sum() < 1e-6:
                         ax.text(0.5, 0.5, "Audio not available\n(all-zero fallback)", ha='center', va='center', transform=ax.transAxes)
                     elif features.ndim == 2 and features.shape[1] > 1:
+                        # NOTE: features here are WavLM/eGeMAPS latent embeddings, NOT
+                        # time-frequency spectrograms. Using specshow misrepresents them.
+                        # Instead, show a heatmap of the embedding matrix with time on x-axis.
                         # Take first 100 time steps for visualization
-                        features = features[:100, :]
-                        librosa.display.specshow(features, ax=ax, x_axis='time', sr=16000)
+                        vis_data = features[:100, :]
+                        # Use a simple imshow for latent embeddings (not specshow)
+                        im = ax.imshow(vis_data.T, aspect='auto', origin='lower', cmap='viridis')
+                        ax.set_xlabel("Time (frames)")
+                        ax.set_ylabel("Embedding dim")
+                        plt.colorbar(im, ax=ax, label="Value")
                         ax.set_title(f"{dataset} - Sample {col+1}")
                 except Exception as e:
                     ax.text(0.5, 0.5, f"Error: {e}", ha='center', va='center', transform=ax.transAxes)
@@ -1576,14 +1583,19 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
             try:
                 feat_data = torch.load(au_path, map_location='cpu')
                 features = feat_data.get('features', torch.zeros(100, 35)).numpy()
-                # Plot first 17 AUs (typically AU0-AU45)
-                n_timesteps = min(features.shape[0], 300)  # ~60s at 5fps
-                for au_idx in range(min(17, features.shape[1])):
-                    ax.plot(features[:n_timesteps, au_idx], alpha=0.7, label=f'AU{au_idx}' if i == 0 else '')
-                ax.set_title(f"DAIC {sample_entry['id']} - OpenFace AUs (first {n_timesteps/5:.0f}s)")
-                ax.set_ylabel("AU Intensity")
-                if i == 0:
-                    ax.legend(loc='upper right', fontsize=8, ncol=4)
+                # Skip all-zero fallback tensors (no real video data)
+                if np.abs(features).sum() < 1e-6:
+                    ax.text(0.5, 0.5, "No OpenFace data\n(all-zero fallback)", ha='center', va='center', transform=ax.transAxes)
+                    ax.set_title(f"DAIC {sample_entry['id']} - OpenFace AUs (missing)")
+                else:
+                    # Plot first 17 AUs (typically AU0-AU45)
+                    n_timesteps = min(features.shape[0], 300)  # ~60s at 5fps
+                    for au_idx in range(min(17, features.shape[1])):
+                        ax.plot(features[:n_timesteps, au_idx], alpha=0.7, label=f'AU{au_idx}' if i == 0 else '')
+                    ax.set_title(f"DAIC {sample_entry['id']} - OpenFace AUs (first {n_timesteps/5:.0f}s)")
+                    ax.set_ylabel("AU Intensity")
+                    if i == 0:
+                        ax.legend(loc='upper right', fontsize=8, ncol=4)
             except Exception as e:
                 ax.text(0.5, 0.5, f"Error: {e}", ha='center', va='center', transform=ax.transAxes)
         else:
@@ -1633,10 +1645,45 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
                 pass
 
     # Homogenize dimensions: different datasets produce different pooled dims
-    # (e.g., MOSEI GloVe text=600, DAIC RoBERTa=768). Pad to max dim.
+    # (e.g., MOSEI GloVe text=600, DAIC RoBERTa=768). Using zero-padding introduces
+    # massive artificial variance that causes artificial clustering in UMAP.
+    # FIX: Use PCA to project each dataset's embeddings to a common dimension BEFORE
+    # concatenation, preserving relative similarity without artificial variance.
+    from sklearn.decomposition import PCA
+
+    # Find minimum dimension across all embeddings to target for PCA
+    MIN_COMMON_DIM = 50  # Target dimension for PCA projection
+
     if text_embeddings:
-        max_dim = max(arr.shape[0] for arr in text_embeddings)
-        text_embeddings = [np.pad(arr, (0, max_dim - arr.shape[0]), mode='constant') if arr.shape[0] < max_dim else arr[:max_dim] for arr in text_embeddings]
+        min_dim = min(arr.shape[0] for arr in text_embeddings)
+        pca_target_dim = min(MIN_COMMON_DIM, min_dim)  # Can't exceed actual min dim
+
+        # Group embeddings by dataset and apply PCA per-dataset to avoid leakage
+        embeddings_by_dataset = {'daic': [], 'mosei': [], 'fi': []}
+        for arr, label in zip(text_embeddings, text_labels):
+            embeddings_by_dataset[label].append(arr)
+
+        text_embeddings_homog = []
+        text_labels_homog = []
+
+        for ds, emb_list in embeddings_by_dataset.items():
+            if not emb_list:
+                continue
+            # Fit PCA on this dataset's embeddings
+            pca = PCA(n_components=pca_target_dim, random_state=42)
+            # Stack and fit
+            stacked = np.array(emb_list)
+            if stacked.shape[1] >= pca_target_dim:
+                projected = pca.fit_transform(stacked)
+            else:
+                # If dim < pca_target_dim, just use the embeddings as-is (no padding)
+                projected = stacked
+            for proj in projected:
+                text_embeddings_homog.append(proj)
+                text_labels_homog.append(ds)
+
+        text_embeddings = text_embeddings_homog
+        text_labels = text_labels_homog
 
     if len(text_embeddings) > 10:
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -1703,10 +1750,38 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
             except:
                 pass
 
-    # Homogenize dimensions for audio (already truncated to 768, but be safe)
+    # Homogenize dimensions for audio: use PCA instead of zero-padding
+    # Zero-padding introduces artificial variance causing dataset clustering in UMAP
+    from sklearn.decomposition import PCA
+
+    MIN_COMMON_DIM = 50
+
     if audio_embeddings:
-        max_dim = max(arr.shape[0] for arr in audio_embeddings)
-        audio_embeddings = [np.pad(arr, (0, max_dim - arr.shape[0]), mode='constant') if arr.shape[0] < max_dim else arr[:max_dim] for arr in audio_embeddings]
+        min_dim = min(arr.shape[0] for arr in audio_embeddings)
+        pca_target_dim = min(MIN_COMMON_DIM, min_dim)
+
+        embeddings_by_dataset = {'daic': [], 'mosei': [], 'fi': []}
+        for arr, label in zip(audio_embeddings, audio_labels):
+            embeddings_by_dataset[label].append(arr)
+
+        audio_embeddings_homog = []
+        audio_labels_homog = []
+
+        for ds, emb_list in embeddings_by_dataset.items():
+            if not emb_list:
+                continue
+            pca = PCA(n_components=pca_target_dim, random_state=42)
+            stacked = np.array(emb_list)
+            if stacked.shape[1] >= pca_target_dim:
+                projected = pca.fit_transform(stacked)
+            else:
+                projected = stacked
+            for proj in projected:
+                audio_embeddings_homog.append(proj)
+                audio_labels_homog.append(ds)
+
+        audio_embeddings = audio_embeddings_homog
+        audio_labels = audio_labels_homog
 
     if len(audio_embeddings) > 10:
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -1776,10 +1851,38 @@ def generate_visualizations(manifest_path: Path, output_dir: Path, dataset_prefi
             except:
                 pass
 
-    # Homogenize dimensions for video
+    # Homogenize dimensions for video: use PCA instead of zero-padding
+    # Zero-padding introduces artificial variance causing dataset clustering in UMAP
+    from sklearn.decomposition import PCA
+
+    MIN_COMMON_DIM = 50
+
     if video_embeddings:
-        max_dim = max(arr.shape[0] for arr in video_embeddings)
-        video_embeddings = [np.pad(arr, (0, max_dim - arr.shape[0]), mode='constant') if arr.shape[0] < max_dim else arr[:max_dim] for arr in video_embeddings]
+        min_dim = min(arr.shape[0] for arr in video_embeddings)
+        pca_target_dim = min(MIN_COMMON_DIM, min_dim)
+
+        embeddings_by_dataset = {'daic': [], 'mosei': [], 'fi': []}
+        for arr, label in zip(video_embeddings, video_labels):
+            embeddings_by_dataset[label].append(arr)
+
+        video_embeddings_homog = []
+        video_labels_homog = []
+
+        for ds, emb_list in embeddings_by_dataset.items():
+            if not emb_list:
+                continue
+            pca = PCA(n_components=pca_target_dim, random_state=42)
+            stacked = np.array(emb_list)
+            if stacked.shape[1] >= pca_target_dim:
+                projected = pca.fit_transform(stacked)
+            else:
+                projected = stacked
+            for proj in projected:
+                video_embeddings_homog.append(proj)
+                video_labels_homog.append(ds)
+
+        video_embeddings = video_embeddings_homog
+        video_labels = video_labels_homog
 
     if len(video_embeddings) > 10:
         fig, ax = plt.subplots(figsize=(8, 6))

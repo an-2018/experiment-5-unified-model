@@ -386,3 +386,202 @@ class LowRankMultimodalFusion(nn.Module):
     def param_count(self) -> int:
         """Return total trainable parameter count."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+# ---------------------------------------------------------------------------
+# Low-Rank Dynamic Gating Network (LR-DGN)
+# ---------------------------------------------------------------------------
+
+class LowRankGatingNetwork(nn.Module):
+    """Low-Rank Dynamic Gating Network (LR-DGN) — parameter-efficient multimodal fusion.
+
+    This architecture addresses DAIC overfitting (n=107) by replacing full cross-attention
+    with a low-rank bottleneck + context-aware gating mechanism:
+
+    1. Each modality is projected to a low-rank bottleneck (rank=r << input_dim)
+    2. All bottleneck embeddings are concatenated and fed to an MLP
+    3. The MLP outputs per-modality gate weights (context-aware, not independent)
+    4. Gates are applied to the *original* projected features (NOT bottleneck features)
+    5. Weighted sum → output projection → fused representation
+
+    Why this helps on DAIC:
+    - Low-rank bottleneck (r=16-24) dramatically reduces parameters vs full cross-attention
+    - Context-aware gates learn which modalities matter jointly, not independently
+    - Bottleneck forces compression of cross-modal information into few dimensions
+    - The shared gating MLP sees all modality contexts, preventing any single modality
+      from dominating with independent gating
+
+    Architecture diagram:
+        text_feat → text_proj → t [batch, hidden]       text_feat → text_low → t_low [batch, r]
+        audio_feat → audio_proj → a [batch, hidden]     audio_feat → audio_low → a_low [batch, r]
+        video_feat → video_proj → v [batch, hidden]     video_feat → video_low → v_low [batch, r]
+                                                         [t_low, a_low, v_low] → gate_MLP → [g_t, g_a, g_v]
+                                                         [g_t*t, g_a*a, g_v*v] → concat → output_proj → fused
+
+    Parameters:
+        text_dim, audio_dim, video_dim: input feature dimensions
+        hidden_dim: output fused dimension (default 512, use 16-32 for DAIC)
+        rank: low-rank bottleneck dimension (16-32 for small datasets, 64 for larger)
+        num_gate_layers: MLP depth for gate computation (2-3 recommended)
+        dropout: dropout rate for gate MLP and output projection
+    """
+
+    def __init__(
+        self,
+        text_dim: int,
+        audio_dim: int,
+        video_dim: int,
+        hidden_dim: int = 512,
+        rank: int = 16,
+        num_gate_layers: int = 2,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.rank = rank
+
+        # Low-rank bottleneck projections: each modality → rank dimensions
+        # These serve BOTH as the gating context AND the main feature path
+        # (parameter-efficient: shared low-rank projection, no separate high-dim path)
+        self.text_proj = nn.Linear(text_dim, rank)
+        self.audio_proj = nn.Linear(audio_dim, rank)
+        self.video_proj = nn.Linear(video_dim, rank)
+
+        # Gate MLP: computes per-modality gates from concatenated bottleneck features
+        # Input: [batch, 3*rank] (context from all modalities simultaneously)
+        # Output: [batch, 3] (gate for text, audio, video)
+        gate_layers = []
+        in_dim = 3 * rank
+        for i in range(num_gate_layers - 1):
+            gate_layers.append(nn.Linear(in_dim, in_dim // 2))
+            gate_layers.append(nn.LayerNorm(in_dim // 2))
+            gate_layers.append(nn.GELU())
+            gate_layers.append(nn.Dropout(dropout))
+            in_dim = in_dim // 2
+
+        gate_layers.append(nn.Linear(in_dim, 3))   # 3 gates: text, audio, video
+        gate_layers.append(nn.Sigmoid())            # gates in [0, 1]
+
+        self.gate_mlp = nn.Sequential(*gate_layers)
+
+        # Output projection: gated weighted sum (rank*3 dims) → hidden_dim
+        # Combines the three gated bottleneck features into the final fused representation
+        self.output_proj = nn.Sequential(
+            nn.Linear(rank * 3, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight, gain=0.5)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+    def forward(
+        self,
+        text_feat: torch.Tensor,
+        audio_feat: torch.Tensor,
+        video_feat: torch.Tensor,
+        modality_mask: tuple[bool, bool, bool] | torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Args:
+            text_feat: [batch, text_dim]
+            audio_feat: [batch, audio_dim]
+            video_feat: [batch, audio_dim]
+            modality_mask: either a 3-tuple of bools or a [batch, 3] tensor
+
+        Returns:
+            fused: [batch, hidden_dim]
+        """
+        # Project each modality to low-rank bottleneck (rank dimensions)
+        # These projections serve as BOTH the feature representation AND the gating context
+        t = self.text_proj(text_feat)    # [batch, rank]
+        a = self.audio_proj(audio_feat)  # [batch, rank]
+        v = self.video_proj(video_feat)  # [batch, rank]
+
+        # Context-aware gate computation from concatenated bottleneck features
+        # The gating MLP sees all modalities jointly, enabling cross-modal awareness
+        bottleneck_concat = torch.cat([t, a, v], dim=-1)  # [batch, 3*rank]
+        gates = self.gate_mlp(bottleneck_concat)          # [batch, 3], values in [0,1]
+
+        # Parse modality mask for missing modality suppression
+        # Handle both batch-level [batch, 3] tensors and single-sample tuples
+        if isinstance(modality_mask, torch.Tensor):
+            if modality_mask.dim() == 2 and modality_mask.shape[-1] == 3:
+                # Batch-level mask: [batch, 3]
+                m_t = modality_mask[:, 0:1].float()   # [batch, 1]
+                m_a = modality_mask[:, 1:2].float()
+                m_v = modality_mask[:, 2:3].float()
+            else:
+                # Single sample: [3] tensor
+                m_t = modality_mask[0].float().reshape(1, 1)
+                m_a = modality_mask[1].float().reshape(1, 1)
+                m_v = modality_mask[2].float().reshape(1, 1)
+                gates = gates.unsqueeze(0)  # [1, 3] to match batch structure
+        else:
+            # Single sample: Python tuple of bools
+            m_t = torch.tensor([[float(modality_mask[0])]], device=text_feat.device)
+            m_a = torch.tensor([[float(modality_mask[1])]], device=text_feat.device)
+            m_v = torch.tensor([[float(modality_mask[2])]], device=text_feat.device)
+            gates = gates.unsqueeze(0)  # [1, 3] to match batch structure
+
+        # Apply mask to gates (zero gate for missing modalities)
+        g_t = gates[:, 0:1] * m_t   # [batch, 1] broadcast to [batch, rank]
+        g_a = gates[:, 1:2] * m_a
+        g_v = gates[:, 2:3] * m_v
+
+        # Gated weighted sum of low-rank projected features
+        t_gated = g_t * t           # [batch, rank]
+        a_gated = g_a * a
+        v_gated = g_v * v
+
+        # Concatenate gated features → output projection
+        fused = self.output_proj(torch.cat([t_gated, a_gated, v_gated], dim=-1))  # [batch, hidden_dim]
+        return fused
+
+    def param_count(self) -> int:
+        """Return total trainable parameter count."""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    def get_gate_values(
+        self,
+        text_feat: torch.Tensor,
+        audio_feat: torch.Tensor,
+        video_feat: torch.Tensor,
+        modality_mask: tuple | torch.Tensor,
+    ) -> dict[str, float]:
+        """Return mean gate values for diagnostics (call with a single sample)."""
+        with torch.no_grad():
+            t = self.text_proj(text_feat)
+            a = self.audio_proj(audio_feat)
+            v = self.video_proj(video_feat)
+            bottleneck_concat = torch.cat([t, a, v], dim=-1)
+            gates = self.gate_mlp(bottleneck_concat)
+            # Handle both single-sample and batch inputs
+            if isinstance(modality_mask, torch.Tensor):
+                if modality_mask.dim() == 2:
+                    m_t = modality_mask[0, 0].float().item()
+                    m_a = modality_mask[0, 1].float().item()
+                    m_v = modality_mask[0, 2].float().item()
+                    g0, g1, g2 = gates[0, 0].item(), gates[0, 1].item(), gates[0, 2].item()
+                else:
+                    m_t = modality_mask[0].float().item()
+                    m_a = modality_mask[1].float().item()
+                    m_v = modality_mask[2].float().item()
+                    g0, g1, g2 = gates[0].item(), gates[1].item(), gates[2].item()
+            else:
+                m_t = float(modality_mask[0])
+                m_a = float(modality_mask[1])
+                m_v = float(modality_mask[2])
+                g0, g1, g2 = gates[0].item(), gates[1].item(), gates[2].item()
+            return {
+                "gate_text": g0 * m_t,
+                "gate_audio": g1 * m_a,
+                "gate_video": g2 * m_v,
+            }

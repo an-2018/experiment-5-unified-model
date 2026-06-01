@@ -76,20 +76,57 @@ def load_fi_features():
 
 
 def load_mosei_features():
-    """Load CMU-MOSEI features - simplified version using text."""
-    # MOSEI is complex - we use a subset approach
-    # Check if we can load from original MOSEI data
-    mosei_text_path = Path("/home/anilson/thesis/experiment-4/mosei_text_features.pkl")
+    """Load CMU-MOSEI features from the properly preprocessed pickle.
 
-    if mosei_text_path.exists():
-        import pickle
-        with open(mosei_text_path, 'rb') as f:
-            data = pickle.load(f)
-        return data['features'], data['labels'], ['train'] * len(data['labels'])
+    Uses the same mosei_senti_data.pkl that Phase 2's MOSEILoader uses.
+    Returns pooled audio features (matches DAIC audio format) with binary
+    sentiment labels for domain adaptation evaluation.
+    """
+    import pickle
 
-    # Fallback: create synthetic labels for demonstration
-    # In practice, MOSEI sentiment scores would be used
-    return None, None, None
+    # Path to MOSEI data (same location used by Phase 2 MOSEILoader)
+    mosei_path = Path("/home/anilson/thesis/thesis-experiment-5-unified-model/data/mosei")
+    mosei_data_path = mosei_path / "mosei_senti_data.pkl"
+
+    if not mosei_data_path.exists():
+        raise FileNotFoundError(
+            f"MOSEI data not found at {mosei_data_path}. "
+            "Run Phase 2 preprocessing to generate MOSEI features."
+        )
+
+    with open(mosei_data_path, 'rb') as f:
+        data = pickle.load(f)
+
+    # Use training split for source domain
+    train_data = data['train']
+
+    # Extract features: audio [N, 50, 74] COVAREP features
+    audio_feats = np.array(train_data['audio'])  # (N, 50, 74)
+
+    # Pool to fixed-size vectors: mean + std over time dimension
+    pooled_features = []
+    for i in range(len(audio_feats)):
+        mean_feat = audio_feats[i].mean(axis=0)   # (74,)
+        std_feat = audio_feats[i].std(axis=0)     # (74,)
+        pooled = np.concatenate([mean_feat, std_feat])  # (148,)
+        pooled_features.append(pooled)
+
+    features = np.array(pooled_features)  # (N, 148)
+
+    # Extract sentiment labels: values in [-3, 3] range
+    raw_labels = np.array(train_data['labels']).squeeze()  # (N,)
+
+    # Create binary sentiment labels (positive vs negative)
+    # Sentiment > 0 = positive (1), sentiment <= 0 = negative (0)
+    labels = (raw_labels > 0).astype(int)
+
+    # Assign splits based on actual data lengths
+    n_samples = len(labels)
+    splits = ['train'] * n_samples
+
+    print(f"   MOSEI: {features.shape}, pos rate: {labels.mean():.1%}")
+
+    return features, labels, splits
 
 
 def evaluate_transfer(source_X, source_y, target_X, target_y, method='source_only'):
@@ -268,6 +305,75 @@ def main():
     else:
         print("   FI not available")
 
+    # Load MOSEI (source domain for sentiment → depression transfer)
+    print("\n7. Loading CMU-MOSEI (source domain)...")
+    try:
+        mosei_X, mosei_y, mosei_splits = load_mosei_features()
+        print(f"   MOSEI: {mosei_X.shape}, pos sentiment rate: {mosei_y.mean():.1%}")
+
+        # Use subset for speed (MOSEI has ~16k training samples)
+        np.random.seed(42)
+        subset_idx = np.random.choice(len(mosei_X), min(500, len(mosei_X)), replace=False)
+        mosei_subset_X = mosei_X[subset_idx]
+        mosei_subset_y = mosei_y[subset_idx]
+
+        print(f"   MOSEI subset: {mosei_subset_X.shape}")
+
+        # Source-only transfer: MOSEI sentiment → DAIC depression
+        print("\n8. MOSEI → DAIC (source-only)...")
+        mosei_daic_results = evaluate_transfer(
+            mosei_subset_X, mosei_subset_y,
+            daic_test_X, daic_test_y,
+            method='source_only'
+        )
+        print(f"   MOSEI → DAIC Test AUC: {mosei_daic_results['target_auc']:.3f}")
+        results['mosei_to_daic'] = mosei_daic_results
+
+        # Domain shift: MOSEI → DAIC
+        print("\n9. Computing MOSEI → DAIC domain shift...")
+        mosei_daic_shift = compute_domain_shift(mosei_subset_X, daic_train_X)
+        print(f"   Mean distance: {mosei_daic_shift['mean_distance']:.4f}")
+        print(f"   Covariance distance: {mosei_daic_shift['covariance_distance']:.4f}")
+        results['mosei_daic_shift'] = mosei_daic_shift
+
+        # CORAL adaptation: MOSEI → DAIC
+        print("\n10. CORAL adaptation (MOSEI → DAIC)...")
+        common_dim = min(mosei_subset_X.shape[1], daic_train_X.shape[1], 512)
+
+        source_t = torch.tensor(mosei_subset_X[:, :common_dim], dtype=torch.float32)
+        target_t = torch.tensor(daic_train_X[:, :common_dim], dtype=torch.float32)
+
+        coral_loss_fn = CORALLoss(common_dim)
+        coral_loss = coral_loss_fn(source_t, target_t)
+        print(f"   CORAL loss: {coral_loss.item():.4f}")
+
+        # Align DAIC to MOSEI statistics
+        source_mean = source_t.mean(dim=0)
+        source_std = source_t.std(dim=0)
+
+        daic_test_aligned = (daic_test_X[:, :common_dim] - source_mean.cpu().numpy()) / source_std.cpu().numpy()
+
+        # Evaluate with aligned data
+        scaler = StandardScaler()
+        X_source = scaler.fit_transform(mosei_subset_X[:, :common_dim])
+        X_target = scaler.transform(daic_test_aligned)
+
+        lr = LogisticRegression(C=0.01, max_iter=1000)
+        lr.fit(X_source, mosei_subset_y)
+
+        probs = lr.predict_proba(X_target)[:, 1]
+        coral_auc = roc_auc_score(daic_test_y, probs)
+
+        print(f"   CORAL (MOSEI → DAIC) Test AUC: {coral_auc:.3f}")
+        results['coral_mosei_to_daic'] = {'target_auc': coral_auc, 'coral_loss': float(coral_loss.item())}
+
+    except FileNotFoundError as e:
+        print(f"   MOSEI data not available: {e}")
+        print("   Skipping MOSEI → DAIC evaluation")
+    except Exception as e:
+        print(f"   Error loading MOSEI: {e}")
+        print("   Skipping MOSEI → DAIC evaluation")
+
     # Summary
     print("\n" + "=" * 60)
     print("DOMAIN ADAPTATION RESULTS SUMMARY")
@@ -281,6 +387,10 @@ def main():
         print(f"{'FI → DAIC (source only)':<30} {results['fi_to_daic']['target_auc']:.3f}")
     if 'coral_fi_to_daic' in results:
         print(f"{'CORAL (FI → DAIC)':<30} {results['coral_fi_to_daic']['target_auc']:.3f}")
+    if 'mosei_to_daic' in results:
+        print(f"{'MOSEI → DAIC (source only)':<30} {results['mosei_to_daic']['target_auc']:.3f}")
+    if 'coral_mosei_to_daic' in results:
+        print(f"{'CORAL (MOSEI → DAIC)':<30} {results['coral_mosei_to_daic']['target_auc']:.3f}")
 
     # Transfer analysis
     print("\n" + "=" * 60)
@@ -297,6 +407,16 @@ def main():
         else:
             print("-> NEUTRAL transfer: FI features don't significantly help or hurt")
 
+    if 'mosei_to_daic' in results:
+        transfer_gain = results['mosei_to_daic']['target_auc'] - results['within_daic']['target_auc']
+        print(f"MOSEI → DAIC transfer gain vs within-DAIC: {transfer_gain:+.3f}")
+        if transfer_gain > 0.1:
+            print("-> POSITIVE transfer: MOSEI sentiment features help DAIC depression detection")
+        elif transfer_gain < -0.1:
+            print("-> NEGATIVE transfer: MOSEI sentiment features hurt DAIC depression detection")
+        else:
+            print("-> NEUTRAL transfer: MOSEI sentiment features don't significantly help or hurt")
+
     # Create visualization
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
@@ -311,12 +431,18 @@ def main():
     if 'coral_fi_to_daic' in results:
         methods.append('CORAL FI→DAIC')
         aucs.append(results['coral_fi_to_daic']['target_auc'])
+    if 'mosei_to_daic' in results:
+        methods.append('MOSEI → DAIC')
+        aucs.append(results['mosei_to_daic']['target_auc'])
+    if 'coral_mosei_to_daic' in results:
+        methods.append('CORAL MOSEI→DAIC')
+        aucs.append(results['coral_mosei_to_daic']['target_auc'])
 
     colors = ['#2ecc71'] + ['#3498db'] * (len(methods) - 1)
     bars = ax1.bar(methods, aucs, color=colors)
     ax1.axhline(0.5, color='black', linestyle='--', label='Random')
     ax1.set_ylabel('AUROC')
-    ax1.set_title('Domain Adaptation: FI → DAIC Depression')
+    ax1.set_title('Domain Adaptation: Source → DAIC Depression')
     ax1.set_ylim([0, 1])
     ax1.tick_params(axis='x', rotation=45)
 

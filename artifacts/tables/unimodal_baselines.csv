@@ -1,13 +1,4 @@
 dataset,modality,metric,value,ci_lower,ci_upper,beats_trivial,trivial_value
-daic,text,AUROC,0.5346,0.3496,0.7121,True,0.7196
-daic,text,Accuracy,0.7021,0.5745,0.8298,True,0.7196
-daic,text,F1,0.0,0.0,0.0,True,0.7196
-daic,audio,AUROC,0.4686,0.2863,0.6516,False,0.7196
-daic,audio,Accuracy,0.5319,0.4043,0.6809,False,0.7196
-daic,audio,F1,0.2143,0.0,0.4211,False,0.7196
-daic,video,AUROC,0.5823,0.3725,0.7854,True,0.7196
-daic,video,Accuracy,0.7021,0.5745,0.8298,True,0.7196
-daic,video,F1,0.4167,0.125,0.6429,True,0.7196
 mosei,text,CCC,0.5123,0.4943,0.5295,True,0.8489
 mosei,text,MAE,0.6981,0.6819,0.7151,True,0.8489
 mosei,text,R2,0.3357,0.3123,0.3594,True,0.8489
@@ -89,3 +80,12 @@ fi,video,MAE_conscientiousness,0.0952,0.092,0.0986,True,0.128
 fi,video,CCC_openness,0.4546,0.4216,0.4852,True,0.1176
 fi,video,MAE_openness,0.1018,0.0983,0.1053,True,0.1176
 fi,video,Avg_CCC,0.4578,0.4078,0.5078,True,0
+daic,text,AUROC,0.671,0.4913,0.818,True,0.5
+daic,text,Accuracy,0.6809,0.5532,0.8085,False,0.7196
+daic,text,F1,0.0,0.0,0.0,False,0.7196
+daic,audio,AUROC,0.4686,0.2863,0.6516,False,0.5
+daic,audio,Accuracy,0.5319,0.4043,0.6809,False,0.7196
+daic,audio,F1,0.2143,0.0,0.4211,False,0.7196
+daic,video,AUROC,0.5628,0.3622,0.7533,True,0.5
+daic,video,Accuracy,0.5957,0.4468,0.7447,False,0.7196
+daic,video,F1,0.2963,0.0741,0.5186,False,0.7196

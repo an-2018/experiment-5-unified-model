@@ -1453,25 +1453,29 @@ def write_results_csv(all_results, out_path, merge_existing=True):
         mod = r.get("modality", "?")
 
         if ds == "daic":
+            # AUROC trivial baseline is 0.5 (random chance for binary classification)
+            # beats_trivial for AUROC was computed as auroc > 0.5 in run_experiment
             new_rows.append({
                 "dataset": "daic", "modality": mod,
                 "metric": "AUROC", "value": round(r["auroc"], 4),
                 "ci_lower": round(r["ci_auroc"][0], 4), "ci_upper": round(r["ci_auroc"][1], 4),
                 "beats_trivial": r.get("beats_trivial", False),
-                "trivial_value": round(r.get("trivial_baseline", 0), 4),
+                "trivial_value": 0.5,
             })
+            # Accuracy trivial baseline is majority class accuracy
             new_rows.append({
                 "dataset": "daic", "modality": mod,
                 "metric": "Accuracy", "value": round(r["accuracy"], 4),
                 "ci_lower": round(r["ci_accuracy"][0], 4), "ci_upper": round(r["ci_accuracy"][1], 4),
-                "beats_trivial": r.get("beats_trivial", False),
-                "trivial_value": round(r.get("trivial_baseline", 0), 4),
+                "beats_trivial": r["accuracy"] > r.get("trivial_baseline", 0.5),
+                "trivial_value": round(r.get("trivial_baseline", 0.5), 4),
             })
+            # F1 trivial baseline is majority class accuracy (same as the F1 baseline used during training)
             new_rows.append({
                 "dataset": "daic", "modality": mod,
                 "metric": "F1", "value": round(r["f1"], 4),
                 "ci_lower": round(r["ci_f1"][0], 4), "ci_upper": round(r["ci_f1"][1], 4),
-                "beats_trivial": r.get("beats_trivial", False),
+                "beats_trivial": r["f1"] > r.get("trivial_baseline", 0),
                 "trivial_value": round(r.get("trivial_baseline", 0), 4),
             })
 
