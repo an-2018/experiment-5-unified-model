@@ -17,6 +17,7 @@
 \usepackage{pgfplotstable}
 \usepackage{url}
 \usepackage{nicefrac}
+\usepackage[microtype]{microtype}
 \usepackage[numbers]{natbib}
 \graphicspath{{../}}
 
@@ -391,7 +392,7 @@ Results source: \texttt{artifacts/tables/mmoe\_ex\_results.csv}.
 %     \label{fig:graph_ablation}
 % \end{figure}
 
-Table~\ref{tab:graph_results} shows the five graph variants (V0--V4) across all four tasks. Figure~\ref{fig:graph_ablation} visualizes the comparison.
+Table~\ref{tab:graph_results} shows the five graph variants (V0--V4) across all four tasks. The ablation comparison (five variants across four tasks) is summarized in the table below.
 
 \textbf{V0 (inductive, K=10)} achieves the best MOSEI sentiment (CCC=0.6803) and strong MOSEI emotion (AUROC=0.7562), representing a +0.18 CCC improvement over non-graph MMoEEx. The inductive graph allows training nodes from all splits to provide routing context, which is particularly beneficial for the large MOSEI dataset.
 
@@ -730,7 +731,7 @@ Table~\ref{tab:mosei_emotion_results} shows per-emotion AUROC for the MMoEEx and
 \end{table}
 
 \section{Training Curves}
-Figure~\ref{fig:training_curves} shows training and validation loss curves for the V0 graph model over 50 epochs.
+Training and validation loss curves for the V0 graph model over 50 epochs are not shown due to missing image file \texttt{artifacts/figures/phase\_07\_joint\_training/training\_curves.png}. The loss curves are available in \texttt{artifacts/tables/phase07\_training\_curves.json}.
 
 % FIGURE MISSING - artifacts/figures/phase_07_joint_training/training_curves.png
 % \begin{figure}[htbp]
