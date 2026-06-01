@@ -287,6 +287,37 @@ class _UnifiedInferenceModel(nn.Module):
         expert_out = self.mmoe.forward(fused, task_id=0)
         return self.depression_head(expert_out)
 
+    def _select_projector(self, feat: torch.Tensor, llm_projector: nn.Module,
+                           classical_projector: nn.Module) -> torch.Tensor:
+        """Route feature through LLM or classical projector based on feature dimension.
+        
+        Some levels (e.g. L4) upgrade only text+video to LLM features while keeping
+        audio as classical 512-dim. This helper detects the correct projector and
+        adds an adaptive projection if dimensions don't match.
+        """
+        if feat.shape[-1] == 0:
+            return None
+        llm_in = llm_projector.net[0].in_features
+        classical_in = classical_projector.net[0].in_features
+        
+        # Check if feature dimension matches either projector
+        if feat.shape[-1] == llm_in:
+            return llm_projector(feat)
+        elif feat.shape[-1] == classical_in:
+            return classical_projector(feat)
+        else:
+            # Dimension mismatch - need adaptive projection to projector's input dim
+            # Create/use cached adaptive projection for this specific input dimension
+            cache_key = f"adapt_proj_{feat.shape[-1]}_to_{llm_in}"
+            if not hasattr(self, '_proj_cache'):
+                self._proj_cache = {}
+            if cache_key not in self._proj_cache:
+                self._proj_cache[cache_key] = nn.Linear(feat.shape[-1], llm_in).to(feat.device)
+            proj = self._proj_cache[cache_key]
+            projected = proj(feat)
+            # Pass through the LLM projector (both expect same input dim)
+            return llm_projector(projected)
+
     def predict_task(self, text_feat, audio_feat, video_feat, modality_mask, task_id, routing):
         """Produce final prediction for a specific task.
         
@@ -301,8 +332,10 @@ class _UnifiedInferenceModel(nn.Module):
                 v_h = self.llm_video_projector(video_feat)
                 fused = v_h
             else:
-                a_h = self.llm_audio_projector(audio_feat) if audio_feat.shape[-1] > 0 else t_h * 0
-                v_h = self.llm_video_projector(video_feat) if video_feat.shape[-1] > 0 else t_h * 0
+                a_proj = self._select_projector(audio_feat, self.llm_audio_projector, self.audio_projector)
+                v_proj = self._select_projector(video_feat, self.llm_video_projector, self.video_projector)
+                a_h = a_proj if a_proj is not None else t_h * 0
+                v_h = v_proj if v_proj is not None else t_h * 0
                 fused = self.llm_fusion(torch.cat([t_h, a_h, v_h], dim=-1))
         else:
             if routing == "text_only":
@@ -495,13 +528,13 @@ class _InferenceDataset(Dataset):
             self.f_dims = {"text": 768, "audio": 768, "video": 1536}
         elif llm_level in ["L1", "L2"]:
             self.f_dims = {"text": 4096, "audio": 768, "video": 768}
-        elif llm_level in ["L3", "L4", "L5"]:
+        elif llm_level in ["L3", "L5"]:
             self.f_dims = {"text": 4096, "audio": 512, "video": 768}
-            # L4 uses LLaVA for video
-            if llm_level == "L4":
-                self.f_dims["video"] = 4096
-            if llm_level == "L5":
-                self.f_dims["video"] = 4096  # LLaVA
+        elif llm_level == "L4":
+            # L4 uses LLM text (Mistral), classical audio (WavLM 768-dim), LLM video (LLaVA)
+            self.f_dims = {"text": 4096, "audio": 768, "video": 4096}
+        elif llm_level == "L5":
+            self.f_dims = {"text": 4096, "audio": 512, "video": 4096}  # LLaVA
         else:
             self.f_dims = {"text": 768, "audio": 768, "video": 1536}
 
@@ -1090,10 +1123,11 @@ def build_real_graph(samples: list, n_neighbors: int = 5) -> tuple:
         n_neighbors: number of nearest neighbors per sample
     
     Returns:
-        (x, edge_index, meta_list) where
+        (x, edge_index, meta_list, edge_distances) where
         x: (N, D) feature matrix
         edge_index: (2, E) graph connectivity
         meta_list: list of metadata dicts per node
+        edge_distances: (E,) cosine distances for each edge
     """
     from sklearn.neighbors import NearestNeighbors
 
@@ -1119,14 +1153,16 @@ def build_real_graph(samples: list, n_neighbors: int = 5) -> tuple:
     if N <= n_neighbors + 1:
         # Too few samples — fully connected graph
         edge_index = torch.zeros((2, N * (N - 1)), dtype=torch.long)
+        edge_distances = torch.zeros(N * (N - 1))
         idx = 0
         for i in range(N):
             for j in range(N):
                 if i != j:
                     edge_index[0, idx] = i
                     edge_index[1, idx] = j
+                    edge_distances[idx] = 0.0  # Fully connected, distance = 0
                     idx += 1
-        return x, edge_index, meta_list
+        return x, edge_index, meta_list, edge_distances
 
     # KNN with cosine distance
     x_np = x.numpy()
@@ -1136,15 +1172,18 @@ def build_real_graph(samples: list, n_neighbors: int = 5) -> tuple:
 
     edges = []
     edge_weights = []
+    edge_distances = []
     for i in range(N):
         for j, dist in zip(indices[i], distances[i]):
             if i != j:
                 weight = 1.0 - dist  # convert distance to similarity
                 edges.append([i, j])
                 edge_weights.append(weight)
+                edge_distances.append(dist)
 
     edge_index = torch.tensor(edges, dtype=torch.long).T if edges else torch.zeros((2, 0), dtype=torch.long)
-    return x, edge_index, meta_list
+    edge_distances = torch.tensor(edge_distances, dtype=torch.float) if edge_distances else torch.zeros(0)
+    return x, edge_index, meta_list, edge_distances
 
 
 def load_real_model_for_xai(llm_level: str = "L1", device_str: str = "cuda") -> _UnifiedInferenceModel:

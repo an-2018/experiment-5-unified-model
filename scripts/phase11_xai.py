@@ -300,7 +300,7 @@ def main():
         print(f"  Loaded {len(samples)} real samples")
 
         # Build REAL KNN graph from sample features
-        x, edge_index, meta_list = build_real_graph(samples, n_neighbors=5)
+        x, edge_index, meta_list, edge_distances = build_real_graph(samples, n_neighbors=5)
         print(f"  Graph: {x.shape[0]} nodes, {edge_index.shape[1]} edges")
 
         # Run SHAP on a subset of samples
@@ -344,13 +344,14 @@ def main():
             pert_deltas = {mod: perturbation_test(s, model, mod) for mod in ["text", "audio", "video"]}
             cf_vals = counterfactual_test(s, model)
 
-            # Real neighbor info from KNN graph
+            # Real neighbor info from KNN graph (use actual distances)
             n_edges = edge_index.shape[1]
             neighbor_list = []
-            if n_edges > 0 and edge_mask.numel() > 0:
-                weights = edge_mask.detach().cpu()
-                if weights.numel() > n_edges:
-                    weights = weights[:n_edges]
+            if n_edges > 0 and edge_distances.numel() > 0:
+                # Use actual KNN distances (cosine distance)
+                dists = edge_distances.detach().cpu()
+                # Convert distance to similarity weight (1 - cosine_distance)
+                weights = torch.clamp(1.0 - dists, min=0.0)
                 sorted_idx = torch.argsort(weights, descending=True)
                 for k in range(min(5, n_edges)):
                     ei = sorted_idx[k].item()
@@ -359,9 +360,10 @@ def main():
                     src = int(edge_index[0, ei])
                     dst = int(edge_index[1, ei])
                     weight = float(weights[ei])
+                    dist = float(dists[ei])
                     neighbor_list.append({
                         "id": int(dst),
-                        "distance": float(1.0 - max(0.0, min(1.0, weight))),
+                        "distance": dist,
                         "dataset": dataset,
                         "weight": weight,
                     })

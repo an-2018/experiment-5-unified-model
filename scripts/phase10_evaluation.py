@@ -326,23 +326,55 @@ def generate_visualizations(predictions: dict, all_results: dict):
     colors = ["#888888", "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
     level_styles = dict(zip(levels, colors))
 
-    # ── 1. ROC Curves ──
-    print("Generating ROC curves...")
+    # ── 1. ROC Curves with Bootstrap Confidence Bands ──
+    print("Generating ROC curves with bootstrap CI...")
     fig, ax = plt.subplots(figsize=(8, 7))
-
+    
+    n_bootstrap = 500  # Number of bootstrap samples for confidence bands
+    
     for level in levels:
         data = predictions.get(f"daic_{level}", {})
         if not data or len(data.get("labels", [])) == 0:
             continue
-        fpr, tpr, _ = roc_curve(data["labels"], data["probs"])
-        auroc = compute_auroc(data["labels"], data["probs"])
-        ax.plot(fpr, tpr, color=level_styles[level], linewidth=1.5,
+        labels = np.array(data["labels"])
+        probs = np.array(data["probs"])
+        auroc = compute_auroc(labels, probs)
+        
+        # Bootstrap confidence bands
+        n_samples = len(labels)
+        tprs = []
+        fpr_grid = np.linspace(0, 1, 100)
+        
+        rng = np.random.RandomState(42)
+        for _ in range(n_bootstrap):
+            # Sample with replacement
+            idx = rng.choice(n_samples, size=n_samples, replace=True)
+            try:
+                fpr_b, tpr_b, _ = roc_curve(labels[idx], probs[idx])
+                tpr_interp = np.interp(fpr_grid, fpr_b, tpr_b)
+                tprs.append(tpr_interp)
+            except:
+                continue
+        
+        if len(tprs) > 10:
+            tprs = np.array(tprs)
+            tpr_mean = tprs.mean(axis=0)
+            tpr_lower = np.percentile(tprs, 2.5, axis=0)
+            tpr_upper = np.percentile(tprs, 97.5, axis=0)
+            
+            # Plot confidence band
+            ax.fill_between(fpr_grid, tpr_lower, tpr_upper, 
+                           color=level_styles[level], alpha=0.2)
+        
+        # Main ROC curve
+        fpr, tpr, _ = roc_curve(labels, probs)
+        ax.plot(fpr, tpr, color=level_styles[level], linewidth=2,
                 label=f"{level} (AUROC={auroc:.4f})")
 
     ax.plot([0, 1], [0, 1], "k--", alpha=0.5, label="Random")
     ax.set_xlabel("False Positive Rate", fontsize=11)
     ax.set_ylabel("True Positive Rate", fontsize=11)
-    ax.set_title("DAIC Depression — ROC Curves Across LLM Levels", fontsize=12, fontweight="bold")
+    ax.set_title("DAIC Depression — ROC Curves with 95% Bootstrap CI", fontsize=12, fontweight="bold")
     ax.legend(fontsize=8, loc="lower right")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -350,21 +382,48 @@ def generate_visualizations(predictions: dict, all_results: dict):
     plt.close(fig)
     print(f"  Saved: {fig_dir / 'roc_curves.png'}")
 
-    # ── 2. PR Curves ──
-    print("Generating PR curves...")
+    # ── 2. PR Curves with Bootstrap Confidence Bands ──
+    print("Generating PR curves with bootstrap CI...")
     fig, ax = plt.subplots(figsize=(8, 7))
+    
     for level in levels:
         data = predictions.get(f"daic_{level}", {})
         if not data or len(data.get("labels", [])) == 0:
             continue
-        precision, recall, _ = precision_recall_curve(data["labels"], data["probs"])
-        auprc = compute_auprc(data["labels"], data["probs"])
-        ax.plot(recall, precision, color=level_styles[level], linewidth=1.5,
+        labels = np.array(data["labels"])
+        probs = np.array(data["probs"])
+        auprc = compute_auprc(labels, probs)
+        
+        # Bootstrap confidence bands
+        n_samples = len(labels)
+        precisions = []
+        recall_grid = np.linspace(0, 1, 100)
+        
+        rng = np.random.RandomState(42)
+        for _ in range(n_bootstrap):
+            idx = rng.choice(n_samples, size=n_samples, replace=True)
+            try:
+                prec_b, rec_b, _ = precision_recall_curve(labels[idx], probs[idx])
+                prec_interp = np.interp(recall_grid, rec_b[::-1], prec_b[::-1])
+                precisions.append(prec_interp)
+            except:
+                continue
+        
+        if len(precisions) > 10:
+            precisions = np.array(precisions)
+            prec_mean = precisions.mean(axis=0)
+            prec_lower = np.percentile(precisions, 2.5, axis=0)
+            prec_upper = np.percentile(precisions, 97.5, axis=0)
+            ax.fill_between(recall_grid, prec_lower, prec_upper, 
+                           color=level_styles[level], alpha=0.2)
+        
+        precision, recall, _ = precision_recall_curve(labels, probs)
+        ax.plot(recall, precision, color=level_styles[level], linewidth=2,
                 label=f"{level} (AUPRC={auprc:.4f})")
 
     ax.set_xlabel("Recall", fontsize=11)
     ax.set_ylabel("Precision", fontsize=11)
-    ax.set_title("DAIC Depression — PR Curves Across LLM Levels", fontsize=12, fontweight="bold")
+    ax.set_title("DAIC Depression — PR Curves with 95% Bootstrap CI", fontsize=12, fontweight="bold")
     ax.legend(fontsize=8, loc="upper right")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -392,6 +451,7 @@ def generate_visualizations(predictions: dict, all_results: dict):
         bin_acc = np.zeros(n_bins)
         bin_conf = np.zeros(n_bins)
         bin_counts = np.zeros(n_bins)
+        bin_acc_std = np.zeros(n_bins)  # For confidence interval
 
         for b in range(n_bins):
             in_bin = (probs >= bin_edges[b]) & (probs < bin_edges[b + 1])
@@ -399,23 +459,35 @@ def generate_visualizations(predictions: dict, all_results: dict):
             if bin_counts[b] > 0:
                 bin_acc[b] = labels[in_bin].mean()
                 bin_conf[b] = probs[in_bin].mean()
+                # Bootstrap std for accuracy
+                if bin_counts[b] >= 2:
+                    bin_acc_std[b] = labels[in_bin].std() / np.sqrt(bin_counts[b])
 
         ece = compute_ece(probs, labels)
-        axes[idx].plot([0, 1], [0, 1], "k--", alpha=0.5, label="Perfect")
-        axes[idx].plot(bin_conf, bin_acc, "o-", color=level_styles[level],
-                       linewidth=2, markersize=5, label=f"ECE={ece:.4f}")
-
+        ax = axes[idx]
+        
+        # Plot confidence distribution as histogram bars at bottom
         for b in range(n_bins):
-            axes[idx].bar(bin_centers[b], bin_counts[b] / max(len(probs), 1),
-                         width=0.09, alpha=0.15, color="gray")
-
-        axes[idx].set_xlim(0, 1)
-        axes[idx].set_ylim(0, 1)
-        axes[idx].set_xlabel("Confidence", fontsize=9)
-        axes[idx].set_ylabel("Accuracy", fontsize=9)
-        axes[idx].set_title(f"{level} — Reliability Diagram", fontsize=10, fontweight="bold")
-        axes[idx].legend(fontsize=7, loc="lower right")
-        axes[idx].grid(True, alpha=0.3)
+            if bin_counts[b] > 0:
+                ax.bar(bin_centers[b], bin_counts[b] / max(len(probs), 1),
+                      width=0.08, alpha=0.3, color="steelblue", edgecolor="darkblue")
+        
+        # Plot reliability curve with error bars
+        valid_bins = bin_counts > 0
+        if valid_bins.any():
+            ax.errorbar(bin_conf[valid_bins], bin_acc[valid_bins], 
+                       yerr=1.96*bin_acc_std[valid_bins] if bin_acc_std.any() else None,
+                       fmt="o-", color=level_styles[level],
+                       linewidth=2, markersize=6, label=f"ECE={ece:.4f}")
+        
+        ax.plot([0, 1], [0, 1], "k--", alpha=0.5, label="Perfect")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_xlabel("Confidence (Mean Predicted Probability)", fontsize=9)
+        ax.set_ylabel("Accuracy (Fraction of Positives)", fontsize=9)
+        ax.set_title(f"{level} — Reliability Diagram", fontsize=10, fontweight="bold")
+        ax.legend(fontsize=7, loc="lower right")
+        ax.grid(True, alpha=0.3)
 
     fig.suptitle("Calibration Across LLM Levels — DAIC Depression", fontsize=13, fontweight="bold")
     fig.tight_layout()
