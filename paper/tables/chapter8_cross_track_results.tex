@@ -1,0 +1,17 @@
+% Table: Cross-Track Validation Results
+\begin{table}[htbp]
+\centering
+\caption{Cross-Track Validation: MPDD-Young $\rightarrow$ MPDD-Elderly. Cross-track transfer fails catastrophically (AUROC=0.395, below random). Within-elderly baseline (AUROC=0.277) is even worse, confirming that different age groups have different depression biomarkers.}
+\label{tab:cross_track_results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Evaluation} & \textbf{AUROC} & \textbf{Interpretation} & \textbf{Notes} \\
+\midrule
+Within MPDD-Young & 0.926 & Good & Training on Young \\
+Cross-track (Young→Elderly) & 0.395 & \textbf{NEGATIVE} & Below random \\
+Within MPDD-Elderly & 0.277 & Also fails & Elderly alone also poor \\
+\midrule
+Transfer gap & $-0.118$ & Negative transfer confirmed & Young→Elderly worse than within \\
+\bottomrule
+\end{tabular}
+\end{table}

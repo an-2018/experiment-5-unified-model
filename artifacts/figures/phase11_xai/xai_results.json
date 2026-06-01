@@ -1,0 +1,21 @@
+{
+  "test_auc": 0.35064935064935066,
+  "shap": {
+    "n_samples": 30,
+    "audio_importance": 0.00022655200606789617,
+    "total_importance": 0.00020167279303666137,
+    "audio_dominance": 1.1233642508571402
+  },
+  "perturbation": {
+    "baseline_auc": 0.35064935064935066,
+    "perturbed_auc": 0.42640692640692646,
+    "auc_delta": 0.0757575757575758,
+    "mean_pred_change": -0.04541313548075893,
+    "mean_abs_pred_change": 0.11279146626064902
+  },
+  "counterfactual": {
+    "mean_counterfactual_score": 27.36660630880588,
+    "n_positive_corr_features": 386,
+    "n_negative_corr_features": 382
+  }
+}

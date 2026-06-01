@@ -1,0 +1,21 @@
+{
+  "none": {
+    "mpdd_val_auc": 0.6894736842105262,
+    "daic_train_auc": 0.5476190476190477,
+    "daic_val_auc": 0.5289855072463768,
+    "daic_test_auc": 0.44588744588744583,
+    "best_c": 10.0
+  },
+  "standard": {
+    "mpdd_val_auc": 0.7921052631578948,
+    "daic_train_auc": 0.577922077922078,
+    "daic_val_auc": 0.42934782608695654,
+    "daic_test_auc": 0.550865800865801,
+    "best_c": 0.01
+  },
+  "within_daic": {
+    "daic_val_auc": 0.6340579710144927,
+    "daic_test_auc": 0.34415584415584416,
+    "best_c": 10.0
+  }
+}

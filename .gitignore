@@ -71,3 +71,4 @@ Thumbs.db
 !src/**/*.pt
 checkpoints/
 data/pdch/*
+data/raw/mpdd

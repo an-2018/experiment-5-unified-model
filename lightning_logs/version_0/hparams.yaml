@@ -1,0 +1,6 @@
+config:
+  expert_dim: 256
+  input_dim: 512
+  lr: 0.001
+  num_experts: 8
+  use_graph: false

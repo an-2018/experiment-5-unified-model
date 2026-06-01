@@ -1,0 +1,26 @@
+{
+  "none": {
+    "young_val_auc": 0.6342105263157894,
+    "elderly_auc": 0.5,
+    "elderly_acc": 0.2344213649851632,
+    "elderly_f1": 0.3798076923076923,
+    "best_c": 0.1
+  },
+  "standard": {
+    "young_val_auc": 0.9263157894736842,
+    "elderly_auc": 0.39485820822294176,
+    "elderly_acc": 0.2403560830860534,
+    "elderly_f1": 0.38164251207729466,
+    "best_c": 0.01
+  },
+  "per_modality": {
+    "young_val_auc": 0.9263157894736842,
+    "elderly_auc": 0.39485820822294176,
+    "elderly_acc": 0.2403560830860534,
+    "elderly_f1": 0.38164251207729466,
+    "best_c": 0.01
+  },
+  "within_elderly": {
+    "elderly_val_auc": 0.27717391304347827
+  }
+}

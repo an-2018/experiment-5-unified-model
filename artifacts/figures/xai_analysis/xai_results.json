@@ -1,0 +1,161 @@
+{
+  "test_auc": 0.6736111111111112,
+  "val_auc": 0.9263157894736842,
+  "best_c": 0.01,
+  "n_shap_samples": 20,
+  "audio_total_importance": 0.14096703869281488,
+  "video_total_importance": 0.13545753802586533,
+  "video_dominance_pct": 0.49003435090260333,
+  "top_features": [
+    {
+      "name": "audio_44",
+      "importance": 0.017982433102673546,
+      "modality": "audio"
+    },
+    {
+      "name": "video_693",
+      "importance": 0.017188036083011886,
+      "modality": "video"
+    },
+    {
+      "name": "video_657",
+      "importance": 0.01714501600160643,
+      "modality": "video"
+    },
+    {
+      "name": "audio_388",
+      "importance": 0.008628838523227988,
+      "modality": "audio"
+    },
+    {
+      "name": "audio_226",
+      "importance": 0.008001628980596998,
+      "modality": "audio"
+    },
+    {
+      "name": "audio_433",
+      "importance": 0.007987969334051423,
+      "modality": "audio"
+    },
+    {
+      "name": "video_293",
+      "importance": 0.007690067284713123,
+      "modality": "video"
+    },
+    {
+      "name": "video_652",
+      "importance": 0.007647173137723229,
+      "modality": "video"
+    },
+    {
+      "name": "video_684",
+      "importance": 0.007271881627100222,
+      "modality": "video"
+    },
+    {
+      "name": "video_680",
+      "importance": 0.0072409903766991815,
+      "modality": "video"
+    },
+    {
+      "name": "video_643",
+      "importance": 0.006915555500716891,
+      "modality": "video"
+    },
+    {
+      "name": "audio_55",
+      "importance": 0.006630088732321744,
+      "modality": "audio"
+    },
+    {
+      "name": "video_637",
+      "importance": 0.006349789058417485,
+      "modality": "video"
+    },
+    {
+      "name": "video_2",
+      "importance": 0.0061417400110094,
+      "modality": "video"
+    },
+    {
+      "name": "video_705",
+      "importance": 0.005874935960955866,
+      "modality": "video"
+    },
+    {
+      "name": "video_692",
+      "importance": 0.005339149175705505,
+      "modality": "video"
+    },
+    {
+      "name": "audio_438",
+      "importance": 0.0050997063403086604,
+      "modality": "audio"
+    },
+    {
+      "name": "audio_472",
+      "importance": 0.004728835560499153,
+      "modality": "audio"
+    },
+    {
+      "name": "audio_182",
+      "importance": 0.004122566514171463,
+      "modality": "audio"
+    },
+    {
+      "name": "video_659",
+      "importance": 0.003831137961366942,
+      "modality": "video"
+    },
+    {
+      "name": "audio_2",
+      "importance": 0.0038204623328642966,
+      "modality": "audio"
+    },
+    {
+      "name": "audio_103",
+      "importance": 0.0037115912947716227,
+      "modality": "audio"
+    },
+    {
+      "name": "audio_290",
+      "importance": 0.003594363763744417,
+      "modality": "audio"
+    },
+    {
+      "name": "video_703",
+      "importance": 0.0032634469824434436,
+      "modality": "video"
+    },
+    {
+      "name": "audio_178",
+      "importance": 0.003167362514103887,
+      "modality": "audio"
+    },
+    {
+      "name": "video_649",
+      "importance": 0.0029558362855803713,
+      "modality": "video"
+    },
+    {
+      "name": "video_646",
+      "importance": 0.0029446243134304126,
+      "modality": "video"
+    },
+    {
+      "name": "video_676",
+      "importance": 0.002696809675076171,
+      "modality": "video"
+    },
+    {
+      "name": "video_679",
+      "importance": 0.002543861012056131,
+      "modality": "video"
+    },
+    {
+      "name": "audio_170",
+      "importance": 0.0025039971915574834,
+      "modality": "audio"
+    }
+  ]
+}

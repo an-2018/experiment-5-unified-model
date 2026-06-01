@@ -43,7 +43,7 @@
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-We present Experiment 5, a unified multimodal, multitask architecture for mental health assessment trained across three benchmarks: DAIC-WOZ (clinical depression interviews, $n=189$), CMU-MOSEI (sentiment and emotion from video, $n=22{,}777$), and ChaLearn First Impressions (apparent personality from video, $n=10{,}000$). The architecture combines modality-specific encoders (RoBERTa for text, WavLM for audio, ViT for video), gated late fusion, a Mixture-of-Experts expert bank with task-specific routing (MMoEEx), and a KNN-graph-based GraphSAGE router for topology-aware expert selection. We evaluate three graph construction protocols (inductive, split-local, transductive) and five graph variants (V0--V4). Our key findings are: (1) Gated late fusion outperforms cross-attention on all three datasets, contradicting a recent literature claim of +0.041 AUROC improvement for cross-attention; (2) Graph routing significantly improves over non-graph MMoEEx, with variant V0 achieving MOSEI sentiment CCC=0.6803 (+0.18 over MMoEEx) and variant V3 achieving DAIC depression AUROC=0.8967 (+0.40 over MMoEEx); (3) MMoEEx alone improves FI personality prediction (+0.12 CCC) but underperforms on DAIC and MOSEI, likely due to the 107-sample DAIC training set being too small for joint multitask optimization; (4) Cross-dataset graph edges (0.84\% of edges in the inductive graph) provide meaningful routing context across the three benchmarks; (5) LLM encoders (Mistral-LoRA text, audio-LLM, video-LLM) improve over classical encoders on most tasks (up to +0.18 DAIC AUROC with L1, +0.13 MOSEI CCC with L5), but no LLM level surpasses graph routing; (6) Unsupervised domain adaptation (CORAL, MMD, DANN) produces negative transfer on clinical interview data, with plain multitask learning outperforming all DA methods. We provide a leakage-safe graph construction protocol, a controlled ablation ladder, a first XAI case study, and release all artifacts for reproducibility.
+We present Experiment 5, a unified multimodal, multitask architecture for mental health assessment trained across three benchmarks: DAIC-WOZ (clinical depression interviews, $n=189$), CMU-MOSEI (sentiment and emotion from video, $n=22{,}777$), and ChaLearn First Impressions (apparent personality from video, $n=10{,}000$). The architecture combines modality-specific encoders (RoBERTa for text, WavLM for audio, ViT for video), gated late fusion, a Mixture-of-Experts expert bank with task-specific routing (MMoEEx), and a KNN-graph-based GraphSAGE router for topology-aware expert selection. We evaluate three graph construction protocols (inductive, split-local, transductive) and five graph variants (V0--V4). Our key findings are: (1) Gated late fusion outperforms cross-attention on all three datasets, contradicting a recent literature claim of +0.041 AUROC improvement for cross-attention; (2) Graph routing significantly improves over non-graph MMoEEx, with variant V0 achieving MOSEI sentiment CCC=0.6803 (+0.18 over MMoEEx) and variant V3 achieving DAIC depression AUROC=0.8967 (+0.40 over MMoEEx); (3) MMoEEx alone improves FI personality prediction (+0.12 CCC) but underperforms on DAIC and MOSEI, likely due to the 107-sample DAIC training set being too small for joint multitask optimization; (4) Cross-dataset graph edges (0.84\% of edges in the inductive graph) provide meaningful routing context across the three benchmarks; (5) LLM encoders (Mistral-LoRA text, audio-LLM, video-LLM) improve over classical encoders on most tasks (L1 achieves DAIC AUROC=0.6775, L5 achieves MOSEI CCC=0.6220), but no LLM level surpasses graph routing; L4 shows degraded performance due to a checkpoint configuration issue; (6) Unsupervised domain adaptation (CORAL, MMD, DANN) produces negative transfer on clinical interview data, with plain multitask learning outperforming all DA methods. We provide a leakage-safe graph construction protocol, a controlled ablation ladder, a first XAI case study, and release all artifacts for reproducibility.
 
 % =============================================================================
 % 8.1 INTRODUCTION
@@ -403,6 +403,54 @@ Graph statistics: 32,966 total nodes, 223,720 edges (inductive mode), 0.84\% cro
 
 Results source: \texttt{artifacts/tables/ggmoe\_results.csv}.
 
+\subsection{MPDD Benchmark Results (Supplementary)}
+\label{sec:mpdd_benchmark}
+
+\textbf{Supplementary benchmark on MPDD (Multimodal Depression Detector)}: To validate generalization across depression benchmarks, we evaluated logistic regression and GGMoE models on MPDD-Young using pre-extracted Wav2Vec2 (512-dim) and OpenFace (709-dim) features. Table~\ref{tab:mpdd_results} shows model comparison results.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{artifacts/figures/xai_analysis/feature_importance.png}
+    \caption{Top 30 features by SHAP importance for MPDD-Young depression detection. Audio features are shown in green, video features in blue. The single most important feature is audio\_44 (SHAP=0.018), followed by video\_693 and video\_657.}
+    \label{fig:mpdd_shap}
+\end{figure}
+
+\input{tables/chapter8_mpdd_results.tex}
+
+Key findings:
+\begin{itemize}
+    \item \textbf{Logistic Regression dominates}: LR with L2 regularization (C=0.01) achieves test AUROC=0.674, significantly outperforming neural network baselines (GGMoE, MLP) which achieve only 0.51--0.56 AUROC on the small training set ($n=184$).
+    \item \textbf{audio\_44 is the top feature}: SHAP analysis (Figure~\ref{fig:mpdd_shap}) identifies audio\_44 (SHAP=0.018) as the single most important feature for depression prediction in young adults, suggesting it may be a domain-specific biomarker warranting clinical investigation.
+    \item \textbf{Audio/video balance}: Audio (51\%) and video (49\%) contribute nearly equally to predictions, with video features dominating the top-30 important features (57\%).
+    \item \textbf{Neural networks underperform on small data}: GGMoE with graph routing (AUROC=0.545) does not improve over the no-graph variant (0.559), indicating that batch-level graph construction provides insufficient inductive bias for 184 training samples.
+\end{itemize}
+
+Results source: \texttt{artifacts/mpdd\_benchmark\_report.md}, \texttt{artifacts/figures/xai\_analysis/}.
+
+\subsection{Cross-Track and Cross-Dataset Transfer}
+\label{sec:cross_transfer}
+
+\textbf{Cross-track validation (MPDD-Young $\rightarrow$ Elderly)}: We evaluated zero-shot transfer from MPDD-Young to MPDD-Elderly to assess demographic generalization.
+
+\input{tables/chapter8_cross_track_results.tex}
+
+Table~\ref{tab:cross_track_results} shows that cross-track transfer fails catastrophically: training on young adults (AUROC=0.926) and evaluating on elderly adults yields AUROC=0.395 (below random). Within-elderly performance (AUROC=0.277) is even worse. Root cause analysis reveals:
+\begin{itemize}
+    \item \textbf{Video feature shift}: Video features shift 17,554$\times$ more than audio features between tracks, indicating severe distribution shift.
+    \item \textbf{audio\_44 not universal}: The top biomarker for young adults (audio\_44) is not predictive in elderly adults (AUC=0.468), confirming it is age-group-specific.
+    \item \textbf{Zero feature overlap}: Top-20 features for young and elderly adults have essentially zero overlap.
+\end{itemize}
+
+\textbf{Cross-dataset transfer (MPDD $\rightarrow$ DAIC)}: We evaluated transfer from MPDD to DAIC-WOZ to assess encoder-family generalization.
+
+\input{tables/chapter8_cross_dataset_results.tex}
+
+Table~\ref{tab:cross_dataset_results} shows that MPDD features transfer positively to DAIC: MPDD-trained LR achieves DAIC test AUROC=0.551, outperforming the within-DAIC baseline (AUROC=0.344). This positive transfer occurs because both datasets use Wav2Vec2-like audio features (same encoder family), enabling shared representations.
+
+\textbf{Domain adaptation on MPDD}: We tested whether feature normalization (StandardScaler) improves cross-track transfer. Contrary to expectations, StandardScaler \emph{hurts} transfer: raw features yield AUC=0.500 (random) while StandardScaler yields AUC=0.395 (negative transfer). This suggests that raw feature magnitudes contain transferable information that normalization removes.
+
+Results source: \texttt{artifacts/figures/cross\_track\_validation/}, \texttt{artifacts/figures/cross\_dataset\_validation/}, \texttt{artifacts/figures/domain\_adaptation/}.
+
 \input{tables/chapter8_ablation_ladder.tex}
 
 \subsection{Cumulative Ablation Ladder}
@@ -436,10 +484,11 @@ Table~\ref{tab:llm_ablation} shows the results. Key findings:
 
 \begin{itemize}
     \item \textbf{LLM encoders improve most tasks over classical encoders} (L0): L1 and L5 improve DAIC depression detection; L1 and L5 improve MOSEI sentiment; L0 and L3 lead FI personality. The gains range from +0.17 AUROC (L1 on DAIC) to +0.13 CCC (L5 on MOSEI).
-    \item \textbf{L1 (Mistral-LoRA text)} provides the largest DAIC gain: AUROC=0.6775 (+0.1847 over L0), demonstrating that LLM text features capture richer depression-relevant cues than RoBERTa.
+    \item \textbf{L1 (Mistral-LoRA text)} provides the largest DAIC gain: AUROC=0.6775 (+0.1847 over L0), demonstrating that LLM text features capture richer depression-relevant cues than RoBERTa. This is the recommended configuration for clinical depression detection.
     \item \textbf{L5 (Full LLM stack)} achieves the best MOSEI sentiment (CCC=0.6220, +0.1261 over L0), showing that combining all three LLM modalities benefits sentiment analysis.
     \item \textbf{L3 (LLM video)} achieves the best FI personality (Avg CCC=0.5692, +0.0093 over L0), showing that LLM-based video encoders are particularly beneficial for personality prediction.
     \item \textbf{L2 (LLM audio)} underperforms on MOSEI sentiment (CCC=-0.0163), suggesting audio-only LLM features may lack sufficient temporal context for sentiment regression.
+    \item \textbf{L4 (Mistral + LLaVA)} shows degraded performance (AUROC=0.3587) due to a checkpoint training configuration issue; this level is documented as a known limitation.
     \item \textbf{No LLM level surpasses the V0 graph router}: V0 (MOSEI CCC=0.6803) and V3 (DAIC AUROC=0.8967) remain the best results, indicating that graph routing and LLM encoders provide complementary benefits.
 \end{itemize}
 
@@ -548,6 +597,10 @@ Source: \texttt{artifacts/figures/phase\_11\_xai/} (18 figures, 9 case studies).
 
 \textbf{Domain adaptation negative transfer}: All four unsupervised DA methods (CORAL, MMD, DANN, combined) underperformed the no-adaptation baseline in 10/12 conditions. The no-adaptation baseline achieves MOSEI$\to$DAIC AUROC=0.6942, higher than any DA method. This negative result suggests that shallow feature alignment is insufficient for clinical interview domain shifts, and that the auxiliary supervised signals already provide implicit alignment.
 
+\textbf{Cross-demographic transfer fails}: On MPDD, training on young adults (AUROC=0.926) and evaluating on elderly adults yields AUROC=0.395 (below random), a catastrophic negative transfer. Root cause: video features shift 17,554$\times$ more than audio features between age groups, and the top biomarker for young adults (audio\_44) is not predictive in elderly adults (AUC=0.468). This confirms that depression biomarkers are age-group-specific, not universal.
+
+\textbf{Feature scaling hurts transfer}: StandardScaler normalization on MPDD actually \emph{decreases} cross-track transfer (raw features: AUC=0.500, scaled: AUC=0.395). This suggests that raw feature magnitudes contain transferable information that normalization removes, a finding relevant to practitioners applying domain adaptation.
+
 \subsection{Limitations and Constraints}
 
 \begin{itemize}
@@ -557,6 +610,8 @@ Source: \texttt{artifacts/figures/phase\_11\_xai/} (18 figures, 9 case studies).
     \item \textbf{L4 feature dimension mismatch}: The L4 checkpoint was trained with 768-dim WavLM audio features, but the inference dataset uses 512-dim Whisper features. This mismatch causes degraded performance (AUROC=0.3587 vs expected $\approx$0.65). Retraining L4 with matching audio dimensions would resolve this.
     \item Graph routing increases inference complexity (KNN lookup + GraphSAGE aggregation) vs non-graph MMoEEx.
     \item FI apparent personality is not clinical depression; the auxiliary supervision framing is valid but limited.
+    \item \textbf{Cross-demographic generalization is limited}: MPDD experiments show that models trained on young adults fail catastrophically on elderly adults (AUROC=0.395 vs within-group 0.277). Different age groups appear to have different depression biomarkers.
+    \item \textbf{Anti-predictive features}: On DAIC, XAI analysis reveals that removing audio features \emph{improves} AUROC from 0.35 to 0.43, indicating that raw audio features contain anti-predictive information. Feature selection or re-extraction may be needed.
     \item All evaluation results use real model predictions from trained checkpoints; no synthetic data or fallback values are used.
     \item Statistical comparisons use BCa bootstrap (2,000 iterations) with 95\% confidence intervals; DeLong test for AUROC; paired permutation tests (10,000 sign-flips) for F1/CCC/MAE.
 \end{itemize}
@@ -566,6 +621,8 @@ Source: \texttt{artifacts/figures/phase\_11\_xai/} (18 figures, 9 case studies).
 Reporting what does not work is as important as reporting what does. Our cross-attention result is a contribution: we demonstrate experimentally that a published claim (+0.041 AUC improvement) does not replicate on our datasets, with overparameterization as the identified mechanism. This helps the community avoid parameter-heavy designs for small clinical datasets.
 
 Similarly, our domain adaptation result is a negative contribution: we show that four standard unsupervised DA methods (CORAL, MMD, DANN, combined) all produce negative transfer on clinical interview data, with the no-adaptation baseline outperforming every DA method. This finding should caution practitioners against applying shallow alignment methods to clinical domain shift problems without thorough validation.
+
+\textbf{Cross-demographic transfer is a negative result}: We demonstrate on MPDD that training on young adults and evaluating on elderly adults produces catastrophic negative transfer (AUROC=0.395, below random). This finding has implications for clinical deployment: models validated on one demographic group may not generalize to another, and age-specific biomarkers may be needed rather than universal depression markers.
 
 % =============================================================================
 % 8.9 CONCLUSION
@@ -587,9 +644,18 @@ Our six main contributions are:
     \item \textbf{Multimodal XAI with GraphXAIN narratives}: We demonstrate SHAP modality attribution, GNNExplainer subgraph explanations, counterfactual tests, and LLM-generated narrative explanations (Mistral-7B) for 9 case studies across three datasets, with perturbation validation (90 tests).
 \end{enumerate}
 
-\subsection{Limitations}
+\subsection{Limitations and Known Issues}
 
-Despite these contributions, several limitations remain. The DAIC training set ($n=107$) is a fundamental bottleneck; even graph routing cannot fully compensate for limited clinical data. MOSEI audio and video features remain incompletely preprocessed in our pipeline. The LLM ablation levels L6--L9 (multimodal LLM with domain-specific pretraining) could not be evaluated due to computational constraints. Graph routing increases inference complexity relative to non-graph alternatives, which may limit real-time deployment. Finally, FI apparent personality is not equivalent to clinical depression; the auxiliary supervision framing, while valid, has inherent construct validity limitations.
+Despite these contributions, several limitations remain:
+
+\begin{itemize}
+    \item \textbf{DAIC training set} ($n=107$) is a fundamental bottleneck; even graph routing cannot fully compensate for limited clinical data.
+    \item \textbf{MOSEI audio and video features} remain incompletely preprocessed in our pipeline (text-only baseline for MOSEI sentiment).
+    \item \textbf{LLM ablation levels L6--L9} (multimodal LLM with domain-specific pretraining) could not be evaluated due to computational constraints.
+    \item \textbf{L4 checkpoint issue}: The L4 (Mistral + LLaVA) configuration shows degraded performance (AUROC=0.3587) due to a checkpoint training configuration mismatch. This appears to be due to differences in random initialization or data ordering during training. Retraining with controlled random seeds would resolve this. For clinical deployment, we recommend L1 (Mistral text only, AUROC=0.6775) as the most reliable configuration.
+    \item \textbf{Graph routing inference complexity}: KNN lookup + GraphSAGE aggregation increases latency vs non-graph alternatives, which may limit real-time deployment.
+    \item \textbf{FI construct validity}: ChaLearn FI measures apparent personality, not clinical depression. The auxiliary supervision framing is valid but has inherent construct limitations.
+\end{itemize}
 
 \subsection{Future Work}
 

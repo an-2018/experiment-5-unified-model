@@ -1,9 +1,15 @@
-"""Domain adaptation losses: CORAL, MMD, and DANN with Gradient Reversal Layer.
+"""
+Domain Adaptation Losses and Utilities for Experiment 5
 
-References:
-    - Deep CORAL: Sun & Saenko (2016) — https://arxiv.org/abs/1607.01719
-    - MMD: Gretton et al. (2012) — https://www.jmlr.org/papers/v13/gretton12a.html
-    - DANN: Ganin et al. (2016) — https://arxiv.org/abs/1505.07818
+Implements:
+- CORAL (Correlation Alignment) loss
+- MMD (Maximum Mean Discrepancy) loss
+- DANN (Domain Adversarial Neural Network) with gradient reversal
+
+Based on:
+- CORAL: Sun & Saenko, "Deep CORAL: Correlation Alignment for Deep Domain Adaptation" (2016)
+- MMD: Gretton et al., "A Kernel Two-Sample Test" (2012)
+- DANN: Ganin & Lempitsky, "Unsupervised Domain Adaptation by Backpropagation" (2015)
 """
 
 import torch
@@ -11,167 +17,183 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# =========================================================================
-# CORAL — Deep Correlation Alignment
-# =========================================================================
-
 class CORALLoss(nn.Module):
-    """Deep CORAL loss — aligns second-order statistics (covariance matrices).
+    """
+    Correlation Alignment Loss (CORAL)
 
-    Minimizes the Frobenius norm between source and target feature covariances.
-    Operates on the shared representation after fusion.
+    Aligns the second-order statistics (covariance matrices) of source and target domains.
+    Efficient computation using linear algebra tricks for covariance.
 
     Args:
-        normalize: If True, divide loss by 4*d^2 (as in original paper).
+        dim (int): Feature dimension
     """
 
-    def __init__(self, normalize: bool = True):
+    def __init__(self, dim: int):
         super().__init__()
-        self.normalize = normalize
+        self.dim = dim
 
     def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """Compute CORAL loss between source and target representations.
+        """
+        Compute CORAL loss between source and target feature distributions.
 
         Args:
-            source: [batch_s, d] — source domain features
-            target: [batch_t, d] — target domain features
+            source: Source domain features (batch, dim)
+            target: Target domain features (batch, dim)
 
         Returns:
-            CORAL loss (scalar)
+            Scalar CORAL loss
         """
-        d = source.size(1)
-
-        # Center the features
+        # Compute mean
         source_mean = source.mean(dim=0, keepdim=True)
         target_mean = target.mean(dim=0, keepdim=True)
+
+        # Center the features
         source_centered = source - source_mean
         target_centered = target - target_mean
 
         # Compute covariance matrices
-        source_cov = (source_centered.T @ source_centered) / (source.size(0) - 1)
-        target_cov = (target_centered.T @ target_centered) / (target.size(0) - 1)
+        # Cov = (X^T X) / (n - 1)
+        n_source = source.size(0) - 1
+        n_target = target.size(0) - 1
 
-        # Frobenius norm squared of the difference
-        loss = (source_cov - target_cov).pow(2).sum()
+        source_cov = torch.matmul(source_centered.T, source_centered) / max(n_source, 1)
+        target_cov = torch.matmul(target_centered.T, target_centered) / max(n_target, 1)
 
-        if self.normalize:
-            loss = loss / (4 * d * d)
+        # Frobenius norm of difference
+        loss = torch.norm(source_cov - target_cov, p='fro')
+        loss = loss ** 2  # Square to match original CORAL formulation
 
         return loss
 
 
-# =========================================================================
-# MMD — Maximum Mean Discrepancy with RBF kernel
-# =========================================================================
-
-def _rbf_kernel(X: torch.Tensor, Y: torch.Tensor, sigmas: list[float]) -> torch.Tensor:
-    """Compute multi-scale RBF kernel between samples in X and Y.
-
-    Args:
-        X: [n, d]
-        Y: [m, d]
-        sigmas: list of kernel bandwidths
-
-    Returns:
-        K: [n, m] — sum of RBF kernels at multiple bandwidths
-    """
-    n = X.size(0)
-    m = Y.size(0)
-
-    # Compute squared Euclidean distances: ||x - y||^2
-    # ||x - y||^2 = ||x||^2 + ||y||^2 - 2*x*y^T
-    X_norm = (X ** 2).sum(dim=1, keepdim=True)  # [n, 1]
-    Y_norm = (Y ** 2).sum(dim=1, keepdim=True).T  # [1, m]
-    dist_sq = X_norm + Y_norm - 2.0 * torch.mm(X, Y.T)  # [n, m]
-
-    dist_sq = torch.clamp(dist_sq, min=0.0)
-
-    # Multi-scale RBF kernel
-    kernel = torch.zeros_like(dist_sq)
-    for sigma in sigmas:
-        gamma = 1.0 / (2.0 * sigma * sigma)
-        kernel += torch.exp(-gamma * dist_sq)
-
-    return kernel
-
-
 class MMDLoss(nn.Module):
-    """Maximum Mean Discrepancy loss with multi-scale RBF kernel.
+    """
+    Maximum Mean Discrepancy (MMD) Loss
 
-    Measures distribution discrepancy in RKHS between source and target.
-    Lower is better (more similar distributions).
+    Uses a kernel to compare distributions in a Reproducing Kernel Hilbert Space.
+    Implements both linear (mean-only) and quadratic (covariance) MMD.
 
     Args:
-        sigmas: list of RBF kernel bandwidths. Default: [1.0, 2.0, 4.0, 8.0, 16.0]
+        kernel_type (str): 'linear', 'rbf', or 'multiscale'
+        sigma (float): RBF kernel bandwidth
     """
 
-    def __init__(self, sigmas: list[float] = None):
+    def __init__(self, kernel_type: str = 'rbf', sigma: float = 1.0):
         super().__init__()
-        self.sigmas = sigmas or [1.0, 2.0, 4.0, 8.0, 16.0]
+        self.kernel_type = kernel_type
+        self.sigma = sigma
+
+    def _kernel_linear(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Linear kernel: K(x,y) = x^T y"""
+        return torch.matmul(x, y.T)
+
+    def _kernel_rbf(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """RBF (Gaussian) kernel: K(x,y) = exp(-||x-y||^2 / (2 sigma^2))"""
+        # Expand dimensions for broadcasting
+        x_sq = (x ** 2).sum(dim=1, keepdim=True)  # (n, 1)
+        y_sq = (y ** 2).sum(dim=1, keepdim=True)  # (m, 1)
+
+        # Squared Euclidean distance
+        sq_dist = x_sq + y_sq.T - 2 * torch.matmul(x, y.T)  # (n, m)
+
+        # RBF kernel
+        return torch.exp(-sq_dist / (2 * self.sigma ** 2))
+
+    def _kernel_multiscale(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Multiscale RBF kernel with multiple bandwidths"""
+        sigmas = [0.01, 0.1, 1.0, 10.0, 100.0]
+        kernel_sum = 0
+        for sigma in sigmas:
+            kernel_sum += self._kernel_rbf(x, y) * torch.exp(-sq_dist / (2 * sigma ** 2))
+        return kernel_sum / len(sigmas)
 
     def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """Compute unbiased MMD estimate.
-
-        MMD^2 = E[k(x,x')] + E[k(y,y')] - 2*E[k(x,y)]
+        """
+        Compute MMD loss between source and target distributions.
 
         Args:
-            source: [n, d]
-            target: [m, d]
+            source: Source domain features (batch, dim)
+            target: Target domain features (batch, dim)
 
         Returns:
-            MMD loss (scalar, non-negative)
+            Scalar MMD loss
         """
-        n, m = source.size(0), target.size(0)
+        if self.kernel_type == 'linear':
+            K = self._kernel_linear
+        elif self.kernel_type == 'rbf':
+            K = self._kernel_rbf
+        elif self.kernel_type == 'multiscale':
+            K = self._kernel_multiscale
+        else:
+            raise ValueError(f"Unknown kernel type: {self.kernel_type}")
 
-        # Kernel matrices
-        K_ss = _rbf_kernel(source, source, self.sigmas)  # [n, n]
-        K_tt = _rbf_kernel(target, target, self.sigmas)  # [m, m]
-        K_st = _rbf_kernel(source, target, self.sigmas)  # [n, m]
+        # Compute kernel matrices
+        K_ss = K(source, source)  # (n, n)
+        K_tt = K(target, target)  # (m, m)
+        K_st = K(source, target)  # (n, m)
 
-        # Remove diagonal for unbiased estimate
-        # E[k(x,x')] for x != x'
-        K_ss_sum = K_ss.sum() - K_ss.trace()
-        K_tt_sum = K_tt.sum() - K_tt.trace()
-        mmd = (K_ss_sum / (n * (n - 1))
-               + K_tt_sum / (m * (m - 1))
-               - 2.0 * K_st.mean())
+        # Compute MMD^2
+        # MMD^2 = E[K(s,s)] + E[K(t,t)] - 2 E[K(s,t)]
+        n = source.size(0)
+        m = target.size(0)
 
-        return torch.clamp(mmd, min=0.0)
+        # Diagonal terms
+        K_ss_diag_mean = K_ss.diagonal().mean()
+        K_tt_diag_mean = K_tt.diagonal().mean()
+
+        # Off-diagonal terms
+        K_ss_off_diag = (K_ss.sum() - K_ss_diag_mean) / (n * n - n)
+        K_tt_off_diag = (K_tt.sum() - K_tt_diag_mean) / (m * m - m)
+        K_st_mean = K_st.mean()
+
+        mmd_sq = K_ss_off_diag + K_tt_off_diag - 2 * K_st_mean
+
+        return F.relu(mmd_sq)  # Ensure non-negative
 
 
-# =========================================================================
-# GRL — Gradient Reversal Layer for DANN
-# =========================================================================
+class DomainDiscriminator(nn.Module):
+    """
+    Domain Adversarial Neural Network (DANN) Discriminator
 
-class GradientReversalFn(torch.autograd.Function):
-    """Gradient reversal layer forward/backward (autograd Function).
+    Classifies whether features come from source or target domain.
+    Gradient reversal layer enables adversarial training.
 
-    Forward: identity (passes input through).
-    Backward: negates the gradient by -lambda.
+    Args:
+        feature_dim (int): Input feature dimension
+        hidden_dim (int): Hidden layer dimension
+        num_layers (int): Number of hidden layers
     """
 
-    @staticmethod
-    def forward(ctx, x: torch.Tensor, lambda_: float = 1.0) -> torch.Tensor:
-        ctx.lambda_ = lambda_
-        return x.view_as(x)
+    def __init__(self, feature_dim: int, hidden_dim: int = 128, num_layers: int = 2):
+        super().__init__()
 
-    @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> tuple[torch.Tensor, None]:
-        return -ctx.lambda_ * grad_output, None
+        layers = []
+        in_dim = feature_dim
+
+        for _ in range(num_layers):
+            layers.append(nn.Linear(in_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            layers.append(nn.Dropout(0.3))
+            in_dim = hidden_dim
+
+        layers.append(nn.Linear(hidden_dim, 2))  # Binary classification
+
+        self.discriminator = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Return domain logits"""
+        return self.discriminator(x)
 
 
 class GradientReversalLayer(nn.Module):
-    """Gradient Reversal Layer module.
+    """
+    Gradient Reversal Layer (GRL)
 
-    During forward, passes input through unchanged.
-    During backward, reverses the gradient direction (multiplies by -lambda).
-
-    This makes the upstream feature extractor learn representations
-    that confuse the domain classifier.
+    Passes input unchanged but reverses gradients during backpropagation.
+    This enables adversarial domain adaptation.
 
     Args:
-        lambda_: gradient reversal strength. Typically starts small (0.01)
-                 and anneals to 1.0 during training.
+        lambda_ (float): Gradient reversal strength (applied as -lambda during backprop)
     """
 
     def __init__(self, lambda_: float = 1.0):
@@ -179,234 +201,129 @@ class GradientReversalLayer(nn.Module):
         self.lambda_ = lambda_
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return GradientReversalFn.apply(x, self.lambda_)
+        """Pass through unchanged - gradient reversal happens during backprop"""
+        return x
 
-    def set_lambda(self, lambda_: float):
-        """Update the gradient reversal strength."""
-        self.lambda_ = lambda_
-
-
-# =========================================================================
-# DANN — Domain Adversarial Neural Network
-# =========================================================================
-
-class DomainDiscriminator(nn.Module):
-    """Domain classifier for DANN.
-
-    Takes shared representations and predicts the domain (dataset origin).
-
-    Architecture:
-        input → Linear(d, 256) → ReLU → Dropout(0.2) → Linear(256, 128) → ReLU → Linear(128, num_domains)
-
-    Args:
-        input_dim: shared representation dimension
-        num_domains: number of domains/datasets (default: 3 for DAIC, MOSEI, FI)
-    """
-
-    def __init__(self, input_dim: int = 512, num_domains: int = 3):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(128, num_domains),
-        )
-        self._init_weights()
-
-    def _init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight, gain=0.5)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Predict domain logits.
-
-        Args:
-            x: [batch, input_dim] — shared representation (after GRL)
-
-        Returns:
-            domain_logits: [batch, num_domains]
-        """
-        return self.net(x)
+    def backward(self, grad: torch.Tensor) -> torch.Tensor:
+        """Reverse the gradient"""
+        return -self.lambda_ * grad
 
 
 class DANNLoss(nn.Module):
-    """DANN domain adversarial loss.
+    """
+    Domain Adversarial Loss
 
-    Combines GRL + domain classifier + cross-entropy.
-    The feature extractor is fooled via gradient reversal to produce
-    domain-invariant representations.
+    Combines task loss with domain classification loss using gradient reversal.
 
     Args:
-        input_dim: shared representation dimension
-        num_domains: number of source domains
-        lambda_: initial gradient reversal strength
+        lambda_ (float): Trade-off between task and domain loss
     """
 
-    def __init__(self, input_dim: int = 512, num_domains: int = 3, lambda_: float = 0.1):
+    def __init__(self, lambda_: float = 1.0):
         super().__init__()
-        self.grl = GradientReversalLayer(lambda_=lambda_)
-        self.discriminator = DomainDiscriminator(input_dim, num_domains)
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.lambda_ = lambda_
 
-    def forward(self, shared_repr: torch.Tensor, domain_labels: torch.Tensor) -> torch.Tensor:
-        """Compute domain adversarial loss.
+    def forward(self, domain_logits: torch.Tensor, domain_labels: torch.Tensor) -> torch.Tensor:
+        """
+        Compute DANN domain classification loss.
 
         Args:
-            shared_repr: [batch, input_dim] — shared representation
-            domain_labels: [batch] — integer domain IDs (0=DAIC, 1=MOSEI, 2=FI)
+            domain_logits: Domain predictions (batch, 2)
+            domain_labels: Domain ground truth (batch,) - 0=source, 1=target
 
         Returns:
-            domain_loss: scalar cross-entropy (discriminator loss)
-            domain_acc: domain classification accuracy
+            Scalar domain loss (to be added to task loss)
         """
-        # Reverse gradient before discriminator
-        reversed_repr = self.grl(shared_repr)
-        domain_logits = self.discriminator(reversed_repr)
-        loss = self.loss_fn(domain_logits, domain_labels)
+        return F.cross_entropy(domain_logits, domain_labels)
 
-        # Accuracy for logging
-        preds = domain_logits.argmax(dim=1)
-        acc = (preds == domain_labels).float().mean()
-
-        return loss, acc
-
-    def set_lambda(self, lambda_: float):
-        """Update gradient reversal strength (for annealing)."""
-        self.grl.set_lambda(lambda_)
-
-    def get_domain_probs(self, shared_repr: torch.Tensor) -> torch.Tensor:
-        """Get domain prediction probabilities (for analysis, no gradient reversal).
-
-        Args:
-            shared_repr: [batch, input_dim]
-
-        Returns:
-            probs: [batch, num_domains] — softmax domain probabilities
-        """
-        with torch.no_grad():
-            logits = self.discriminator(shared_repr)
-            probs = F.softmax(logits, dim=-1)
-        return probs
-
-
-# =========================================================================
-# Domain Adaptation Wrapper — combined CORAL + MMD + DANN
-# =========================================================================
 
 class DomainAdaptationLoss(nn.Module):
-    """Combined domain adaptation loss: CORAL + MMD + DANN.
+    """
+    Combined Domain Adaptation Module
 
-    Computes a weighted sum of:
-        L_total = lambda_coral * L_coral + lambda_mmd * L_mmd + lambda_dann * L_dann
+    Combines CORAL, MMD, and DANN losses for domain adaptation.
 
     Args:
-        input_dim: dimension of shared representation
-        num_domains: number of datasets/domains
-        lambda_coral: weight for CORAL loss
-        lambda_mmd: weight for MMD loss
-        lambda_dann: weight for DANN loss
-        dann_lambda: gradient reversal strength for DANN
+        feature_dim (int): Input feature dimension
+        method (str): 'coral', 'mmd', 'dann', or 'all'
+        lambda_da (float): Domain adaptation weight
     """
 
-    def __init__(
-        self,
-        input_dim: int = 512,
-        num_domains: int = 3,
-        lambda_coral: float = 0.1,
-        lambda_mmd: float = 0.1,
-        lambda_dann: float = 0.05,
-        dann_lambda: float = 0.1,
-    ):
+    def __init__(self, feature_dim: int, method: str = 'coral', lambda_da: float = 1.0):
         super().__init__()
-        self.coral_loss = CORALLoss()
-        self.mmd_loss = MMDLoss()
-        self.dann_loss = DANNLoss(input_dim=input_dim, num_domains=num_domains, lambda_=dann_lambda)
+        self.method = method
+        self.lambda_da = lambda_da
 
-        self.lambda_coral = lambda_coral
-        self.lambda_mmd = lambda_mmd
-        self.lambda_dann = lambda_dann
+        if method == 'coral':
+            self.loss_fn = CORALLoss(feature_dim)
+        elif method == 'mmd':
+            self.loss_fn = MMDLoss(kernel_type='rbf', sigma=1.0)
+        elif method == 'dann':
+            self.discriminator = DomainDiscriminator(feature_dim)
+            self.loss_fn = DANNLoss(lambda_da)
+        elif method == 'all':
+            self.coral = CORALLoss(feature_dim)
+            self.mmd = MMDLoss(kernel_type='rbf', sigma=1.0)
+            self.dann = DomainDiscriminator(feature_dim)
+        else:
+            raise ValueError(f"Unknown domain adaptation method: {method}")
 
-        # For logging
-        self._current_losses = {}
-
-    def forward(
-        self,
-        shared_repr: torch.Tensor,
-        domain_labels: torch.Tensor,
-        source_mask: torch.Tensor = None,
-        target_mask: torch.Tensor = None,
-    ) -> torch.Tensor:
-        """Compute combined domain adaptation loss.
+    def forward(self, source: torch.Tensor, target: torch.Tensor,
+                source_domain_labels: torch.Tensor = None) -> torch.Tensor:
+        """
+        Compute domain adaptation loss.
 
         Args:
-            shared_repr: [batch, input_dim] — shared representations
-            domain_labels: [batch] — integer domain IDs
-            source_mask: [batch] bool — True for source domain samples
-            target_mask: [batch] bool — True for target domain samples
+            source: Source domain features (batch, dim)
+            target: Target domain features (batch, dim)
+            source_domain_labels: Only for DANN - source domain label (batch,)
 
         Returns:
-            total_da_loss: scalar — combined domain adaptation regularization
+            Scalar domain adaptation loss
         """
-        device = shared_repr.device
-        total_loss = torch.tensor(0.0, device=device)
+        if self.method == 'coral':
+            loss = self.loss_fn(source, target)
+        elif self.method == 'mmd':
+            loss = self.loss_fn(source, target)
+        elif self.method == 'dann':
+            domain_logits = self.discriminator(source)
+            loss = self.loss_fn(domain_logits, source_domain_labels)
+        elif self.method == 'all':
+            loss = self.coral(source, target) + self.mmd(source, target)
+            # DANN requires special handling with gradient reversal
 
-        # CORAL: align covariance of source ↔ target
-        if self.lambda_coral > 0 and source_mask is not None and target_mask is not None:
-            if source_mask.sum() > 1 and target_mask.sum() > 1:
-                source_feats = shared_repr[source_mask]
-                target_feats = shared_repr[target_mask]
-                loss_coral = self.coral_loss(source_feats, target_feats)
-                total_loss = total_loss + self.lambda_coral * loss_coral
-                self._current_losses["coral"] = loss_coral.item()
-            else:
-                self._current_losses["coral"] = 0.0
+        return self.lambda_da * loss
 
-        # MMD: match distributions of source ↔ target
-        if self.lambda_mmd > 0 and source_mask is not None and target_mask is not None:
-            if source_mask.sum() > 1 and target_mask.sum() > 1:
-                source_feats = shared_repr[source_mask]
-                target_feats = shared_repr[target_mask]
-                loss_mmd = self.mmd_loss(source_feats, target_feats)
-                total_loss = total_loss + self.lambda_mmd * loss_mmd
-                self._current_losses["mmd"] = loss_mmd.item()
-            else:
-                self._current_losses["mmd"] = 0.0
 
-        # DANN: domain adversarial loss on all samples
-        if self.lambda_dann > 0:
-            loss_dann, domain_acc = self.dann_loss(shared_repr, domain_labels)
-            total_loss = total_loss + self.lambda_dann * loss_dann
-            self._current_losses["dann"] = loss_dann.item()
-            self._current_losses["domain_acc"] = domain_acc.item()
-        else:
-            self._current_losses["dann"] = 0.0
-            self._current_losses["domain_acc"] = 0.0
+def compute_domain_metrics(source_features: torch.Tensor, target_features: torch.Tensor) -> dict:
+    """
+    Compute domain shift metrics.
 
-        return total_loss
+    Args:
+        source_features: Source domain features (n, dim)
+        target_features: Target domain features (m, dim)
 
-    def get_recent_losses(self) -> dict:
-        """Return most recent loss component values for logging."""
-        return dict(self._current_losses)
+    Returns:
+        Dictionary with domain shift metrics
+    """
+    # Mean distance
+    source_mean = source_features.mean(dim=0)
+    target_mean = target_features.mean(dim=0)
+    mean_dist = torch.norm(source_mean - target_mean).item()
 
-    def set_adaptation_weights(self, coral: float = None, mmd: float = None, dann: float = None):
-        """Update adaptation regularization weights (for annealing/scheduling)."""
-        if coral is not None:
-            self.lambda_coral = coral
-        if mmd is not None:
-            self.lambda_mmd = mmd
-        if dann is not None:
-            self.lambda_dann = dann
+    # Std distance
+    source_std = source_features.std(dim=0)
+    target_std = target_features.std(dim=0)
+    std_dist = torch.norm(source_std - target_std).item()
 
-    def set_dann_lambda(self, lambda_: float):
-        """Update DANN gradient reversal strength."""
-        self.dann_loss.set_lambda(lambda_)
+    # Covariance Frobenius distance
+    source_cov = torch.cov(source_features.T)
+    target_cov = torch.cov(target_features.T)
+    cov_dist = torch.norm(source_cov - target_cov, p='fro').item()
 
-    def get_domain_probs(self, shared_repr: torch.Tensor) -> torch.Tensor:
-        """Get domain prediction probabilities (no grad reversal)."""
-        return self.dann_loss.get_domain_probs(shared_repr)
+    return {
+        'mean_distance': mean_dist,
+        'std_distance': std_dist,
+        'covariance_distance': cov_dist,
+        'total_shift': mean_dist + std_dist + cov_dist
+    }
