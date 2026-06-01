@@ -72,3 +72,19 @@ Thumbs.db
 checkpoints/
 data/pdch/*
 data/raw/mpdd
+
+# LaTeX auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.dvi
+compile_*.txt
+nul
