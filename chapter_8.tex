@@ -17,6 +17,8 @@
 \usepackage{pgfplotstable}
 \usepackage{url}
 \usepackage{nicefrac}
+\usepackage[numbers]{natbib}
+\graphicspath{{../}}
 
 % Colors
 \definecolor{darkblue}{RGB}{15,52,96}
@@ -57,7 +59,7 @@ Mental health assessment from multimodal signals is a cornerstone challenge in a
 
 The central thesis of this chapter is that a single unified multimodal architecture can learn shared and task-specific representations across depression, affect, and personality benchmarks, and that graph-based routing provides both predictive improvement and explainability. We do \emph{not} claim that apparent personality and clinical depression measure the same construct. We claim only that learning from all three signals together can improve generalization and that graph routing makes the learned representations more interpretable. Table~\ref{tab:architecture_summary} summarizes the architecture components.
 
-\input{tables/chapter8_architecture.tex}
+\input{paper/tables/chapter8_architecture.tex}
 
 \subsection{Problem Statement}
 
@@ -145,7 +147,7 @@ Note: apparent personality measured by FI is not the same construct as clinical 
 
 All splits are subject/session/clip-independent. DAIC participant IDs do not overlap across train/val/test. MOSEI utterances are independent. FI clip IDs are independent. The graph is constructed separately for each split (split-local mode) or only on training data (inductive mode) to prevent test-label leakage through graph edges. Table~\ref{tab:dataset_summary} shows the final dataset counts after preprocessing.
 
-\input{tables/chapter8_dataset_summary.tex}
+\input{paper/tables/chapter8_dataset_summary.tex}
 
 % =============================================================================
 % 8.3 ARCHITECTURE
@@ -237,7 +239,7 @@ Three graph construction modes are tested:
     \item \textbf{Transductive (V2)}: Graph built on all splits together (train+val+test). Val/test nodes connect to neighbors in all splits. Clearly marked as ablation-only.
 \end{itemize}
 
-\input{tables/chapter8_graph_stats.tex}
+\input{paper/tables/chapter8_graph_stats.tex}
 
 \subsection{GraphSAGE Router}
 
@@ -276,7 +278,7 @@ where $\lambda$ is a hyperparameter (default $\lambda=1.0$). The final task repr
 
 All hyperparameters are listed in Table~\ref{tab:hyperparameters}.
 
-\input{tables/chapter8_hyperparameters.tex}
+\input{paper/tables/chapter8_hyperparameters.tex}
 
 % =============================================================================
 % 8.4 EXPERIMENTAL SETUP
@@ -317,7 +319,7 @@ All results report mean $\pm$ 95\% bootstrap CI (1,000 iterations, percentile me
 
 The evaluation protocol is summarized in Table~\ref{tab:evaluation_protocol}.
 
-\input{tables/chapter8_evaluation_protocol.tex}
+\input{paper/tables/chapter8_evaluation_protocol.tex}
 
 % =============================================================================
 % 8.5 RESULTS
@@ -328,7 +330,7 @@ The evaluation protocol is summarized in Table~\ref{tab:evaluation_protocol}.
 \subsection{Unimodal Baselines}
 \label{sec:unimodal}
 
-\input{tables/chapter8_unimodal_results.tex}
+\input{paper/tables/chapter8_unimodal_results.tex}
 
 \begin{figure}[htbp]
     \centering
@@ -341,13 +343,14 @@ Figure~\ref{fig:unimodal_results} shows unimodal baseline results across all thr
 
 \begin{itemize}
     \item \textbf{DAIC}: Video (AUROC=0.5823) is the strongest modality, followed by text (AUROC=0.5346) and audio (AUROC=0.4686). However, all three AUROC values are close to random chance (0.5) and have widely overlapping 95\% CIs, reflecting the challenging small-sample nature of this dataset ($n=107$ training). Audio underperformance is consistent with prior work \citep{alam2025wav2vec} noting that acoustic features alone are insufficient for depression detection.
+\end{itemize}
 
 All three datasets beat their respective trivial baselines (AUROC=0.5 for DAIC, CCC$\approx$0 for regression). Full results with 95\% CIs are in \texttt{artifacts/tables/unimodal\_baselines.csv} (51 rows).
 
 \subsection{Fusion Ablation}
 \label{sec:fusion_ablation}
 
-\input{tables/chapter8_fusion_results.tex}
+\input{paper/tables/chapter8_fusion_results.tex}
 
 We evaluate three fusion strategies: GatedLateFusion (our primary), LMF (low-rank multimodal fusion), and CrossAttention (bidirectional cross-modal attention). Results are shown in Table~\ref{tab:fusion_results}.
 
@@ -360,7 +363,7 @@ Results source: \texttt{artifacts/tables/fusion\_baselines.csv}.
 \subsection{MMoEEx vs Baselines}
 \label{sec:mmoeex_results}
 
-\input{tables/chapter8_mmoeex_results.tex}
+\input{paper/tables/chapter8_mmoeex_results.tex}
 
 Table~\ref{tab:mmoeex_results} shows MMoEEx results compared to the best standalone baselines. MMoEEx uses 8 experts (2 shared, 6 exclusive), NLL loss for regression, and temperature-balanced sampling (T=2.0).
 
@@ -378,14 +381,15 @@ Results source: \texttt{artifacts/tables/mmoe\_ex\_results.csv}.
 \subsection{Graph Routing Ablation}
 \label{sec:graph_results}
 
-\input{tables/chapter8_graph_results.tex}
+\input{paper/tables/chapter8_graph_results.tex}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.85\textwidth]{artifacts/figures/phase_06_graph/08_ablation_comparison.png}
-    \caption{Graph routing ablation comparing five variants (V0--V4) across all four tasks. V0 (inductive, K=10) achieves the best MOSEI sentiment CCC (0.6803). V3 (inductive, K=15) achieves the best DAIC depression AUROC (0.8967). V4 (split-local, K=15) is the most conservative protocol and performs best for FI personality. See \texttt{paper/diagrams/results\_graph\_ablation.mmd} for the Mermaid source diagram.}
-    \label{fig:graph_ablation}
-\end{figure}
+% FIGURE MISSING - artifacts/figures/phase_06_graph/08_ablation_comparison.png
+% \begin{figure}[htbp]
+%     \centering
+%     \includegraphics[width=0.85\textwidth]{artifacts/figures/phase_06_graph/08_ablation_comparison.png}
+%     \caption{Graph routing ablation comparing five variants (V0--V4) across all four tasks. V0 (inductive, K=10) achieves the best MOSEI sentiment CCC (0.6803). V3 (inductive, K=15) achieves the best DAIC depression AUROC (0.8967). V4 (split-local, K=15) is the most conservative protocol and performs best for FI personality. See \texttt{paper/diagrams/results\_graph\_ablation.mmd} for the Mermaid source diagram.}
+%     \label{fig:graph_ablation}
+% \end{figure}
 
 Table~\ref{tab:graph_results} shows the five graph variants (V0--V4) across all four tasks. Figure~\ref{fig:graph_ablation} visualizes the comparison.
 
@@ -415,7 +419,7 @@ Results source: \texttt{artifacts/tables/ggmoe\_results.csv}.
     \label{fig:mpdd_shap}
 \end{figure}
 
-\input{tables/chapter8_mpdd_results.tex}
+\input{paper/tables/chapter8_mpdd_results.tex}
 
 Key findings:
 \begin{itemize}
@@ -432,7 +436,7 @@ Results source: \texttt{artifacts/mpdd\_benchmark\_report.md}, \texttt{artifacts
 
 \textbf{Cross-track validation (MPDD-Young $\rightarrow$ Elderly)}: We evaluated zero-shot transfer from MPDD-Young to MPDD-Elderly to assess demographic generalization.
 
-\input{tables/chapter8_cross_track_results.tex}
+\input{paper/tables/chapter8_cross_track_results.tex}
 
 Table~\ref{tab:cross_track_results} shows that cross-track transfer fails catastrophically: training on young adults (AUROC=0.926) and evaluating on elderly adults yields AUROC=0.395 (below random). Within-elderly performance (AUROC=0.277) is even worse. Root cause analysis reveals:
 \begin{itemize}
@@ -443,7 +447,7 @@ Table~\ref{tab:cross_track_results} shows that cross-track transfer fails catast
 
 \textbf{Cross-dataset transfer (MPDD $\rightarrow$ DAIC)}: We evaluated transfer from MPDD to DAIC-WOZ to assess encoder-family generalization.
 
-\input{tables/chapter8_cross_dataset_results.tex}
+\input{paper/tables/chapter8_cross_dataset_results.tex}
 
 Table~\ref{tab:cross_dataset_results} shows that MPDD features transfer positively to DAIC: MPDD-trained LR achieves DAIC test AUROC=0.551, outperforming the within-DAIC baseline (AUROC=0.344). This positive transfer occurs because both datasets use Wav2Vec2-like audio features (same encoder family), enabling shared representations.
 
@@ -451,7 +455,7 @@ Table~\ref{tab:cross_dataset_results} shows that MPDD features transfer positive
 
 Results source: \texttt{artifacts/figures/cross\_track\_validation/}, \texttt{artifacts/figures/cross\_dataset\_validation/}, \texttt{artifacts/figures/domain\_adaptation/}.
 
-\input{tables/chapter8_ablation_ladder.tex}
+\input{paper/tables/chapter8_ablation_ladder.tex}
 
 \subsection{Cumulative Ablation Ladder}
 \label{sec:ablation_ladder}
@@ -461,7 +465,7 @@ Table~\ref{tab:ablation_ladder} shows the cumulative effect of each architectura
 \subsection{LLM Modality Ablations (L0--L5)}
 \label{sec:llm_ablation}
 
-\input{tables/chapter8_llm_results.tex}
+\input{paper/tables/chapter8_llm_results.tex}
 
 \begin{figure}[htbp]
     \centering
@@ -707,20 +711,20 @@ Table~\ref{tab:mosei_emotion_results} shows per-emotion AUROC for the MMoEEx and
 
 \begin{table}[htbp]
     \centering
-    \caption{MOSEI Per-Emotion AUROC: GatedLateFusion (emotion-only head) vs V0 Graph Routing. The GatedLateFusion emotion-only model (macro-AUROC=0.7709) is used as the non-graph reference because MMoEEx has a different task configuration (multitask joint training, macro-AUROC=0.7222). V0 per-emotion values are derived from the model's macro-AUROC and are approximate.} 
+    \caption{MOSEI Per-Emotion AUROC: GatedLateFusion (emotion-only head) vs V0 Graph Routing. The GatedLateFusion emotion-only model (macro-AUROC=0.7709) is used as the non-graph reference because MMoEEx has a different task configuration (multitask joint training, macro-AUROC=0.7222). V0 per-emotion values are derived from the model's macro-AUROC and are approximate.}
     \label{tab:mosei_emotion_results}
     \begin{tabular}{lcc}
         \toprule
-        Emotion & Gated (Emo-Only) AUROC & V0 AUROC (approx.) \\
+        Emotion       & Gated (Emo-Only) AUROC & V0 AUROC (approx.) \\
         \midrule
-        Happiness & 0.8236 & 0.81 \\
-        Sadness & 0.7574 & 0.74 \\
-        Anger & 0.7586 & 0.73 \\
-        Fear & 0.799 & 0.78 \\
-        Disgust & 0.8436 & 0.82 \\
-        Surprise & 0.643 & 0.65 \\
+        Happiness     & 0.8236                 & 0.81               \\
+        Sadness       & 0.7574                 & 0.74               \\
+        Anger         & 0.7586                 & 0.73               \\
+        Fear          & 0.799                  & 0.78               \\
+        Disgust       & 0.8436                 & 0.82               \\
+        Surprise      & 0.643                  & 0.65               \\
         \midrule
-        Macro-Average & 0.7709 & 0.7562 \\
+        Macro-Average & 0.7709                 & 0.7562             \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -728,11 +732,12 @@ Table~\ref{tab:mosei_emotion_results} shows per-emotion AUROC for the MMoEEx and
 \section{Training Curves}
 Figure~\ref{fig:training_curves} shows training and validation loss curves for the V0 graph model over 50 epochs.
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.95\textwidth]{artifacts/figures/phase_07_joint_training/training_curves.png}
-    \caption{Training curves for V0 graph model: loss per task (depression, sentiment, emotion, personality) over 50 epochs. Validation loss shown as dashed lines.}
-    \label{fig:training_curves}
-\end{figure}
+% FIGURE MISSING - artifacts/figures/phase_07_joint_training/training_curves.png
+% \begin{figure}[htbp]
+%     \centering
+%     \includegraphics[width=0.95\textwidth]{artifacts/figures/phase_07_joint_training/training_curves.png}
+%     \caption{Training curves for V0 graph model: loss per task (depression, sentiment, emotion, personality) over 50 epochs. Validation loss shown as dashed lines.}
+%     \label{fig:training_curves}
+% \end{figure}
 
 \end{document}
