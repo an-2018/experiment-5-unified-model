@@ -31,6 +31,7 @@ dependencies = [
     "opencv-python-headless>=4.13.0.92",
     "h5py>=3.16.0",
     "accelerate>=1.13.0",
+    "opensmile",
 ]
 
 [project.optional-dependencies]
