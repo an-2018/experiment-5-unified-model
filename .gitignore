@@ -65,6 +65,9 @@ Thumbs.db
 .opencode/node_modules/
 .opencode/package-lock.json
 
+# Git worktrees (isolated workspaces)
+.worktrees/
+
 # Weights / checkpoints
 *.ckpt
 *.pt
