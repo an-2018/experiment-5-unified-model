@@ -368,8 +368,9 @@ def main():
         print(f"Phase {phase_num}: {desc}")
         print(f"{'='*70}")
 
-        # Create per-phase log file
-        phase_log = log_dir / f"phase_{phase_num:02d}_{desc.split('—')[0].strip().replace(' ', '_')}_{ts}.log"
+        # Create per-phase log file (sanitize name: replace / and spaces)
+        phase_name = desc.split("—")[0].strip().replace(" ", "_").replace("/", "_").replace("+", "_")
+        phase_log = log_dir / f"phase_{phase_num:02d}_{phase_name}_{ts}.log"
         phase_logs[phase_num] = phase_log
 
         # Write phase header to master log
