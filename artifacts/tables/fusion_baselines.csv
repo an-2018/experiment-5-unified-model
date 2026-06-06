@@ -14,15 +14,6 @@ fi,cross_attention,CCC_agreeableness,-0.0,-0.0,0.0,,,,,,2800384,False,0.3181,41
 fi,cross_attention,CCC_conscientiousness,0.0,0.0,0.0,,,,,,2800384,False,0.6095,41
 fi,cross_attention,CCC_openness,-0.0,-0.0,0.0,,,,,,2800384,False,0.4546,41
 daic,lmf,AUROC,0.4416,nan,nan,0.7021,0.0,,,,14424,False,0.6991,46
-mosei,lmf,CCC,0.577,0.556,0.5953,,,0.6556,0.3881,,10912,True,0.5123,66
-mosei_emotion,lmf,Avg Emotion AUROC,0.7526,0.7526,0.7526,,,,,,10912,True,0,58
-mosei_emotion,lmf,AUROC_happiness,0.8272,,,,,,,,10912,True,0.5,58
-mosei_emotion,lmf,AUROC_sadness,0.7404,,,,,,,,10912,True,0.5,58
-mosei_emotion,lmf,AUROC_anger,0.7547,,,,,,,,10912,True,0.5,58
-mosei_emotion,lmf,AUROC_fear,0.7092,,,,,,,,10912,True,0.5,58
-mosei_emotion,lmf,AUROC_disgust,0.8617,,,,,,,,10912,True,0.5,58
-mosei_emotion,lmf,AUROC_surprise,0.6226,,,,,,,,10912,True,0.5,58
-daic,lrdgn,AUROC,0.4589,nan,nan,0.7021,0.0,,,,57939,False,0.6991,47
 daic,gated,AUROC,0.4632,nan,nan,0.7021,0.0,,,,56736,False,0.6991,82
 mosei,gated,CCC,0.6124,0.5911,0.6319,,,0.6262,0.4205,,159232,True,0.5123,61
 mosei_emotion,gated,Avg Emotion AUROC,0.756,0.756,0.756,,,,,,159232,True,0,35
@@ -38,3 +29,12 @@ fi,gated,CCC_neuroticism,0.0,-0.0,0.0,,,,,,827392,False,0.4402,59
 fi,gated,CCC_agreeableness,-0.0,-0.0,0.0,,,,,,827392,False,0.3181,59
 fi,gated,CCC_conscientiousness,0.0,-0.0,0.0,,,,,,827392,False,0.6095,59
 fi,gated,CCC_openness,-0.0,-0.0,0.0,,,,,,827392,False,0.4546,59
+mosei,lmf,CCC,0.5773,0.5566,0.5952,,,0.6544,0.3885,,10912,True,0.5123,75
+mosei_emotion,lmf,Avg Emotion AUROC,0.7218,0.7218,0.7218,,,,,,10912,True,0,50
+mosei_emotion,lmf,AUROC_happiness,0.8225,,,,,,,,10912,True,0.5,50
+mosei_emotion,lmf,AUROC_sadness,0.7097,,,,,,,,10912,True,0.5,50
+mosei_emotion,lmf,AUROC_anger,0.7394,,,,,,,,10912,True,0.5,50
+mosei_emotion,lmf,AUROC_fear,0.5855,,,,,,,,10912,True,0.5,50
+mosei_emotion,lmf,AUROC_disgust,0.8525,,,,,,,,10912,True,0.5,50
+mosei_emotion,lmf,AUROC_surprise,0.6213,,,,,,,,10912,True,0.5,50
+daic,lrdgn,AUROC,0.4156,nan,nan,0.2979,0.459,,,,57939,False,0.6991,21
