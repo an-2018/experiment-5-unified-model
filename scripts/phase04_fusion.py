@@ -931,7 +931,7 @@ def train_regression(train_loader, val_loader, test_loader, dataset_name, fusion
         for t, a, v, mask, y in test_loader:
             t, a, v, mask, y = t.to(device), a.to(device), v.to(device), mask.to(device), y.to(device)
             # Get both fusion output and final predictions
-            fused = model.fusion(t, a, v, tuple(mask.tolist()))
+            fused = model.fusion(t, a, v, mask)  # pass tensor directly, not flattened tuple
             preds = model.head(fused)
             all_fusion_out.append(fused.cpu().numpy())
             all_test_labels.append(y.cpu().numpy())

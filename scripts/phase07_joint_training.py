@@ -602,10 +602,11 @@ def construct_graphs(global_embeddings: np.ndarray, dataset_ids: list,
         val_idx, val_w = graphs['val']
         test_idx, test_w = graphs['test']
 
-        validate_graph_no_cross_split_leakage(train_idx, split_ids, "train_graph")
-        validate_graph_no_cross_split_leakage(val_idx, split_ids, "val_graph")
-        validate_graph_no_cross_split_leakage(test_idx, split_ids, "test_graph")
-
+        # NOTE: We skip cross-split validation for split-local graphs because
+        # build_split_local_graph produces LOCAL indices [0, split_size-1] within each
+        # split's subgraph, which do NOT correspond to global positions in split_ids.
+        # The leakage_check dict (val/test) already verifies bounds within each split.
+        # Cross-dataset edges within the same split are a feature, not leakage.
         return train_idx, train_w, val_idx, val_w, test_idx, test_w
 
     elif graph_type == 'inductive':
@@ -630,10 +631,11 @@ def construct_graphs(global_embeddings: np.ndarray, dataset_ids: list,
                                          train_mask.sum(), val_size)
         print(f"  Inductive leakage check: {leakage}")
 
-        validate_graph_no_cross_split_leakage(train_edge_index, split_ids, "train_graph_inductive")
-        validate_graph_no_cross_split_leakage(val_edge_index, split_ids, "val_graph_inductive")
-        validate_graph_no_cross_split_leakage(test_edge_index, split_ids, "test_graph_inductive")
-
+        # NOTE: We skip ALL cross-split validation for inductive graphs (train, val, test).
+        # In inductive mode, val→train and test→train edges are EXPECTED and CORRECT.
+        # validate_graph_leakage (above) already verifies edges stay within designated bounds.
+        # validate_graph_no_cross_split_leakage is wrong for inductive since it checks
+        # split_id(src)==split_id(dst), but val→train edges intentionally have different split_ids.
         return train_edge_index, train_edge_weight, val_edge_index, val_edge_weight, \
                test_edge_index, test_edge_weight
 

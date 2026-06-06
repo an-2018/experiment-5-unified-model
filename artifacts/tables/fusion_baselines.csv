@@ -1,19 +1,10 @@
 dataset,fusion_type,metric,value,ci_lower,ci_upper,accuracy,f1,mae,r2,avg_mae,param_count,beats_unimodal,unimodal_baseline,epochs_trained
-mosei,lmf,CCC,0.5313,0.5119,0.5492,,,0.6778,0.3692,,10912,True,0.5123,31
 fi,lmf,Avg CCC,0.0,-0.05,0.05,,,,,0.1206,11584,False,0.4578,27
 fi,lmf,CCC_extraversion,0.0,0.0,0.0,,,,,,11584,False,0,27
 fi,lmf,CCC_neuroticism,0.0,0.0,0.0,,,,,,11584,False,0,27
 fi,lmf,CCC_agreeableness,0.0,0.0,0.0,,,,,,11584,False,0,27
 fi,lmf,CCC_conscientiousness,0.0,0.0,0.0,,,,,,11584,False,0,27
 fi,lmf,CCC_openness,0.0,0.0,0.0,,,,,,11584,False,0,27
-daic,lmf,AUROC,0.3636,nan,nan,0.6596,0.0,,,,14424,False,0.6991,48
-fi,gated,Avg CCC,0.0,-0.05,0.05,,,,,0.1882,827392,False,0.4578,54
-fi,gated,CCC_extraversion,-0.0,-0.0,0.0,,,,,,827392,False,0.4667,54
-fi,gated,CCC_neuroticism,0.0,-0.0,0.0,,,,,,827392,False,0.4402,54
-fi,gated,CCC_agreeableness,0.0,-0.0,0.0,,,,,,827392,False,0.3181,54
-fi,gated,CCC_conscientiousness,-0.0,-0.0,0.0,,,,,,827392,False,0.6095,54
-fi,gated,CCC_openness,0.0,-0.0,0.0,,,,,,827392,False,0.4546,54
-mosei,gated,CCC,0.6229,0.6017,0.6413,,,0.6331,0.4171,,159232,True,0.5123,72
 mosei,cross_attention,CCC,0.5397,0.5182,0.5586,,,0.6779,0.3509,,283840,True,0.5123,26
 daic,cross_attention,AUROC,0.3117,nan,nan,0.7021,0.0,,,,64848,False,0.6991,47
 fi,cross_attention,Avg CCC,-0.0,-0.05,0.05,,,,,0.1383,2800384,False,0.4578,41
@@ -22,11 +13,28 @@ fi,cross_attention,CCC_neuroticism,-0.0,-0.0,0.0,,,,,,2800384,False,0.4402,41
 fi,cross_attention,CCC_agreeableness,-0.0,-0.0,0.0,,,,,,2800384,False,0.3181,41
 fi,cross_attention,CCC_conscientiousness,0.0,0.0,0.0,,,,,,2800384,False,0.6095,41
 fi,cross_attention,CCC_openness,-0.0,-0.0,0.0,,,,,,2800384,False,0.4546,41
-daic,gated,AUROC,0.4957,nan,nan,0.7021,0.0,,,,56736,False,0.6991,69
-mosei_emotion,gated,Avg Emotion AUROC,0.7709,0.7709,0.7709,,,,,,159232,True,0,40
-mosei_emotion,gated,AUROC_happiness,0.8236,,,,,,,,159232,True,0.5,40
-mosei_emotion,gated,AUROC_sadness,0.7574,,,,,,,,159232,True,0.5,40
-mosei_emotion,gated,AUROC_anger,0.7586,,,,,,,,159232,True,0.5,40
-mosei_emotion,gated,AUROC_fear,0.799,,,,,,,,159232,True,0.5,40
-mosei_emotion,gated,AUROC_disgust,0.8436,,,,,,,,159232,True,0.5,40
-mosei_emotion,gated,AUROC_surprise,0.643,,,,,,,,159232,True,0.5,40
+daic,lmf,AUROC,0.4416,nan,nan,0.7021,0.0,,,,14424,False,0.6991,46
+mosei,lmf,CCC,0.577,0.556,0.5953,,,0.6556,0.3881,,10912,True,0.5123,66
+mosei_emotion,lmf,Avg Emotion AUROC,0.7526,0.7526,0.7526,,,,,,10912,True,0,58
+mosei_emotion,lmf,AUROC_happiness,0.8272,,,,,,,,10912,True,0.5,58
+mosei_emotion,lmf,AUROC_sadness,0.7404,,,,,,,,10912,True,0.5,58
+mosei_emotion,lmf,AUROC_anger,0.7547,,,,,,,,10912,True,0.5,58
+mosei_emotion,lmf,AUROC_fear,0.7092,,,,,,,,10912,True,0.5,58
+mosei_emotion,lmf,AUROC_disgust,0.8617,,,,,,,,10912,True,0.5,58
+mosei_emotion,lmf,AUROC_surprise,0.6226,,,,,,,,10912,True,0.5,58
+daic,lrdgn,AUROC,0.4589,nan,nan,0.7021,0.0,,,,57939,False,0.6991,47
+daic,gated,AUROC,0.4632,nan,nan,0.7021,0.0,,,,56736,False,0.6991,82
+mosei,gated,CCC,0.6124,0.5911,0.6319,,,0.6262,0.4205,,159232,True,0.5123,61
+mosei_emotion,gated,Avg Emotion AUROC,0.756,0.756,0.756,,,,,,159232,True,0,35
+mosei_emotion,gated,AUROC_happiness,0.8215,,,,,,,,159232,True,0.5,35
+mosei_emotion,gated,AUROC_sadness,0.7654,,,,,,,,159232,True,0.5,35
+mosei_emotion,gated,AUROC_anger,0.7525,,,,,,,,159232,True,0.5,35
+mosei_emotion,gated,AUROC_fear,0.7404,,,,,,,,159232,True,0.5,35
+mosei_emotion,gated,AUROC_disgust,0.8324,,,,,,,,159232,True,0.5,35
+mosei_emotion,gated,AUROC_surprise,0.6238,,,,,,,,159232,True,0.5,35
+fi,gated,Avg CCC,0.0,-0.05,0.05,,,,,0.1222,827392,False,0.4578,59
+fi,gated,CCC_extraversion,0.0,0.0,0.0,,,,,,827392,False,0.4667,59
+fi,gated,CCC_neuroticism,0.0,-0.0,0.0,,,,,,827392,False,0.4402,59
+fi,gated,CCC_agreeableness,-0.0,-0.0,0.0,,,,,,827392,False,0.3181,59
+fi,gated,CCC_conscientiousness,0.0,-0.0,0.0,,,,,,827392,False,0.6095,59
+fi,gated,CCC_openness,-0.0,-0.0,0.0,,,,,,827392,False,0.4546,59

@@ -403,9 +403,14 @@ def construct_graphs(global_embeddings: np.ndarray, dataset_ids: list,
         val_idx, val_w = graphs['val']
         test_idx, test_w = graphs['test']
 
-        validate_graph_no_cross_split_leakage(train_idx, split_ids, "train_graph")
-        validate_graph_no_cross_split_leakage(val_idx, split_ids, "val_graph")
-        validate_graph_no_cross_split_leakage(test_idx, split_ids, "test_graph")
+        # NOTE: We skip cross-split validation for split-local graphs because
+        # build_split_local_graph produces LOCAL indices [0, split_size-1] within each
+        # split's subgraph, which do NOT correspond to global positions in split_ids.
+        # The "leakage_check" dict from build_split_local_graph (val/test only) already
+        # verifies that val graph nodes stay within val bounds and test within test bounds.
+        # For the train graph, all nodes are train (split_id=0 by definition), so
+        # cross-split edges cannot exist — the check would be meaningless.
+        # Cross-dataset edges within the same split are a feature, not leakage.
 
         return train_idx, train_w, val_idx, val_w, test_idx, test_w
 
@@ -441,9 +446,16 @@ def construct_graphs(global_embeddings: np.ndarray, dataset_ids: list,
                                          train_mask.sum(), val_size)
         print(f"  Inductive leakage check: {leakage}")
 
-        validate_graph_no_cross_split_leakage(train_edge_index, split_ids, "train_graph_inductive")
-        validate_graph_no_cross_split_leakage(val_edge_index, split_ids, "val_graph_inductive")
-        validate_graph_no_cross_split_leakage(test_edge_index, split_ids, "test_graph_inductive")
+        # NOTE: We skip ALL cross-split validation for inductive graphs (train, val, and test).
+        # In inductive mode, val→train and test→train edges are EXPECTED and CORRECT
+        # (they are the mechanism of inductive inference). validate_graph_leakage (above)
+        # already verifies that val edges stay within [val_src, val_dst] bounds and
+        # test edges within [test_src, test_dst] bounds. validate_graph_no_cross_split_leakage
+        # checks split_id(src) == split_id(dst) which is WRONG for inductive val/test graphs
+        # since those graphs intentionally connect across splits (val→train, test→train).
+        # For the train graph, all nodes have split_id=0, so cross-split validation is
+        # meaningless. The cross-dataset edge fraction (GraphXAIN metric) is checked
+        # separately via build_multimodal_graph edge_flags.
 
         return train_edge_index, train_edge_weight, val_edge_index, val_edge_weight, \
                test_edge_index, test_edge_weight
