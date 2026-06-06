@@ -127,7 +127,7 @@ from models.gnn_router import GraphSAGERouter, GATRouter
 from models.task_heads import DepressionHead, SentimentHead, EmotionMultiLabelHead, PersonalityHead
 from data.graph_builder import (
     build_knn_graph, build_split_local_graph, build_inductive_graph,
-    build_multimodal_graph, validate_graph_leakage
+    build_multimodal_graph, validate_graph_leakage, validate_graph_no_cross_split_leakage
 )
 from utils.seed import set_seed
 
@@ -602,6 +602,10 @@ def construct_graphs(global_embeddings: np.ndarray, dataset_ids: list,
         val_idx, val_w = graphs['val']
         test_idx, test_w = graphs['test']
 
+        validate_graph_no_cross_split_leakage(train_idx, split_ids, "train_graph")
+        validate_graph_no_cross_split_leakage(val_idx, split_ids, "val_graph")
+        validate_graph_no_cross_split_leakage(test_idx, split_ids, "test_graph")
+
         return train_idx, train_w, val_idx, val_w, test_idx, test_w
 
     elif graph_type == 'inductive':
@@ -625,6 +629,10 @@ def construct_graphs(global_embeddings: np.ndarray, dataset_ids: list,
         leakage = validate_graph_leakage(train_edge_index, val_edge_index, test_edge_index,
                                          train_mask.sum(), val_size)
         print(f"  Inductive leakage check: {leakage}")
+
+        validate_graph_no_cross_split_leakage(train_edge_index, split_ids, "train_graph_inductive")
+        validate_graph_no_cross_split_leakage(val_edge_index, split_ids, "val_graph_inductive")
+        validate_graph_no_cross_split_leakage(test_edge_index, split_ids, "test_graph_inductive")
 
         return train_edge_index, train_edge_weight, val_edge_index, val_edge_weight, \
                test_edge_index, test_edge_weight
@@ -653,6 +661,10 @@ def construct_graphs(global_embeddings: np.ndarray, dataset_ids: list,
 
         print(f"  Transductive (ABLATION): train_edges={train_idx.shape[1]}, "
               f"val_edges={val_idx.shape[1]}, test_edges={test_idx.shape[1]}")
+
+        # NOTE: We intentionally do NOT call validate_graph_no_cross_split_leakage
+        # for transductive mode — cross-split edges are expected and documented.
+        # The ABLATION warning above is the documented acknowledgment.
 
         return train_idx, train_w, val_idx, val_w, test_idx, test_w
 

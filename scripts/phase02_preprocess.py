@@ -42,6 +42,11 @@ import pandas as pd
 # Audio processing
 import librosa
 
+# OpenSMILE eGeMAPS extraction
+import opensmile
+import soundfile
+import tempfile
+
 # Zip extraction
 import zipfile
 import shutil
@@ -592,21 +597,20 @@ class AudioPreprocessor:
         Produces a fixed 88-dim vector per audio file. Falls back to librosa
         derivation if OpenSMILE processing fails.
         """
-        import tempfile
-        import soundfile as sf
-
         try:
             # OpenSMILE requires an audio file — write numpy to temp WAV
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 temp_path = f.name
 
             try:
-                sf.write(temp_path, y, sr)
+                soundfile.write(temp_path, y, sr)
                 result = self.opensmile.process_file(temp_path)
             finally:
                 os.unlink(temp_path)
 
             features = result.values[0].astype(np.float32)  # (88,)
+            # pooled_features = [mean, std]; for Functionals level (single row),
+            # std is 0 since there is no temporal variance to compute
             pooled = np.concatenate([features, np.zeros_like(features)])
 
             return {

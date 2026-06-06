@@ -74,23 +74,13 @@ if [ "$DEVICE" = "cuda" ]; then
     echo "  🖥️  GPU: $GPU_NAME ($GPU_MEM)"
 fi
 
-# ── LLM packages check ────────────────────────────────────────────────────
-check_llm_packages() {
-    local missing=()
-    uv run python -c "import transformers" 2>/dev/null || missing+=("transformers")
-    uv run python -c "import peft" 2>/dev/null || missing+=("peft")
-    uv run python -c "import accelerate" 2>/dev/null || missing+=("accelerate")
-
-    if [ ${#missing[@]} -gt 0 ]; then
-        echo "  ⚠️  Missing LLM packages: ${missing[*]}"
-        echo "     Install with: uv add ${missing[*]}"
-        echo "     L1-L5 will use classical fallback (no true LLM ablation)"
-        return 1
-    fi
-    return 0
-}
-
-check_llm_packages || true  # non-fatal
+# ── GPU detection ─────────────────────────────────────────────────────────
+NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l || echo 0)
+if [ "$NUM_GPUS" -gt 0 ]; then
+    GPU_MEM_TOTAL=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | head -1 || echo "?")
+    echo "🖥️  $NUM_GPUSx NVIDIA RTX A6000 detected (${GPU_MEM_TOTAL} MiB each)"
+fi
+echo "   peft $(uv run python -c "import peft; print(peft.__version__)" 2>/dev/null || echo 'N/A') | accelerate $(uv run python -c "import accelerate; print(accelerate.__version__)" 2>/dev/null || echo 'N/A') | opensmile $(uv run python -c "import opensmile; print(opensmile.__version__)" 2>/dev/null || echo 'N/A')"
 
 # ── Ablation definitions ──────────────────────────────────────────────────
 declare -A ABLATIONS

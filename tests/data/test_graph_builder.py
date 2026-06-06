@@ -258,3 +258,51 @@ class TestMultimodalGraph:
             )
             expected_edges = 50 * k
             assert len(edge_weight) == expected_edges, f"Expected {expected_edges} edges for k={k}"
+
+
+def test_validate_graph_no_cross_split_leakage_accepts_clean_graph():
+    """Test that validation passes when no cross-split edges exist."""
+    from src.data.graph_builder import validate_graph_no_cross_split_leakage
+
+    edge_index = np.array([[0, 1, 2, 3, 4, 5], [1, 0, 3, 2, 5, 4]])
+    split_ids = np.array([0, 0, 1, 1, 2, 2])
+
+    validate_graph_no_cross_split_leakage(edge_index, split_ids, "test_graph")
+
+
+def test_validate_graph_no_cross_split_leakage_rejects_cross_split():
+    """Test that validation raises ValueError on cross-split edges."""
+    from src.data.graph_builder import validate_graph_no_cross_split_leakage
+
+    edge_index = np.array([[0, 3], [3, 0]])  # train node 0 → val node 3 (cross-split!)
+    split_ids = np.array([0, 0, 1, 1])
+
+    with pytest.raises(ValueError, match="cross-split edges"):
+        validate_graph_no_cross_split_leakage(edge_index, split_ids, "train_graph")
+
+
+def test_build_multimodal_graph_default_is_safe():
+    """Test that build_multimodal_graph defaults to cross_dataset_edges=False."""
+    from src.data.graph_builder import build_multimodal_graph
+    import inspect
+
+    sig = inspect.signature(build_multimodal_graph)
+    default = sig.parameters['cross_dataset_edges'].default
+    assert default == False, f"Expected cross_dataset_edges default False, got {default}"
+
+
+def test_transductive_mode_is_clearly_marked():
+    """Test that transductive mode produces expected edge structure with cross-split edges."""
+    from src.data.graph_builder import build_multimodal_graph
+
+    embeddings = np.random.randn(6, 8)
+    dataset_ids = ["a", "a", "a", "b", "b", "b"]
+    split_ids = np.array([0, 0, 1, 1, 2, 2])
+
+    edge_index, _, edge_flags = build_multimodal_graph(embeddings, dataset_ids, k=2, cross_dataset_edges=True)
+
+    src_split = split_ids[edge_index[0]]
+    dst_split = split_ids[edge_index[1]]
+    cross_split_mask = src_split != dst_split
+
+    assert cross_split_mask.any(), "Transductive mode should produce cross-split edges"
