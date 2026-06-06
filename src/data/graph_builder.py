@@ -244,11 +244,41 @@ def validate_graph_leakage(
     }
 
 
+def validate_graph_no_cross_split_leakage(
+    edge_index: np.ndarray,
+    split_ids: np.ndarray,
+    graph_name: str = "graph"
+) -> None:
+    """Validate that no edges cross train/val/test splits.
+
+    Args:
+        edge_index: (2, num_edges) edge index
+        split_ids: (N,) array with 0=train, 1=val, 2=test
+        graph_name: name for error messages (e.g., "train_graph")
+
+    Raises:
+        ValueError: if any edge connects nodes from different splits.
+    """
+    src_split = split_ids[edge_index[0]]
+    dst_split = split_ids[edge_index[1]]
+    cross_split_mask = src_split != dst_split
+
+    if cross_split_mask.any():
+        n_cross = int(cross_split_mask.sum())
+        pct = 100.0 * n_cross / len(cross_split_mask)
+        raise ValueError(
+            f"CRITICAL: {graph_name} contains {n_cross} cross-split edges ({pct:.1f}%). "
+            f"This violates subject-independent splits (AGENTS.md). "
+            f"Use build_inductive_graph() or build_split_local_graph() for primary metrics. "
+            f"build_multimodal_graph(cross_dataset_edges=True) is ABLATION ONLY."
+        )
+
+
 def build_multimodal_graph(
     fused_embeddings: np.ndarray,
     dataset_ids: list[str],
     k: int = 10,
-    cross_dataset_edges: bool = True,
+    cross_dataset_edges: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Build cross-dataset KNN graph for mixed-dataset training.
 
@@ -256,12 +286,18 @@ def build_multimodal_graph(
         fused_embeddings: (N, D) embedding matrix with all samples
         dataset_ids: list of strings like "daic", "mosei", "fi" per sample
         k: number of nearest neighbors
-        cross_dataset_edges: if True, allow edges across datasets
+        cross_dataset_edges: if True, allow edges across datasets AND across
+                             train/val/test splits. THIS IS AN ABLATION ONLY.
+                             Default is False (safe, no cross-split edges).
 
     Returns:
         edge_index: (2, num_edges)
         edge_weight: (num_edges,) similarity scores
         edge_flags: (num_edges,) 0=same-dataset edge, 1=cross-dataset edge
+
+    WARNING: cross_dataset_edges=True creates edges between train, val, and
+    test nodes, violating subject-independent splits. NEVER use for primary
+    clinical metrics. Use build_inductive_graph() or build_split_local_graph().
     """
     n = fused_embeddings.shape[0]
 
