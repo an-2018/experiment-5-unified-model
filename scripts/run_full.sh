@@ -1,7 +1,8 @@
 #!/bin/bash
-# Phase 2 Full Extraction - runs each encoder separately on CPU (avoids CUDA OOM)
-# CPU is fine for text (fast), eGeMAPS (librosa), and video_openface (CLNF parsing)
-# MOSEI is fast (pre-extracted)
+# Phase 2 Full Extraction - runs each encoder separately
+# CPU: text (RoBERTa), eGeMAPS (OpenSMILE), video (OpenFace, ViT)
+# GPU --parallel 1: WavLM (CUDA OOM on >1)
+# MOSEI: pre-extracted features available for some encoders
 LOG="/home/anilson/thesis/thesis-experiment-5-unified-model/data/phase2_extraction.log"
 cd /home/anilson/thesis/thesis-experiment-5-unified-model
 
