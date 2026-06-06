@@ -42,6 +42,11 @@ import pandas as pd
 # Audio processing
 import librosa
 
+# OpenSMILE eGeMAPS extraction
+import opensmile
+import soundfile
+import tempfile
+
 # Zip extraction
 import zipfile
 import shutil
@@ -482,8 +487,13 @@ class AudioPreprocessor:
             ).to(self.device)
             self.wavlm.eval()
         elif encoder == "egemaps":
-            print("eGeMAPS extraction using librosa spectral features (openSMILE not available)")
-            # Will use librosa for MFCC + prosody features as fallback
+            import opensmile as osmile
+            from opensmile import FeatureSet, FeatureLevel
+            print("eGeMAPS extraction using OpenSMILE (eGeMAPSv02, Functionals level)")
+            self.opensmile = osmile.Smile(
+                feature_set=FeatureSet.eGeMAPSv02,
+                feature_level=FeatureLevel.Functionals
+            )
         else:
             raise ValueError(f"Unknown audio encoder: {encoder}")
 
@@ -583,10 +593,40 @@ class AudioPreprocessor:
         }
 
     def _extract_egemaps(self, y: np.ndarray, sr: int) -> dict[str, torch.Tensor]:
-        """Extract eGeMAPS-like features using librosa.
+        """Extract eGeMAPS features using OpenSMILE (eGeMAPSv02, Functionals level).
+        Produces a fixed 88-dim vector per audio file. Falls back to librosa
+        derivation if OpenSMILE processing fails.
+        """
+        import tempfile
+        import soundfile as sf
 
-        Computes MFCCs + prosody features (~40-88 dim).
-        Falls back to spectral features if openSMILE is not available.
+        try:
+            # OpenSMILE requires an audio file — write numpy to temp WAV
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                temp_path = f.name
+
+            try:
+                sf.write(temp_path, y, sr)
+                result = self.opensmile.process_file(temp_path)
+            finally:
+                os.unlink(temp_path)
+
+            features = result.values[0].astype(np.float32)  # (88,)
+            pooled = np.concatenate([features, np.zeros_like(features)])
+
+            return {
+                "features": torch.tensor(features, dtype=torch.float32).unsqueeze(0),
+                "pooled_features": torch.tensor(pooled, dtype=torch.float32)
+            }
+
+        except Exception as e:
+            warnings.warn(f"OpenSMILE eGeMAPS extraction failed ({e}), falling back to librosa derivation")
+            return self._extract_egemaps_librosa(y, sr)
+
+    def _extract_egemaps_librosa(self, y: np.ndarray, sr: int) -> dict[str, torch.Tensor]:
+        """Extract eGeMAPS-like features using librosa (fallback only).
+        Computes MFCCs + prosody features (~88 dim). Used only when OpenSMILE
+        is unavailable or fails.
         """
         features_list = []
 
@@ -627,7 +667,6 @@ class AudioPreprocessor:
         # Prosody features — use fast YIN pitch estimator instead of slow pyin
         f0 = librosa.yin(y, fmin=50, fmax=500, sr=sr)
         f0_filled = np.nan_to_num(f0, nan=np.nanmedian(f0))
-        # Pad or trim f0 to match n_frames
         if len(f0_filled) > n_frames:
             f0_filled = f0_filled[:n_frames]
         elif len(f0_filled) < n_frames:
