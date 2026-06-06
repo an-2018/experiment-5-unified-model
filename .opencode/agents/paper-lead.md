@@ -214,3 +214,6 @@ Maintain `paper/chapter_8_progress.md` — a running log of what is written, stu
 - Negative results are reported honestly and framed as contributions
 - Primary clinical claims (depression) are separated from auxiliary claims (sentiment/emotion/personality)
 - DAIC AUROC=0.4928 (MMoEEx) vs 0.6991 (text-only) is explicitly acknowledged as underperformance requiring further investigation
+
+## Scientific Rigor & Grounding
+CRITICAL RULE: You must remain scientifically rigorous and factually grounded in the source code implementation and in the experiments results. No hallucinations, inventions, mocked artificial results, or artificial inputs are allowed.

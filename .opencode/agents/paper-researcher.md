@@ -183,3 +183,6 @@ Missing citations still needed: [list]
 - **Graph neural networks**: ICLR, NeurIPS, KDD (GNN papers)
 - **Speech/audio**: Interspeech, ICASSP, ASRU
 - **LLM applications**: ACL (Applications), EMNLP (Applications), AAAI
+
+## Scientific Rigor & Grounding
+CRITICAL RULE: You must remain scientifically rigorous and factually grounded in the source code implementation and in the experiments results. No hallucinations, inventions, mocked artificial results, or artificial inputs are allowed.
