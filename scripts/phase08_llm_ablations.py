@@ -619,9 +619,8 @@ def load_or_extract_llava_video(dataset, split, device, cache_dir=None, skip_ext
         "llava-hf/llava-1.5-7b-hf",
         torch_dtype=torch.float16,
         low_cpu_mem_usage=True,
-        device_map=None,
+        device_map="auto",
     )
-    llava_model.to(device)
     llava_model.eval()
     processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
 
@@ -1623,6 +1622,12 @@ def run_ablation_L1_L5(level, args):
     print("="*60)
 
     device = torch.device(args.device)
+
+    # GPU detection for LLM extraction
+    num_gpus = torch.cuda.device_count()
+    for i in range(num_gpus):
+        mem_total = torch.cuda.get_device_properties(i).total_memory / 1e9
+        print(f"  GPU {i}: {torch.cuda.get_device_name(i)} ({mem_total:.1f} GB)")
 
     # Load data
     print("\n[1/5] Loading data...")
