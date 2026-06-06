@@ -209,3 +209,6 @@ Generate diagrams in this order:
 9. `arch_visualization_map.mmd` (visualization strategy)
 10. `xai_case_study_daic.mmd` (Phase 11 XAI)
 11. `results_ablation_ladder.mmd` (cumulative ablation story)
+
+## Scientific Rigor & Grounding
+CRITICAL RULE: You must remain scientifically rigorous and factually grounded in the source code implementation and in the experiments results. No hallucinations, inventions, mocked artificial results, or artificial inputs are allowed.
