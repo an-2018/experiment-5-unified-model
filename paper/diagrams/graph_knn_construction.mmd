@@ -1,0 +1,38 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+graph TD
+    subgraph SplitLocal["split-local (PRIMARY METRIC)"]
+        SL_LOCAL["Each split builds its own KNN graph<br/>train(→train), val(→val), test(→test)"]
+        SL_NODES["Node indices are LOCAL to each split<br/>0..N_train-1, 0..N_val-1, 0..N_test-1"]
+        SL_CHECK["Leakage check:<br/>val_dst_nodes in [0, N_val) ✓<br/>test_dst_nodes in [0, N_test) ✓"]
+        SL_WHEN["Used for: primary clinical metrics,<br/>paper results, fair comparison"]
+    end
+
+    subgraph Inductive["inductive (SECONDARY)"]
+        IND_TRAIN["Train: KNN within train set only"]
+        IND_VAL["Val: val nodes connect ONLY to train nodes"]
+        IND_TEST["Test: test nodes connect ONLY to train nodes"]
+        IND_CHECK["Leakage check: validate_graph_leakage()<br/>val/src in [train_start, train_end)<br/>test/dst only in [0, train)"]
+        IND_WHEN["Used for: ablation,<br/>when val/test have < k samples"]
+    end
+
+    subgraph Transductive["transductive (ABLATION ONLY)"]
+        TR_FULL["Full KNN across ALL nodes (train+val+test)"]
+        TR_CROSS["Cross-dataset edges: TRUE<br/>cross-split edges: ALLOWED"]
+        TR_CHECK["WARNING explicitly printed:<br>'Transductive (ABLATION): ...'"]
+        TR_WHEN["Used for: ablation experiments only<br/>NEVER for primary clinical metrics"]
+    end
+
+    subgraph Params["KNN Parameters"]
+        K["k = 10 nearest neighbors<br/>(excluding self)"]
+        METRIC["Distance: cosine"]
+        ALGO["Algorithm: brute-force<br/>(NearestNeighbors)"]
+        WEIGHT["Edge weight: 1/(1+distance)<br/>→ similarity in [0, 1]"]
+        THRESH["Safety: if N_split < k,<br/>reduce to max(1, N_split-1)"]
+    end
+
+    subgraph Validation["Leakage Validation Pipeline"]
+        V1["build_split_local_graph() returns<br/>leakage_check dict"]
+        V2["validate_graph_leakage() checks<br/>node range bounds per split"]
+        V3["validate_graph_no_cross_split_leakage()<br/>raises ValueError on cross-split edges"]
+        V4["Cross-dataset BUDS same-split edges:<br/>VALID and EXPECTED"]
+    end

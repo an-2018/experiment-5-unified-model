@@ -384,7 +384,7 @@ def forward(self, text_feat, audio_feat, video_feat, mask, task_id, routing, edg
 
 $$L_{total} = \sum_{k \in tasks} \left( \frac{1}{2\sigma_k^2} L_k + \log \sigma_k \right)$$
 
-where $\sigma_k = \exp(\text{log\_sigma}_k)$ is learned per task via gradient descent.
+where $\sigma_k = \exp(\log\sigma_k)$ is learned per task via gradient descent.
 
 **Total loss per batch:** sum of individual task losses (only active tasks for each sample).
 
@@ -602,7 +602,7 @@ Implements three domain adaptation methods:
 **Visualizations in `figures/domain_adaptation/`:**
 - `domain_adaptation_results.png` — Bar chart comparing DA methods across transfer directions
 
-### 5.8 Phase 10: Calibration & Statistics
+### 5.8 Phase 10: Calibration \& Statistics
 
 **Scripts:** `scripts/phase10_calibration.py`, `scripts/phase10_evaluation.py`, `scripts/statistical_validation.py`
 
@@ -798,14 +798,20 @@ Both temperature and Platt scaling substantially reduce miscalibration (ECE from
 
 ### 7.1 Architecture Diagrams (in `paper/diagrams/`)
 
-| File | Content | Nodes |
-|------|---------|-------|
-| `arch_unified_model.mmd` | Full model architecture | 40+ components including datasets, encoders, fusion, MMoEEx, graph, heads, losses, XAI |
-| `arch_process_flow.mmd` | 12-phase experiment flow | 11 phase blocks with sub-steps |
-| `arch_visualization_map.mmd` | Phase→visualization mapping | 10 phases × 10 visualization types |
+| File | Content | Nodes / Details |
+|------|---------|-----------------|
+| `arch_unified_model.mmd` | Full model architecture | Concrete GG-MoE model architecture (modality policy, gated late fusion, MMoEEx experts, GNN routers, heads) |
+| `arch_process_flow.mmd` | 12-phase experiment flow | Concrete 13-phase experimental pipeline flow (Phase 0 to Phase 12) |
+| `arch_visualization_map.mmd` | Phase→visualization mapping | Concrete 13-phase mapping to corresponding visual outputs |
 | `results_unimodal_bar.mmd` | Unimodal results bar chart | DAIC/MOSEI/FI × 3 modalities |
 | `results_fusion_comparison.mmd` | Fusion method comparison | Gated/LMF/CrossAttn per dataset |
-| `results_graph_ablation.mmd` | Graph variant comparison | V0–V4 with 4 metrics each |
+| `results_graph_ablation.mmd` | Graph variant comparison | V0–V4 with 4 metrics each and MMoEEx baseline |
+| `ablation_ladder.mmd` | LLM ablation ladder | LLM ablation ladder (L0-L5) modality replacement flow |
+| `dataset_contracts.mmd` | Dataset contracts | Dataset contracts, granularities, tasks, masks, and risks |
+| `graph_knn_construction.mmd` | Graph construction protocols | Graph construction protocols (split-local, inductive, transductive) |
+| `arch_joint_training.mmd` | Joint training loop details | Joint training loop details and per-epoch monitors |
+| `calibration_reliability.mmd` | Calibration & validation pipeline | Calibration scaling and statistical validation pipeline |
+| `xai_case_study.mmd` | Explainability pipeline | Explainability pipeline (SHAP, GNNExplainer, perturbation, GraphXAIN) |
 
 ### 7.2 Generated Figures (in `artifacts/figures/`)
 

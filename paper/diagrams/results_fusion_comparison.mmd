@@ -1,4 +1,4 @@
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
 flowchart LR
     subgraph MOSEI_data["MOSEI Sentiment CCC"]
         M_Gated["Gated<br/>0.623"]
@@ -8,7 +8,7 @@ flowchart LR
 
     subgraph DAIC_data["DAIC Depression AUROC"]
         D_Text["Unimodal<br/>Text<br/>0.699"]
-        D_Gated["Gated<br/>0.463"]
+        D_Gated["Gated<br/>0.496"]
         D_LMF["LMF<br/>0.364"]
         D_Cross["CrossAttn<br/>0.312"]
     end
@@ -21,9 +21,9 @@ flowchart LR
     style M_Gated fill:#2d6a4f
     style M_LMF fill:#0f3460
     style M_Cross fill:#0f3460
-    style D_Text fill:#9d4edd
-    style D_Gated fill:#2d6a4f
+    style D_Text fill:#2d6a4f
+    style D_Gated fill:#0f3460
     style D_LMF fill:#0f3460
-    style D_Cross fill:#0f3460
-    style F_Video fill:#9d4edd
+    style D_Cross fill:#e63946
+    style F_Video fill:#2d6a4f
     style F_All fill:#e63946

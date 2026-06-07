@@ -1,0 +1,58 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+graph TD
+    subgraph BatchPrep["Batch Preparation"]
+        BP1["DataLoader yields batch (32 samples)"]
+        BP2["Unpack: (text, audio, video, mask,<br>labels, task_ids, weights, routings, global_indices)"]
+        BP3["Move all tensors to device"]
+    end
+
+    subgraph GroupByTask["Group by Task ID"]
+        G0["task_id == 0 → DAIC depression<br>text_only routing"]
+        G1["task_id == 1 → MOSEI sentiment<br>multimodal routing"]
+        G2["task_id == 2 → MOSEI emotion<br>multimodal routing"]
+        G3["task_id == 3 → FI personality<br>video_only routing"]
+    end
+
+    subgraph GraphEdgeFiltering["Graph Edge Filtering"]
+        GF1["Load train edge_index_dict['train']"]
+        GF2["Filter edges to batch nodes only:<br>src_in AND dst_in AND valid_range"]
+        GF3["Build global→local mapper (g2l dict)"]
+        GF4["Remap edges to local indices"]
+        GF5["Safety: skip if max_idx ≥ batch_size"]
+    end
+
+    subgraph Forward["Forward Pass"]
+        F1["Routing:<br>text_only → text_proj(text)<br>video_only → video_proj(video)<br>multimodal → GatedLateFusion(t,a,v,mask)"]
+        F2["Expert mixture via GG-MoE:<br>r_i = softmax(log(gate_probs)<br>      + graph_weight·log(graph_probs))"]
+        F3["Task head: Dep/Sent/Emo/Pers"]
+        F4["Return: expert_out(routing_weights)"]
+    end
+
+    subgraph Loss["Loss Computation"]
+        L0["Depression → BCEWithLogitsLoss(pos_weight)"]
+        L1["Sentiment → MAE Loss"]
+        L2["Emotion → BCEWithLogitsLoss (6-way)"]
+        L3["Personality → MAE Loss (5 traits)"]
+        L4["Multi-task: sum of individual losses"]
+    end
+
+    subgraph Backward["Backward Pass"]
+        B1["scaler.scale(combined).backward()"]
+        B2["clip_grad_norm_(max_norm=1.0)"]
+        B3["scaler.step(optimizer)"]
+        B4["scheduler.step() per epoch"]
+    end
+
+    subgraph Monitors["Per-Epoch Monitors"]
+        M1["Routing entropy: -Σ(r·log r)"]
+        M2["Task loss tracking (history dict)"]
+        M3["Every 5 epochs: evaluate on val set"]
+        M4["Negative transfer check vs baselines"]
+        M5["Save best model if DAIC AUROC improves"]
+        M6["Early stopping if patience ≥ 20"]
+        M7["Epoch 20: unfreeze projector top 2 layers"]
+    end
+
+    BP1 --> BP2 --> BP3 --> GroupByTask
+    GroupByTask --> GraphEdgeFiltering --> Forward
+    Forward --> Loss --> Backward --> Monitors

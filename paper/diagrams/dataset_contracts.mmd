@@ -1,0 +1,35 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+graph TB
+    subgraph DAIC["DAIC-WOZ Dataset"]
+        DAIC_GRAN["Granularity: participant session<br/>Eval unit: participant (subject-independent)"]
+        DAIC_TASKS["Tasks:<br/>- Depression binary (PHQ-8 >= 10)<br/>- PHQ-8 severity (0-27)"]
+        DAIC_MASK["Modality mask: (T:true, A:true, V:true)<br/>but routed text-only for primary metric<br/>Task mask: (dep:T, sent:F, emo:F, pers:F)"]
+        DAIC_ROUTING["Routing policy: 'text_only'<br/>text(768) → text_proj(256)"]
+        DAIC_EXPERTS["Experts: [0,1] (isolated)"]
+        DAIC_FEATS["Features:<br/>text: RoBERTa(768)<br/>audio: WavLM(768)<br/>video: OpenFace(112 AU)"]
+    end
+
+    subgraph MOSEI["CMU-MOSEI Dataset"]
+        MOSEI_GRAN["Granularity: utterance<br/>Eval unit: utterance"]
+        MOSEI_TASKS["Tasks:<br/>- Sentiment regression [-3, +3]<br/>- Emotion multi-label (6 classes)"]
+        MOSEI_MASK["Modality mask: (T:true, A:true, V:true)<br/>Task mask: (dep:F, sent:T, emo:T, pers:F)"]
+        MOSEI_ROUTING["Routing policy: 'multimodal'<br/>→ GatedLateFusion → (256)"]
+        MOSEI_EXPERTS["Experts: [2,3] (shared sent+emo)"]
+        MOSEI_FEATS["Features:<br/>text: RoBERTa(768)<br/>audio: WavLM(768)<br/>video: ViT(1536)"]
+    end
+
+    subgraph FI["ChaLearn First Impressions Dataset"]
+        FI_GRAN["Granularity: short video clip<br/>Eval unit: clip<br/>Apparent ≠ clinical personality"]
+        FI_TASKS["Tasks:<br/>- Big-Five personality regression<br/>(O,C,E,A,N) each [0,1]"]
+        FI_MASK["Modality mask: (T:false, A:true, V:true)<br/>Task mask: (dep:F, sent:F, emo:F, pers:T)"]
+        FI_ROUTING["Routing policy: 'video_only'<br/>video(1536) → video_proj(256)"]
+        FI_EXPERTS["Experts: [4,5] (isolated)"]
+        FI_FEATS["Features:<br/>text: N/A<br/>audio: WavLM(768)<br/>video: ViT(1536)"]
+    end
+
+    subgraph Risk["Key Dataset Risks"]
+        RISK1["MOSEI utterance dominance: 23000+ utterances<br/>vs DAIC: ~230 sessions<br/>Mitigation: temperature-balanced sampling (T=3.0)"]
+        RISK2["Cross-segment label leakage (DAIC)<br/>Mitigation: subject-independent splits"]
+        RISK3["Apparent ≠ clinical (FI)<br/>Mitigation: FI is auxiliary supervision only"]
+        RISK4["Graph leakage across splits<br/>Mitigation: split-local graphs (primary),<br/>inductive (secondary), transductive (ablation only)"]
+    end
