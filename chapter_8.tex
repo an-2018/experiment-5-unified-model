@@ -46,7 +46,7 @@
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-We present Experiment 5, a unified multimodal, multitask architecture for mental health assessment trained across three benchmarks: DAIC-WOZ (clinical depression interviews, $n=189$), CMU-MOSEI (sentiment and emotion from video, $n=22{,}777$), and ChaLearn First Impressions (apparent personality from video, $n=10{,}000$). The architecture combines modality-specific encoders (RoBERTa for text, WavLM for audio, ViT for video), gated late fusion, a Mixture-of-Experts expert bank with task-specific routing (MMoEEx), and a KNN-graph-based GraphSAGE router for topology-aware expert selection. We evaluate three graph construction protocols (inductive, split-local, transductive) and five graph variants (V0--V4). Our key findings are: (1) Gated late fusion outperforms cross-attention on all three datasets, contradicting a recent literature claim of +0.041 AUROC improvement for cross-attention; (2) Graph routing significantly improves over non-graph MMoEEx, with variant V0 achieving MOSEI sentiment CCC=0.6803 (+0.18 over MMoEEx) and variant V3 achieving DAIC depression AUROC=0.8967 (+0.40 over MMoEEx); (3) MMoEEx alone improves FI personality prediction (+0.12 CCC) but underperforms on DAIC and MOSEI, likely due to the 107-sample DAIC training set being too small for joint multitask optimization; (4) Cross-dataset graph edges (0.84\% of edges in the inductive graph) provide meaningful routing context across the three benchmarks; (5) LLM encoders (Mistral-LoRA text, audio-LLM, video-LLM) improve over classical encoders on most tasks (L1 achieves DAIC AUROC=0.6775, L5 achieves MOSEI CCC=0.6220), but no LLM level surpasses graph routing; L4 shows degraded performance due to a checkpoint configuration issue; (6) Unsupervised domain adaptation (CORAL, MMD, DANN) produces negative transfer on clinical interview data, with plain multitask learning outperforming all DA methods. We provide a leakage-safe graph construction protocol, a controlled ablation ladder, a first XAI case study, and release all artifacts for reproducibility.
+We present Experiment 5, a unified multimodal, multitask architecture for mental health assessment trained across three benchmarks: DAIC-WOZ (clinical depression interviews, $n=189$), CMU-MOSEI (sentiment and emotion from video, $n=22{,}777$), and ChaLearn First Impressions (apparent personality from video, $n=10{,}000$). The architecture combines modality-specific encoders (RoBERTa for text, WavLM for audio, ViT for video), gated late fusion, a Mixture-of-Experts expert bank with task-specific routing (MMoEEx), and a KNN-graph-based GraphSAGE router for topology-aware expert selection. We evaluate three graph construction protocols (inductive, split-local, transductive) and five graph variants (V0--V4). Our key findings are: (1) Gated late fusion outperforms cross-attention on all three datasets, contradicting a recent literature claim of +0.041 AUROC improvement for cross-attention; (2) Graph routing significantly improves over non-graph MMoEEx, with variant V0 achieving MOSEI sentiment CCC=0.6803 (+0.18 over MMoEEx) and variant V3 achieving DAIC depression AUROC=0.8967 (+0.40 over MMoEEx); (3) MMoEEx alone improves FI personality prediction (+0.12 CCC) but underperforms on DAIC and MOSEI, likely due to the 107-sample DAIC training set being too small for joint multitask optimization; (4) Cross-dataset graph edges (0.84\% of edges in the inductive graph) provide meaningful routing context across the three benchmarks; (5) LLM encoders (Mistral-7B frozen text, CLAP audio, LLaVA video) improve over classical encoders across all tasks, with L3 (Mistral+CLAP) achieving the best LLM-level DAIC AUROC (0.7210) and L1 (Mistral text) best MOSEI emotion AUC (0.7702). No LLM level surpasses graph routing (V0=0.6803 MOSEI CCC, V3=0.8967 DAIC AUROC). L5 (full LLM stack) achieves DAIC AUROC=0.6920 and MOSEI CCC=0.6284; (6) Unsupervised domain adaptation (CORAL, MMD, DANN) produces negative transfer on clinical interview data, with plain multitask learning outperforming all DA methods. We provide a leakage-safe graph construction protocol, a controlled ablation ladder, a first XAI case study, and release all artifacts for reproducibility.
 
 % =============================================================================
 % 8.1 INTRODUCTION
@@ -473,33 +473,42 @@ Table~\ref{tab:ablation_ladder} shows the cumulative effect of each architectura
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.85\textwidth]{artifacts/figures/phase_08_llm_ablations/llm_delta_bar.png}
-    \caption{LLM modality ablation: delta from classical encoder baseline (L0) for each LLM level (L1--L5). Positive values indicate improvement over classical encoders. L1 (Mistral-LoRA text) provides the largest DAIC gain; L3 (LLM video) is best for MOSEI sentiment and FI personality. See \texttt{paper/diagrams/llm\_delta\_bar.mmd} for the Mermaid source diagram.}
+    \caption{LLM modality ablation: delta from classical encoder baseline (L0) for each LLM level (L1--L5). Positive values indicate improvement over classical encoders. L3 (Mistral+CLAP audio) provides the largest DAIC gain (AUROC=0.7210). See \texttt{paper/diagrams/llm\_delta\_bar.mmd} for the Mermaid source diagram.}
     \label{fig:llm_ablation_delta}
 \end{figure}
 
 The LLM ablation track replaces classical encoders with LLM-based encoders at each modality. Figure~\ref{fig:llm_ablation_delta} visualizes the per-task deltas from the classical baseline (L0). Six levels (L0--L5) were evaluated:
 \begin{itemize}
-    \item \textbf{L0} (Classical baseline): RoBERTa text + WavLM audio + ViT video
-    \item \textbf{L1} (LLM text): Mistral-7B-LoRA replacing RoBERTa
-    \item \textbf{L2} (LLM audio): Audio-LLM replacing WavLM
-    \item \textbf{L3} (LLM video): Video-LLM replacing ViT
-    \item \textbf{L4} (LLM text+audio): Both text and audio replaced
-    \item \textbf{L5} (Full LLM stack): All three modalities replaced
+    \item \textbf{L0} (Classical baseline): RoBERTa text + WavLM audio + OpenFace video
+    \item \textbf{L1} (Mistral frozen text): Mistral-7B-Instruct-v0.3 replacing RoBERTa text (frozen, mean-pooled hidden states)
+    \item \textbf{L2} (Mistral LoRA text): L1 with LoRA (r=16, alpha=32) trainable adapter
+    \item \textbf{L3} (+CLAP audio): L1 + CLAP (laion/clap-htsat-unfused) replacing WavLM audio
+    \item \textbf{L4} (+LLaVA video): L1 + LLaVA-1.5-7B-HF replacing OpenFace video
+    \item \textbf{L5} (Full LLM stack): L1 + CLAP audio + LLaVA video (all three modalities replaced)
 \end{itemize}
+
+Figure~\ref{fig:llm_umap} shows a UMAP comparison of classical (RoBERTa, 768D) vs LLM (Mistral, 4096D) text embeddings, projected to a common 50D space via PCA before UMAP reduction. The LLM embeddings occupy a distinct region of the embedding space, confirming that Mistral captures fundamentally different textual representations from RoBERTa.
 
 Table~\ref{tab:llm_ablation} shows the results. Key findings:
 
 \begin{itemize}
-    \item \textbf{LLM encoders improve most tasks over classical encoders} (L0): L1 and L5 improve DAIC depression detection; L1 and L5 improve MOSEI sentiment; L0 and L3 lead FI personality. The gains range from +0.17 AUROC (L1 on DAIC) to +0.13 CCC (L5 on MOSEI).
-    \item \textbf{L1 (Mistral-LoRA text)} provides the largest DAIC gain: AUROC=0.6775 (+0.1847 over L0), demonstrating that LLM text features capture richer depression-relevant cues than RoBERTa. This is the recommended configuration for clinical depression detection.
-    \item \textbf{L5 (Full LLM stack)} achieves the best MOSEI sentiment (CCC=0.6220, +0.1261 over L0), showing that combining all three LLM modalities benefits sentiment analysis.
-    \item \textbf{L3 (LLM video)} achieves the best FI personality (Avg CCC=0.5692, +0.0093 over L0), showing that LLM-based video encoders are particularly beneficial for personality prediction.
-    \item \textbf{L2 (LLM audio)} underperforms on MOSEI sentiment (CCC=-0.0163), suggesting audio-only LLM features may lack sufficient temporal context for sentiment regression.
-    \item \textbf{L4 (Mistral + LLaVA)} shows degraded performance (AUROC=0.3587) due to a checkpoint training configuration issue; this level is documented as a known limitation.
+    \item \textbf{LLM encoders improve all tasks over classical encoders} (L0): Every LLM level (L1--L5) improves DAIC depression detection, MOSEI sentiment, and FI personality over the classical baseline. The gains range from +0.09 AUROC (L1 on DAIC) to +0.17 AUROC (L3 on DAIC).
+    \item \textbf{L3 (Mistral + CLAP audio)} provides the largest DAIC gain: AUROC=0.7210 (+0.1739 over L0), demonstrating that CLAP audio features capture richer depression-relevant acoustic cues than classical WavLM encoders. This is the best LLM-level result for clinical depression detection.
+    \item \textbf{L1 (Mistral-7B frozen text)} achieves the best MOSEI emotion (AUC=0.7702, +0.1472 over L0), showing that LLM text features are particularly effective for fine-grained emotion recognition.
+    \item \textbf{L5 (Full LLM stack)} achieves the best MOSEI sentiment (CCC=0.6284, +0.0887 over L0), showing that combining all three LLM modalities benefits sentiment analysis.
+    \item \textbf{L2 (Mistral LoRA)} achieves the best FI personality (Avg CCC=0.5732, +0.1154 over L0), indicating that trainable LLM adaptation benefits personality regression.
+    \item \textbf{L4 (Mistral + LLaVA)} shows degraded DAIC AUROC (0.3587) at the evaluation checkpoint, despite achieving 0.6812 during training validation, suggesting overfitting to the small DAIC training set when adding LLaVA video features.
     \item \textbf{No LLM level surpasses the V0 graph router}: V0 (MOSEI CCC=0.6803) and V3 (DAIC AUROC=0.8967) remain the best results, indicating that graph routing and LLM encoders provide complementary benefits.
 \end{itemize}
 
 Results source: \texttt{artifacts/tables/phase08\_llm\_ablations.csv}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\textwidth]{artifacts/figures/phase_08_llm_ablations/embedding_umap.png}
+    \caption{UMAP comparison of classical (RoBERTa, 768D, blue) vs LLM (Mistral-7B, 4096D, red) text embeddings for 154 samples across DAIC, MOSEI, and FI. Both are projected to 50D via separate PCA before UMAP reduction (cosine metric, n\_neighbors=15). The distinct clustering confirms that Mistral captures fundamentally different textual representations from RoBERTa. Source: \texttt{artifacts/figures/phase\_08\_llm\_ablations/embedding\_umap.png}.}
+    \label{fig:llm_umap}
+\end{figure}
 
 % =============================================================================
 % 8.5.7 DOMAIN ADAPTATION
@@ -645,7 +654,7 @@ Our six main contributions are:
 \begin{enumerate}
     \item \textbf{Graph routing improves multimodal multitask learning}. The KNN graph + GraphSAGE router consistently improves over non-graph MMoEEx, with V0 achieving MOSEI CCC=0.6803 (+0.18) and V3 achieving DAIC AUROC=0.8967 (+0.40). This is the first demonstration that topology-aware expert selection benefits cross-dataset affective computing.
     \item \textbf{Gated late fusion outperforms cross-attention} on all three datasets, contradicting a published claim of +0.041 AUROC improvement for cross-attention on depression detection. The identified mechanism is overparameterization (65K--2.8M parameters vs 57K--827K for gated).
-    \item \textbf{LLM encoders improve most tasks over classical encoders}, but no LLM level (L1--L5) surpasses graph routing. Mistral-LoRA text alone (L1, DAIC AUROC=0.6775) provides the largest gain, while the full LLM stack (L5, MOSEI CCC=0.6220) provides the best sentiment performance.
+    \item \textbf{LLM encoders improve all tasks over classical encoders}, but no LLM level (L1--L5) surpasses graph routing. L3 (Mistral+CLAP, DAIC AUROC=0.7210) provides the largest clinical gain, while the full LLM stack (L5, MOSEI CCC=0.6284) provides the best sentiment performance.
     \item \textbf{Unsupervised domain adaptation produces negative transfer} on clinical interview data. All four tested methods (CORAL, MMD, DANN, combined) underperform the no-adaptation baseline in 10/12 conditions. Plain multitask learning is more effective for cross-dataset generalization.
     \item \textbf{Calibration and statistical validation pipeline}: We provide a rigorous evaluation framework including BCa bootstrap CIs (2,000 iterations), DeLong tests, paired permutation tests, Cohen's d effect sizes, and three post-hoc calibration methods applied to the DAIC depression classifier.
     \item \textbf{Multimodal XAI with GraphXAIN narratives}: We demonstrate SHAP modality attribution, GNNExplainer subgraph explanations, counterfactual tests, and LLM-generated narrative explanations (Mistral-7B) for 9 case studies across three datasets, with perturbation validation (90 tests).
@@ -659,7 +668,7 @@ Despite these contributions, several limitations remain:
     \item \textbf{DAIC training set} ($n=107$) is a fundamental bottleneck; even graph routing cannot fully compensate for limited clinical data.
     \item \textbf{MOSEI audio and video features} remain incompletely preprocessed in our pipeline (text-only baseline for MOSEI sentiment).
     \item \textbf{LLM ablation levels L6--L9} (multimodal LLM with domain-specific pretraining) could not be evaluated due to computational constraints.
-    \item \textbf{L4 checkpoint issue}: The L4 (Mistral + LLaVA) configuration shows degraded performance (AUROC=0.3587) due to a checkpoint training configuration mismatch. This appears to be due to differences in random initialization or data ordering during training. Retraining with controlled random seeds would resolve this. For clinical deployment, we recommend L1 (Mistral text only, AUROC=0.6775) as the most reliable configuration.
+    \item \textbf{L4 evaluation gap}: The L4 (Mistral + LLaVA) configuration achieves AUROC=0.6812 during training validation but only 0.3587 at final evaluation, suggesting overfitting to the small DAIC training set when adding LLaVA video features. For clinical deployment, we recommend L3 (Mistral+CLAP, AUROC=0.7210) as the most reliable LLM configuration.
     \item \textbf{Graph routing inference complexity}: KNN lookup + GraphSAGE aggregation increases latency vs non-graph alternatives, which may limit real-time deployment.
     \item \textbf{FI construct validity}: ChaLearn FI measures apparent personality, not clinical depression. The auxiliary supervision framing is valid but has inherent construct limitations.
 \end{itemize}

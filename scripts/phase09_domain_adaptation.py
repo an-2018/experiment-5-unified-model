@@ -112,6 +112,8 @@ def load_mosei_features():
         pooled_features.append(pooled)
 
     features = np.array(pooled_features)  # (N, 148)
+    # Replace any infinity/NaN values that may exist in MOSEI audio features
+    features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Extract sentiment labels: values in [-3, 3] range
     raw_labels = np.array(train_data['labels']).squeeze()  # (N,)

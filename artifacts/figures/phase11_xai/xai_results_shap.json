@@ -1,9 +1,11 @@
 {
   "test_auc": 0.35064935064935066,
+  "explain_mode": "shap",
+  "sample_id": "daic_test_001",
   "shap": {
     "n_samples": 30,
-    "audio_importance": 0.0002002695631219123,
-    "total_importance": 0.0002002695631219123,
+    "audio_importance": 0.0001980890340497125,
+    "total_importance": 0.0001980890340497125,
     "audio_dominance": 1.0
   },
   "perturbation": {
