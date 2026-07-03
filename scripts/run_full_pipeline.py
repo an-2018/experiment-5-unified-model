@@ -196,12 +196,11 @@ def get_phase_commands(phase: int, args) -> list:
         cmds.append("uv run python scripts/phase04_fusion.py --dataset mosei --fusion lmf --device cuda")
         # LR-DGN (Low-Rank Dynamic Gating Network) for DAIC — r=16 default, r=8 max regularization
         cmds.append("uv run python scripts/phase04_fusion.py --dataset daic --fusion lrdgn --device cuda")
-        cmds.append("uv run python scripts/phase04_fusion.py --dataset daic --fusion lrdgn --lrdgn_rank 8 --device cuda")
 
     elif phase == 5:
         # Phase 5 — MMoEEx (no graph)
         cmds = [
-            "uv run python scripts/phase05_mmoe_ex.py --dataset all --tasks depression,sentiment,emotion,personality --device cuda",
+            "uv run python scripts/phase05_mmoe_ex.py --mode train --device cuda",
         ]
 
     elif phase == 6:

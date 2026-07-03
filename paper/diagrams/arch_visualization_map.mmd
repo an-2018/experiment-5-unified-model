@@ -1,31 +1,35 @@
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
 flowchart LR
-    subgraph Phases["Experiment phases"]
-        V0["0. EDA and data contract"]
-        V1["1. Feature extraction"]
-        V2["2. Baselines"]
-        V3["3. Fusion"]
-        V4["4. MMoEEx"]
-        V5["5. Graph router"]
-        V6["6. Joint training"]
-        V7["7. LLM ablations"]
-        V8["8. Domain adaptation and ablations"]
-        V9["9. Evaluation and statistics"]
-        V10["10. XAI and thesis synthesis"]
+    subgraph Phases["Experiment Phases"]
+        V0["0. Environment Setup & contracts"]
+        V1["1. EDA"]
+        V2["2. Preprocessing"]
+        V3["3. Unimodal baselines"]
+        V4["4. Multimodal fusion"]
+        V5["5. MMoEEx backbone"]
+        V6["6. Graph construction"]
+        V7["7. Joint training"]
+        V8["8. LLM ablations"]
+        V9["9. Domain adaptation"]
+        V10["10. Calibration & statistics"]
+        V11["11. XAI explainability"]
+        V12["12. Thesis export"]
     end
 
-    subgraph Visuals["Visualization outputs"]
-        O0["Dataset EDA<br/>label distributions<br/>duration plots<br/>missing-modality heatmaps"]
-        O1["Feature-space plots<br/>UMAP/t-SNE<br/>embedding norms<br/>alignment panels"]
-        O2["Baseline plots<br/>metric bars with CIs<br/>confusion matrices<br/>prediction scatterplots"]
-        O3["Fusion plots<br/>modality gates<br/>cross-modal attention<br/>fusion success/failure samples"]
-        O4["Expert plots<br/>task-expert heatmaps<br/>expert diversity<br/>gate entropy"]
-        O5["Graph plots<br/>degree distribution<br/>dataset mixing<br/>KNN neighborhoods<br/>routing entropy"]
-        O6["Training dashboard<br/>loss curves<br/>uncertainty weights<br/>routing stability<br/>resource usage"]
-        O7["LLM comparison plots<br/>encoder ablations<br/>cost vs performance<br/>feature attribution shifts"]
-        O8["Ablation plots<br/>parallel coordinates<br/>domain alignment UMAPs<br/>component contribution matrix"]
-        O9["Statistical plots<br/>ROC/PR curves<br/>bootstrap CIs<br/>calibration curves<br/>Bland-Altman"]
-        O10["XAI case studies<br/>SHAP/IG force plots<br/>Grad-CAM panels<br/>GNN subgraphs<br/>GraphXAIN narratives"]
+    subgraph Visuals["Visualization Outputs"]
+        O0["Contracts & Masks<br/>dataset paths<br/>modality & task masks"]
+        O1["EDA Visualizations<br/>label distributions<br/>missing-modality heatmaps<br/>duration plots"]
+        O2["Cached Features<br/>RoBERTa, WavLM, ViT tensors<br/>manifest.json index"]
+        O3["Baseline Visuals<br/>metric bars with CIs<br/>confusion matrices<br/>prediction scatterplots"]
+        O4["Fusion Visuals<br/>gate weight heatmaps<br/>cross-modal attention<br/>fused UMAPs"]
+        O5["Expert Visuals<br/>task-expert heatmaps<br/>expert diversity<br/>learned task weights"]
+        O6["Graph Topology<br/>degree distributions<br/>mixing matrices<br/>UMAP + KNN edges"]
+        O7["Training Dashboard<br/>loss curves per task<br/>uncertainty weights<br/>routing entropy history"]
+        O8["LLM Ablation Visuals<br/>LLM feature UMAPs<br/>cost-performance curves<br/>L0-L5 delta bars"]
+        O9["Adaptation Visuals<br/>domain alignment UMAPs<br/>adaptation comparison bars"]
+        O10["Statistical Plots<br/>reliability diagrams<br/>ROC/PR curves<br/>bootstrap CIs<br/>Bland-Altman"]
+        O11["XAI Case Studies<br/>SHAP force/beeswarm<br/>GNN subgraphs<br/>counterfactuals<br/>GraphXAIN narratives"]
+        O12["Final Thesis Assets<br/>paper/chapter_8.tex<br/>diagrams & tables"]
     end
 
     V0 --> O0
@@ -39,15 +43,7 @@ flowchart LR
     V8 --> O8
     V9 --> O9
     V10 --> O10
+    V11 --> O11
+    V12 --> O12
 
-    O0 --> Thesis["Thesis figures and debugging evidence"]
-    O1 --> Thesis
-    O2 --> Thesis
-    O3 --> Thesis
-    O4 --> Thesis
-    O5 --> Thesis
-    O6 --> Thesis
-    O7 --> Thesis
-    O8 --> Thesis
-    O9 --> Thesis
-    O10 --> Thesis
+    O0 & O1 & O2 & O3 & O4 & O5 & O6 & O7 & O8 & O9 & O10 & O11 & O12 --> Thesis["Master Thesis Chapter 8"]

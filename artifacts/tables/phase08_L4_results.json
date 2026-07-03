@@ -1,9 +1,9 @@
 {
   "level": "L4",
-  "daic_auroc": 0.6340579710144928,
-  "mosei_sentiment_ccc": 0.6314984950423312,
-  "mosei_emotion_auc": 0.7235209203762959,
-  "fi_avg_ccc": 0.5258430430007817,
-  "gpu_hours": 0.0,
+  "daic_auroc": 0.6811594202898551,
+  "mosei_sentiment_ccc": 0.6255371229596555,
+  "mosei_emotion_auc": 0.7268364524936661,
+  "fi_avg_ccc": 0.5248511156724034,
+  "gpu_hours": 0.3200434356265598,
   "note": "Trained 30 epochs with LLM projector (level L4)"
 }

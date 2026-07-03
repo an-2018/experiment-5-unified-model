@@ -1,7 +1,7 @@
 # Chapter 8 Progress Tracker — Unified Multimodal Graph-Gated MoE
 
 **Paper lead:** @paper-lead
-**Last updated:** 2026-06-01
+**Last updated:** 2026-06-07
 
 ## Writing Waves Status
 
@@ -123,7 +123,7 @@
 5. **V0 (inductive, K=10) is best for MOSEI**: CCC=0.6803 (+0.18 vs MMoEEx).
 6. **V3 (inductive, K=15) is best for DAIC**: AUROC=0.8967 (+0.40 vs MMoEEx).
 7. **V4 (split-local, K=15) is best for FI**: Avg CCC=0.5032 (most conservative protocol).
-8. **LLM choice**: Mistral-7B-LoRA for text (DAIC AUROC=0.6775, best single upgrade). Full LLM stack (L5) underperforms L1 alone.
+8. **LLM choice**: L3 (Mistral-7B + CLAP audio) is best for DAIC (AUROC=0.7210). L1 (Mistral frozen text) best for MOSEI emotion (AUC=0.7702). L2 (Mistral LoRA) best for FI personality (Avg CCC=0.5732). Full LLM stack (L5, DAIC AUROC=0.6920) underperforms L3 (CLAP) alone.
 9. **Domain adaptation policy**: NOT merged. All DA methods (CORAL, MMD, DANN, combined) produce negative transfer.
 10. **Calibration**: Isotonic regression most effective post-hoc method for DAIC. Use held-out validation split.
 11. **GNNExplainer**: Custom gradient-based implementation used (PyG GNNExplainer not available in environment).

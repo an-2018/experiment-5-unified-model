@@ -22,5 +22,12 @@
   "coral_fi_to_daic": {
     "target_auc": 0.5346320346320346,
     "coral_loss": 0.3409229516983032
+  },
+  "mosei_to_daic": {
+    "method": "source_only",
+    "target_auc": 0.5670995670995672,
+    "target_acc": 0.2978723404255319,
+    "target_f1": 0.4,
+    "best_c": 0.1
   }
 }

@@ -93,7 +93,7 @@ uv run python scripts/phase03_unimodal_baselines.py --dataset all --modality all
 uv run python scripts/phase03_unimodal_baselines.py --only-visualize
 ```
 
-Key finding: Only DAIC text reliably beats random (AUROC=0.5952). FI audio CCC=0.4476 beats SoA.
+Key finding: DAIC text achieves AUROC=0.5346 (fails vs majority-class trivial=0.7196). FI video Avg CCC=0.4578 is best modality. SoA comparison included.
 
 ### Phase 4 — Fusion Baselines
 
@@ -171,35 +171,44 @@ uv run python scripts/phase07_joint_training.py \
 
 Outputs: `artifacts/figures/phase_07_joint_training/`
 
+Key finding: Joint training yields DAIC AUROC=0.5543, MOSEI CCC=0.4874, MOSEI Emo AUC=0.6858, FI Avg CCC=0.4258.
+
 ### Phase 8 — LLM Modality Ablations (L1–L5)
 
 > **Requires 4x NVIDIA RTX A6000 (48GB VRAM each)**
 > Auto-detects GPUs and distributes Mistral/LLaVA via `accelerate device_map="auto"`
+> After initial extraction (~1h/level), subsequent runs use `--skip_extraction` for fast iteration (~0.2h/level).
 
 ```bash
-# Full run: L0 (classical) → L1 (Mistral) → L2 (Mistral+LoRA) → L3 (+CLAP) → L4 (+LLaVA) → L5 (full stack)
-# First run: ~14-19 hours (extraction + training). After caching: ~1-3 hours.
+# Full run: L0 (classical) → L1 (Mistral) → L5 (full LLM stack)
+# First run: ~2-4 hours (including extraction). After caching: ~0.3 GPU-hours/level.
 bash scripts/run_phase08_all.sh --execute --epochs 30 --device cuda
 
 # Skip extraction — use cached features from previous run
 bash scripts/run_phase08_all.sh --execute --epochs 30 --device cuda --skip_extraction
 
-# Generate report from existing results
+# Generate summary report + UMAP visualization from existing results
 bash scripts/run_phase08_all.sh --report
 
+# Or directly:
+uv run python scripts/phase08_llm_ablations.py --generate_report
+
 # Individual levels (alternative)
-uv run python scripts/phase08_llm_ablations.py --ablation L0 --epochs 30          # instant (classical)
-uv run python scripts/phase08_llm_ablations.py --ablation L1 --epochs 30 --device cuda  # Mistral-7B frozen
+uv run python scripts/phase08_llm_ablations.py --ablation L0 --epochs 30          # instant (classical fallback)
+uv run python scripts/phase08_llm_ablations.py --ablation L1 --epochs 30 --device cuda  # Mistral-7B frozen text
 uv run python scripts/phase08_llm_ablations.py --ablation L2 --epochs 30 --device cuda  # Mistral + LoRA
-uv run python scripts/phase08_llm_ablations.py --ablation L3 --epochs 30 --device cuda  # + CLAP audio
-uv run python scripts/phase08_llm_ablations.py --ablation L4 --epochs 30 --device cuda  # + LLaVA video
-uv run python scripts/phase08_llm_ablations.py --ablation L5 --epochs 30 --device cuda  # full LLM stack
+uv run python scripts/phase08_llm_ablations.py --ablation L3 --epochs 30 --device cuda  # Mistral + CLAP audio
+uv run python scripts/phase08_llm_ablations.py --ablation L4 --epochs 30 --device cuda  # Mistral + LLaVA video
+uv run python scripts/phase08_llm_ablations.py --ablation L5 --epochs 30 --device cuda  # full LLM stack (text+audio+video)
 
 # L6–L9 require external APIs (ImageBind, LLM teacher, direct prompting, GraphXAIN)
 uv run python scripts/phase08_llm_ablations.py --ablation L6  # Requires external API
 ```
 
-Outputs: `artifacts/figures/phase_08_llm_ablations/`
+Outputs: `artifacts/figures/phase_08_llm_ablations/` — 5 figures including:
+- `llm_delta_bar.png` — DAIC AUROC improvement per LLM level
+- `embedding_umap.png` — UMAP of classical (RoBERTa) vs LLM (Mistral) text embeddings
+- `cost_performance.png` — GPU hours vs AUROC gain trade-off
 
 ### Phase 9 — Domain Adaptation
 
@@ -325,7 +334,7 @@ docs/            — Specs and plans
 | 5 | `phase_05_mmoe_ex/` | Expert utilization, task routing heatmaps |
 | 6 | `phase_06_graph/` | KNN graph visualizations, degree distributions, router comparison |
 | 7 | `phase_07_joint_training/` | Training curves, expert specialization, final metrics |
-| 8 | `phase_08_llm_ablations/` | L0–L5 comparison charts, VRAM usage, feature ablation heatmaps |
+| 8 | `phase_08_llm_ablations/` | L0–L5 comparison delta bar, UMAP classical vs LLM embeddings, cost-performance trade-off |
 | 9 | `phase_09_domain_adaptation/` | Domain shift visualization, transfer gain analysis |
 | 10 | `phase_10_evaluation/` | Calibration curves, reliability diagrams, statistical test tables |
 | 11 | `phase_11_xai/` | SHAP importance, GNNExplainer subgraphs, GraphXAIN narratives |
@@ -395,14 +404,14 @@ Phase 10 (calibration) ──► Phase 11 (XAI) ──► Phase 12 (thesis)
 | 2 — Preprocessing | ✅ Complete | OpenSMILE eGeMAPSv02, WavLM, RoBERTa, ViT, OpenFace |
 | 3 — Unimodal Baselines | ✅ Complete | 17 figures, SoA comparison, CSV with bootstrap CIs |
 | 4 — Fusion | ✅ Complete | Gated/LMF/LR-DGN, LR-DGN r=16 (57.9K params) |
-| 5 — MMoEEx | ✅ Complete | DAIC AUROC=0.5471, MOSEI CCC=0.4762, Emotion AUC=0.6906 |
-| 6 — Graph Construction | ✅ Complete | KNN graphs, NeighborLoader, 8 figures |
-| 7 — Joint Training | ✅ Complete | GG-MoE: DAIC AUROC 0.5471→0.5797 (+6%), 150 epochs |
-| 8 — LLM Ablations | ✅ Complete | L0–L5 on 4x A6000, L6–L9 stubs, CSV + 3 figures |
-| 9 — Domain Adaptation | ✅ Complete | CORAL/MMD/DANN, real MOSEI integration |
-| 10 — Calibration | ✅ Complete | Temperature/Platt/isotonic, BCa bootstrap CIs |
-| 11 — XAI | ✅ Complete | 768-dim audio in SHAP + perturbation, 18 figures |
-| 12 — Thesis | ✅ Complete | chapter_8.tex, all tables and figures |
+| 5 — MMoEEx | ✅ Complete | DAIC AUROC=0.4928, MOSEI CCC=0.4979, FI CCC=0.5793 (+0.12 over uni) |
+| 6 — Graph Construction | ✅ Complete | KNN graphs, 5 variants V0-V4, 8 figures, V0 MOSEI CCC=0.6803 |
+| 7 — Joint Training | ✅ Complete | DAIC AUROC=0.5543, training curves + routing entropy |
+| 8 — LLM Ablations | ✅ Complete | L0–L5 on 4x A6000, L3(CLAP) best DAIC=0.7210, 5 figures + UMAP |
+| 9 — Domain Adaptation | ✅ Complete | CORAL/MMD/DANN/combined, negative transfer detected (10/12 conditions) |
+| 10 — Calibration | ✅ Complete | Temperature/Platt/isotonic, BCa bootstrap CIs, DeLong tests |
+| 11 — XAI | ✅ Complete | SHAP beeswarm, GNNExplainer, GraphXAIN narratives, 21 figures |
+| 12 — Thesis | ✅ Complete | chapter_8.tex, all tables (14) and figures (6) |
 
 ---
 

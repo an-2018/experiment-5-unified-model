@@ -1,207 +1,180 @@
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
-flowchart LR
-    %% =====================
-    %% Datasets and contract
-    %% =====================
-    subgraph DataLayer["Datasets and sample contract"]
-        DAIC["DAIC-WOZ<br/>session or turn samples<br/>depression + PHQ-8"]
-        MOSEI["CMU-MOSEI<br/>utterance samples<br/>sentiment + emotions"]
-        FI["ChaLearn FI<br/>clip samples<br/>apparent Big-Five"]
-        Contract["Unified sample contract<br/>sample_id + subject_id + dataset_id<br/>task masks + missing-modality masks<br/>official splits + no leakage"]
-        DAIC --> Contract
-        MOSEI --> Contract
-        FI --> Contract
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+graph TD
+    %% =========================================================================
+    %% INPUT LAYER
+    %% =========================================================================
+    subgraph Inputs["Input Features & Metadata"]
+        TextIn["Text Features (RoBERTa/ClinicalBERT)<br>Shape: (Batch, 768)"]
+        AudioIn["Audio Features (WavLM/eGeMAPS)<br>Shape: (Batch, 768)"]
+        VideoIn["Video Features (ViT/OpenFace)<br>Shape: (Batch, 1536)"]
+        Mask["Modality Mask (T,A,V)<br>Shape: (Batch, 3) — bool"]
+        TaskID["Task ID {0,1,2,3}<br>0=DAIC 1=Sent 2=Emo 3=Pers"]
+        EdgeIndex["Graph Edge Index<br>Shape: (2, Num_Edges)"]
     end
 
-    Contract --> Inputs
-
-    %% =====================
-    %% Inputs and encoders
-    %% =====================
-    subgraph Inputs["Multimodal inputs"]
-        TextIn["Text / transcript"]
-        AudioIn["Audio waveform / acoustic features"]
-        VideoIn["Video frames / facial AUs"]
+    %% =========================================================================
+    %% ROUTING LAYER: Per-dataset modality policy
+    %% =========================================================================
+    subgraph RoutingPolicy["Per-Dataset Routing Policy"]
+        CondDAIC["routing == 'text_only'<br>DAIC: text only<br>FEATURE: text (768) → text_proj"]
+        CondFI["routing == 'video_only'<br>FI: video + audio<br>FEATURE: video (1536) → video_proj"]
+        CondMOSEI["routing == 'multimodal'<br>MOSEI: text+audio+video<br>→ GatedLateFusion"]
     end
 
-    subgraph TextBranch["Text branch"]
-        TBase["RoBERTa / ClinicalBERT<br/>baseline encoder"]
-        TMistral["Mistral-7B-Instruct LoRA<br/>r=16, alpha=32<br/>q_proj + v_proj<br/>LLM text ablation"]
-        TTeacher["LLM teacher features<br/>symptom cues, discourse markers,<br/>transcript summaries"]
-        TextProj["Text projection<br/>to 256/512-d"]
-        TextIn --> TBase
-        TextIn --> TMistral
-        TextIn --> TTeacher
-        TBase --> TextProj
-        TMistral --> TextProj
-        TTeacher --> TextProj
+    TextIn --> CondDAIC
+    TextIn --> CondMOSEI
+    AudioIn --> CondMOSEI
+    VideoIn --> CondFI
+    VideoIn --> CondMOSEI
+
+    %% =========================================================================
+    %% MODALITY PROJECTORS (initially frozen for 20 epochs)
+    %% =========================================================================
+    subgraph Projectors["Projectors (Frozen 0-20 Epochs, Unfrozen 21-150)"]
+        TextProj["text_proj<br>Sequential(<br>  Linear(768→256),<br>  LayerNorm(256),<br>  GELU())"]
+        AudioProj["audio_proj<br>Sequential(<br>  Linear(768→256),<br>  LayerNorm(256),<br>  GELU())"]
+        VideoProj["video_proj<br>Sequential(<br>  Linear(1536→256),<br>  LayerNorm(256),<br>  GELU())"]
     end
 
-    subgraph AudioBranch["Audio branch"]
-        ABase["Wav2Vec 2.0 / HuBERT / WavLM<br/>speech representation baseline"]
-        AHand["eGeMAPS / COVAREP<br/>interpretable acoustic features"]
-        ALLM["Audio-LLM ablation<br/>Qwen2-Audio-like features<br/>paralinguistic descriptors"]
-        AudioProj["Audio projection<br/>to 256/512-d"]
-        AudioIn --> ABase
-        AudioIn --> AHand
-        AudioIn --> ALLM
-        ABase --> AudioProj
-        AHand --> AudioProj
-        ALLM --> AudioProj
+    CondDAIC --> TextProj
+    CondFI --> VideoProj
+
+    %% =========================================================================
+    %% GATED LATE FUSION (for MOSEI multimodal path)
+    %% =========================================================================
+    subgraph GatedLateFusion["GatedLateFusion (src/models/fusion.py)"]
+        GLF_TProj["ModalityProjector(768→256)<br>Linear→LayerNorm→GELU"]
+        GLF_AProj["ModalityProjector(768→256)<br>Linear→LayerNorm→GELU"]
+        GLF_VProj["ModalityProjector(1536→256)<br>Linear→LayerNorm→GELU"]
+
+        GLF_TGate["text_gate<br>Sequential(Linear(256→256), Sigmoid)"]
+        GLF_AGate["audio_gate<br>Sequential(Linear(256→256), Sigmoid)"]
+        GLF_VGate["video_gate<br>Sequential(Linear(256→256), Sigmoid)"]
+
+        GLF_Sum["Gate-Weighted Sum<br>h = t_g·t_proj + a_g·a_proj + v_g·v_proj<br>Missing modalities zeroed via mask<br>Shape: (Batch, 256)"]
+
+        CondMOSEI --> GLF_TProj
+        CondMOSEI --> GLF_AProj
+        CondMOSEI --> GLF_VProj
+
+        Mask -.->|"modality_mask[:,i]"| GLF_TGate
+        Mask -.->|"modality_mask[:,i]"| GLF_AGate
+        Mask -.->|"modality_mask[:,i]"| GLF_VGate
+
+        GLF_TProj --> GLF_TGate
+        GLF_AProj --> GLF_AGate
+        GLF_VProj --> GLF_VGate
+
+        GLF_TProj & GLF_TGate --> GLF_Sum
+        GLF_AProj & GLF_AGate --> GLF_Sum
+        GLF_VProj & GLF_VGate --> GLF_Sum
     end
 
-    subgraph VideoBranch["Video branch"]
-        VBase["OpenFace AUs<br/>interpretable facial actions"]
-        VDeep["ViT / 3D-ResNet<br/>spatiotemporal baseline"]
-        VLLM["Vision/Video-LLM ablation<br/>Qwen2.5-VL / LLaVA-OneVision-like features"]
-        VideoProj["Video projection<br/>to 256/512-d"]
-        VideoIn --> VBase
-        VideoIn --> VDeep
-        VideoIn --> VLLM
-        VBase --> VideoProj
-        VDeep --> VideoProj
-        VLLM --> VideoProj
+    %% =========================================================================
+    %% FUSED REPRESENTATION
+    %% =========================================================================
+    Fused["Fused Representation h<br>Shape: (Batch, 256)"]
+    TextProj --> Fused
+    VideoProj --> Fused
+    GLF_Sum --> Fused
+
+    %% =========================================================================
+    %% GRAPH-GATED MMoEEx
+    %% =========================================================================
+    subgraph GGMoe["Graph-Gated MMoEEx (src/models/unified_moe.py + gnn_router.py)"]
+        subgraph GateLayer["MMoE Gates (task-specific)"]
+            Gate0["Gate 0 (DAIC depression)<br>Linear(256→8) — bias=False<br>Restricted to experts [0,1]"]
+            Gate1["Gate 1 (MOSEI sentiment)<br>Linear(256→8) — bias=False<br>Restricted to experts [2,3]"]
+            Gate2["Gate 2 (MOSEI emotion)<br>Linear(256→8) — bias=False<br>Restricted to experts [2,3]"]
+            Gate3["Gate 3 (FI personality)<br>Linear(256→8) — bias=False<br>Restricted to experts [4,5]"]
+        end
+
+        subgraph GraphRouter["Graph Routers"]
+            GR_SAGE["GraphSAGE Router<br>2 layers: 256→126→8<br>Mean aggregation + residual<br>hidden_dim=126"]
+            GR_GAT["GAT Router<br>3 heads, head_dim=42<br>Scaled dot-product attention<br>hidden_dim=126 (126=3×42)"]
+        end
+
+        subgraph CombineGate["Log-Space Gate Fusion"]
+            LS_MMoE["softmax(gate_logits) — per task<br>Shape: (Batch, num_experts_allowed)"]
+            LS_GRAPH["GraphSAGE/GAT output<br>Shape: (Batch, 8)"]
+            LS_COMB["Combined Routing Weights<br>r_i = softmax(log(gate_probs)<br>      + graph_weight·log(graph_probs))<br>graph_weight = 0.5<br>Shape: (Batch, 8)"]
+        end
+
+        subgraph Experts["Expert Bank (8 Experts, Expert(256→256→256))"]
+            E0["Expert 0<br>DAIC isolated"]
+            E1["Expert 1<br>DAIC isolated"]
+            E2["Expert 2<br>MOSEI shared"]
+            E3["Expert 3<br>MOSEI shared"]
+            E4["Expert 4<br>FI isolated"]
+            E5["Expert 5<br>FI isolated"]
+            E6["Expert 6<br>Shared (any task)"]
+            E7["Expert 7<br>Shared (any task)"]
+        end
+
+        subgraph ExpertArch["Per-Expert Architecture"]
+            E_Linear1["Linear(256→256)"]
+            E_GELU["GELU()"]
+            E_Dropout["Dropout(0.1)"]
+            E_Linear2["Linear(256→256)"]
+            E_Skip["Skip Connection (Identity)"]
+            E_Sum["Sum: net(x) + skip(x)<br>Shape: (Batch, 256)"]
+        end
+
+        subgraph Mixture["Expert Mixture"]
+            MIX["Weighted Sum<br>Σ(r_i · expert_i(x))<br>Shape: (Batch, 256)"]
+        end
+
+        Fused --> Gate0
+        Fused --> Gate1
+        Fused --> Gate2
+        Fused --> Gate3
+        Fused --> GR_SAGE
+        Fused --> GR_GAT
+        EdgeIndex --> GR_SAGE
+        EdgeIndex --> GR_GAT
+
+        Gate0 --> LS_MMoE
+        Gate1 --> LS_MMoE
+        Gate2 --> LS_MMoE
+        Gate3 --> LS_MMoE
+        GR_SAGE --> LS_GRAPH
+        GR_GAT --> LS_GRAPH
+
+        LS_MMoE & LS_GRAPH --> LS_COMB
+
+        Fused --> E_Linear1
+        E_Linear1 --> E_GELU --> E_Dropout --> E_Linear2 --> E_Sum
+        E_Skip --> E_Sum
+
+        E0 & E1 & E2 & E3 & E4 & E5 & E6 & E7 --- E_Sum
+
+        LS_COMB & E_Sum --> MIX
     end
 
-    %% =====================
-    %% Fusion
-    %% =====================
-    TextProj --> Fusion
-    AudioProj --> Fusion
-    VideoProj --> Fusion
-
-    subgraph Fusion["Low-rank / gated late fusion"]
-        Masking["Apply modality masks<br/>handle missing text/audio/video"]
-        LMF["LMF / gated fusion<br/>+ cross-modal attention"]
-        H["Shared fused embedding h_i"]
-        Masking --> LMF --> H
+    %% =========================================================================
+    %% TASK HEADS
+    %% =========================================================================
+    subgraph TaskHeads["Task Heads (src/models/task_heads.py)"]
+        DepHead["DepressionHead (Task 0)<br>Sequential(<br>  Linear(256→128), ReLU,<br>  Dropout(0.3),<br>  Linear(128→1))"]
+        SentHead["SentimentHead (Task 1)<br>Sequential(<br>  Linear(256→128), ReLU,<br>  Dropout(0.3),<br>  Linear(128→1))"]
+        EmoHead["EmotionMultiLabelHead (Task 2)<br>Sequential(<br>  Linear(256→128), ReLU,<br>  Dropout(0.3),<br>  Linear(128→6))"]
+        PersHead["PersonalityHead (Task 3)<br>5 independent heads:<br>  Linear(256→64), ReLU,<br>  Dropout(0.3),<br>  Linear(64→1)<br>Labels: O,C,E,A,N"]
     end
 
-    %% =====================
-    %% Domain adaptation
-    %% =====================
-    subgraph DomainAdapt["Domain adaptation ablations"]
-        MMD["MMD"]
-        CORAL["Deep CORAL"]
-        DANN["DANN + GRL"]
-        DomainViz["Domain visualizations<br/>UMAP by dataset<br/>alignment curves"]
-    end
+    MIX --> DepHead
+    MIX --> SentHead
+    MIX --> EmoHead
+    MIX --> PersHead
 
-    H --> MMD
-    H --> CORAL
-    H --> DANN
-    MMD --> H
-    CORAL --> H
-    DANN --> H
-    MMD --> DomainViz
-    CORAL --> DomainViz
-    DANN --> DomainViz
+    %% =========================================================================
+    %% OUTPUTS
+    %% =========================================================================
+    DepOut["Depression Score (logit)<br>Shape: (Batch, 1)"]
+    SentOut["Sentiment Score<br>Shape: (Batch, 1)"]
+    EmoOut["Emotion Logits (6-class)<br>Shape: (Batch, 6)"]
+    PersOut["Personality Scores (5-dim)<br>Shape: (Batch, 5)"]
 
-    %% =====================
-    %% MoE backbone
-    %% =====================
-    subgraph MoE["MMoEEx multitask backbone"]
-        Experts["Bank of K experts<br/>MLPs / small transformers"]
-        Gates["Task-specific gates<br/>g_t(h_i)"]
-        Excl["Expert diversity<br/>exclusivity + orthogonality regularization"]
-        H --> Experts
-        H --> Gates
-        Experts --> Excl
-    end
-
-    %% =====================
-    %% Graph construction and router
-    %% =====================
-    subgraph GraphBuild["Graph construction and leakage-safe protocol"]
-        HGraph["Graph embeddings<br/>h_i or ImageBind-style shared embeddings"]
-        SplitProtocol["Graph protocol<br/>main: inductive val/test<br/>ablation: transductive graph<br/>never use labels in graph edges"]
-        KNN["KNN similarity graph<br/>nodes=samples<br/>edges=multimodal similarity"]
-        GraphViz["Graph visualizations<br/>degree distribution<br/>dataset mixing<br/>UMAP + neighborhood examples"]
-        H --> HGraph
-        HGraph --> SplitProtocol --> KNN --> GraphViz
-    end
-
-    subgraph Router["Graph-gated MoE router"]
-        GraphSAGE["GraphSAGE / GAT router"]
-        R["Graph routing weights r_i"]
-        RouterEntropy["Router diagnostics<br/>expert usage + entropy"]
-        KNN --> GraphSAGE --> R --> RouterEntropy
-    end
-
-    %% =====================
-    %% Combine routing
-    %% =====================
-    Gates --> Combine
-    Experts --> Combine
-    R --> Combine
-
-    Combine["Combine task gate g_t(h_i)<br/>with graph routing r_i<br/>log-space fusion + softmax"]
-
-    Combine --> UDep["u_dep"]
-    Combine --> USent["u_sent"]
-    Combine --> UEmo["u_emo"]
-    Combine --> UPers["u_pers"]
-
-    %% =====================
-    %% Task heads
-    %% =====================
-    subgraph Heads["Task-specific heads"]
-        DepHead["DAIC depression head<br/>binary risk + PHQ-8 severity"]
-        SentHead["MOSEI sentiment head<br/>regression + optional Acc-2"]
-        EmoHead["MOSEI emotion head<br/>multi-label emotions"]
-        PersHead["FI personality head<br/>Big-Five regression"]
-    end
-
-    UDep --> DepHead
-    USent --> SentHead
-    UEmo --> EmoHead
-    UPers --> PersHead
-
-    %% =====================
-    %% Losses and evaluation
-    %% =====================
-    subgraph TrainEval["Training, calibration, and statistical evaluation"]
-        LDep["BCE + optional PHQ loss"]
-        LSent["MAE/MSE or CCC loss"]
-        LEmo["Multi-label BCE"]
-        LPers["MAE / CCC loss"]
-        Unc["Homoscedastic uncertainty weighting"]
-        TotalLoss["Total loss<br/>task losses + exclusivity + weight decay"]
-        Calib["Calibration<br/>Brier + ECE + reliability curves"]
-        Stats["Statistical tests<br/>BCa bootstrap CIs<br/>DeLong AUROC<br/>permutation tests"]
-        MetricViz["Metric visualizations<br/>bar plots with CIs<br/>parallel coordinates<br/>Bland-Altman plots"]
-        DepHead --> LDep --> Unc
-        SentHead --> LSent --> Unc
-        EmoHead --> LEmo --> Unc
-        PersHead --> LPers --> Unc
-        Unc --> TotalLoss
-        DepHead --> Calib
-        EmoHead --> Calib
-        DepHead --> Stats
-        SentHead --> Stats
-        EmoHead --> Stats
-        PersHead --> Stats
-        Stats --> MetricViz
-        Calib --> MetricViz
-    end
-
-    %% =====================
-    %% XAI
-    %% =====================
-    subgraph XAI["Explainability and narratives"]
-        SHAP["SHAP / Integrated Gradients<br/>modality and feature attribution"]
-        GradCAM["Grad-CAM / frame saliency<br/>visual evidence"]
-        GNNExp["GNNExplainer / PGExplainer<br/>important nodes, edges, subgraphs"]
-        RoutingXAI["Routing explanations<br/>expert weights + graph neighbors"]
-        GraphXAIN["GraphXAIN-style LLM narratives<br/>human-readable explanation"]
-        XAIViz["XAI visualizations<br/>subgraphs, force plots,<br/>routing heatmaps,<br/>case-study panels"]
-        H --> SHAP
-        VideoProj --> GradCAM
-        GraphSAGE --> GNNExp
-        R --> RoutingXAI
-        SHAP --> GraphXAIN
-        GradCAM --> GraphXAIN
-        GNNExp --> GraphXAIN
-        RoutingXAI --> GraphXAIN
-        GraphXAIN --> XAIViz
-    end
+    DepHead --> DepOut
+    SentHead --> SentOut
+    EmoHead --> EmoOut
+    PersHead --> PersOut

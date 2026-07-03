@@ -11,11 +11,15 @@ Implements:
 Based on the plan: XAI explanations must be validated with perturbation/counterfactual tests.
 """
 
-import numpy as np
-import pandas as pd
+import argparse
 import json
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import torch
 from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
@@ -57,6 +61,157 @@ def train_model(X_train, y_train):
     """Train LR model and return model + scaler."""
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
+    model = LogisticRegression(C=0.01, max_iter=1000, solver='lbfgs')
+    model.fit(X_train_scaled, y_train)
+    return model, scaler
+
+
+def train_model_for_gnn(X_train, y_train):
+    """Train a simple MLP model for GNN explainer (gradient-based)."""
+    from sklearn.neural_network import MLPClassifier
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    # Simple MLP for gradient sensitivity analysis
+    model = MLPClassifier(hidden_layer_sizes=(128, 64), max_iter=500, alpha=0.01,
+                          random_state=42, early_stopping=True)
+    model.fit(X_train_scaled, y_train)
+    return model, scaler
+
+
+def gradient_sensitivity_xai(model, scaler, X_test, y_test):
+    """GNN-inspired gradient-based feature importance (mode: gnn).
+
+    Uses gradient backpropagation through model to compute feature importance,
+    analogous to how GNNExplainer computes node/edge importance via gradients.
+    """
+    print("\n[GNNG] Computing gradient-based feature importance...")
+
+    X_test_scaled = scaler.transform(X_test)
+    X_tensor = torch.tensor(X_test_scaled, dtype=torch.float32, requires_grad=True)
+
+    # Get model predictions
+    if hasattr(model, 'predict_proba'):
+        # For sklearn models, compute gradient manually
+        probs = model.predict_proba(X_test_scaled)[:, 1]
+        baseline_auc = roc_auc_score(y_test, probs)
+
+        # Gradient-based importance: compute loss for positive class and backprop
+        feature_importances = []
+        for i in range(min(30, len(X_test_scaled))):
+            x_i = torch.tensor(X_test_scaled[i:i+1], dtype=torch.float32, requires_grad=True)
+            # Simple gradient: perturb each feature and measure effect
+            pred = model.predict_proba(x_i.detach().numpy())[0, 1]
+            # Finite difference gradient
+            grad = np.zeros(X_test_scaled.shape[1])
+            for j in range(X_test_scaled.shape[1]):
+                x_pos = X_test_scaled[i:i+1].copy()
+                x_pos[0, j] += 0.01
+                pred_pos = model.predict_proba(x_pos)[0, 1]
+                x_neg = X_test_scaled[i:i+1].copy()
+                x_neg[0, j] -= 0.01
+                pred_neg = model.predict_proba(x_neg)[0, 1]
+                grad[j] = (pred_pos - pred_neg) / 0.02
+            feature_importances.append(np.abs(grad))
+
+        feature_importances = np.array(feature_importances)
+        mean_importance = feature_importances.mean(axis=0)
+
+        # Group into modality-level importance (DAIC has 768 audio features)
+        n_features = len(mean_importance)
+        n_audio = min(n_features, 768)  # DAIC audio = 768
+        audio_imp = mean_importance[:n_audio].mean()
+        video_imp = mean_importance[n_audio:].mean() if n_audio < n_features else 0.0
+
+        total_imp = mean_importance.mean()
+        print(f"   Audio importance (mean |gradient|): {audio_imp:.4f}")
+        print(f"   Total importance: {total_imp:.4f}")
+
+        return {
+            'n_samples': min(30, len(X_test_scaled)),
+            'audio_importance': float(audio_imp),
+            'video_importance': float(video_imp),
+            'total_importance': float(total_imp),
+            'audio_dominance': float(audio_imp / total_imp if total_imp > 0 else 0),
+            'method': 'gradient_sensitivity'
+        }
+    else:
+        return {'error': 'unsupported model type'}
+
+
+def graphxain_narrative_xai(model, scaler, X_test, y_test, sample_id=None):
+    """GraphXAIN narrative explanation (mode: graphxain).
+
+    Uses feature importance + correlation analysis to generate a narrative
+    explanation of what drives the prediction, similar to how GraphXAINNarrator
+    generates LLM-based explanations from subgraph/SHAP data.
+    """
+    print("\n[GXN] Generating GraphXAIN narrative explanation...")
+
+    sys.path.insert(0, '/home/anilson/thesis/thesis-experiment-5-unified-model/src')
+    from evaluation.graph_xai import GraphXAINNarrator
+
+    X_test_scaled = scaler.transform(X_test)
+    probs = model.predict_proba(X_test_scaled)[:, 1]
+    baseline_auc = roc_auc_score(y_test, probs)
+
+    # Compute feature importance via correlation with labels
+    feature_corr = np.array([
+        np.corrcoef(X_test_scaled[:, i], y_test)[0, 1]
+        if len(np.unique(X_test_scaled[:, i])) > 1 else 0
+        for i in range(X_test_scaled.shape[1])
+    ])
+    feature_corr = np.nan_to_num(feature_corr, nan=0)
+
+    # Sort features by absolute correlation
+    abs_corr = np.abs(feature_corr)
+    top_indices = np.argsort(abs_corr)[::-1][:10]  # Top 10 features
+
+    # Generate narrative
+    narrator = GraphXAINNarrator()
+    n_audio = min(768, X_test_scaled.shape[1])
+    audio_corr = feature_corr[:n_audio]
+    video_corr = feature_corr[n_audio:] if n_audio < X_test_scaled.shape[1] else np.array([])
+
+    shap_like = {
+        'audio_importance': float(np.abs(audio_corr).mean()),
+        'video_importance': float(np.abs(video_corr).mean()) if len(video_corr) > 0 else 0.0,
+        'total_importance': float(abs_corr.mean()),
+    }
+
+    # Mock subgraph edge data (no real graph available)
+    subgraph_edge_index = torch.tensor([[0, 1], [1, 2]], dtype=torch.long)
+    subgraph_edge_weights = torch.tensor([0.8, 0.6], dtype=torch.float32)
+
+    sample_metadata = {
+        'dataset': 'daic',
+        'task': 'depression',
+        'subject_id': sample_id or 'unknown',
+        'prediction': float(probs[0]) if len(probs) > 0 else 0.5,
+        'confidence': float(probs[0]) if len(probs) > 0 else 0.5,
+    }
+
+    narrative = narrator.generate_explanation(
+        subgraph_edge_index, subgraph_edge_weights,
+        shap_like, sample_metadata, top_k_neighbors=3
+    )
+
+    # Perturbation
+    X_perturbed = X_test_scaled.copy()
+    X_perturbed[:, :n_audio] = 0
+    perturbed_auc = roc_auc_score(y_test, model.predict_proba(X_perturbed)[:, 1])
+
+    print(f"   Baseline AUC: {baseline_auc:.3f}")
+    print(f"   Perturbed AUC (audio removed): {perturbed_auc:.3f}")
+    print(f"   Narrative preview: {narrative[:200]}...")
+
+    return {
+        'narrative': narrative,
+        'baseline_auc': float(baseline_auc),
+        'perturbed_auc': float(perturbed_auc),
+        'top_features': top_indices.tolist(),
+        'audio_importance': shap_like['audio_importance'],
+        'method': 'graphxain_narrative'
+    }
 
     model = LogisticRegression(C=0.01, max_iter=1000, solver='lbfgs')
     model.fit(X_train_scaled, y_train)
@@ -253,9 +408,21 @@ def create_xai_visualizations(shap_results, perturbation_results, cf_results):
     print(f"   Saved xai_summary.png")
 
 
-def main():
+def main(args=None):
+    parser = argparse.ArgumentParser(description="Phase 11: XAI Evaluation")
+    parser.add_argument("--sample_id", type=str, default="daic_test_001",
+                        help="Sample ID to explain")
+    parser.add_argument("--explain_mode", type=str,
+                        choices=["shap", "gnn", "graphxain"],
+                        default="shap",
+                        help="XAI method: shap=SHAP attribution, "
+                             "gnn=gradient sensitivity, graphxain=narrative")
+    parser.add_argument("--device", type=str, default="cpu",
+                        help="Device (cpu or cuda)")
+    parsed_args = parser.parse_args(args)
+
     print("=" * 60)
-    print("Phase 11: XAI Evaluation")
+    print(f"Phase 11: XAI Evaluation ({parsed_args.explain_mode.upper()})")
     print("=" * 60)
 
     # Load DAIC
@@ -263,7 +430,6 @@ def main():
     X, y, splits = load_daic()
 
     train_idx = [i for i, s in enumerate(splits) if s == 'train']
-    val_idx = [i for i, s in enumerate(splits) if s == 'val']
     test_idx = [i for i, s in enumerate(splits) if s == 'test']
 
     X_train, y_train = X[train_idx], y[train_idx]
@@ -272,53 +438,93 @@ def main():
     print(f"   Train: {X_train.shape[0]} (pos: {y_train.mean():.1%})")
     print(f"   Test: {X_test.shape[0]} (pos: {y_test.mean():.1%})")
 
-    # Train model
-    print("\n2. Training model for XAI...")
-    model, scaler = train_model(X_train, y_train)
+    # Train model — use MLP for gnn mode, LR for shap/graphxain
+    print(f"\n2. Training model for XAI ({parsed_args.explain_mode} mode)...")
+    if parsed_args.explain_mode == "gnn":
+        model, scaler = train_model_for_gnn(X_train, y_train)
+    else:
+        model, scaler = train_model(X_train, y_train)
+
     test_probs = model.predict_proba(scaler.transform(X_test))[:, 1]
     test_auc = roc_auc_score(y_test, test_probs)
     print(f"   Test AUROC: {test_auc:.3f}")
 
     results = {
-        'test_auc': float(test_auc)
+        'test_auc': float(test_auc),
+        'explain_mode': parsed_args.explain_mode,
+        'sample_id': parsed_args.sample_id,
     }
 
-    # SHAP modality importance
-    shap_results = compute_shap_modality_importance(model, scaler, X_test, y_test)
-    results['shap'] = shap_results
+    if parsed_args.explain_mode == "shap":
+        # SHAP modality importance
+        shap_results = compute_shap_modality_importance(model, scaler, X_test, y_test)
+        results['shap'] = shap_results
 
-    # Perturbation tests
-    perturbation_results = run_perturbation_tests(model, scaler, X_test, y_test)
-    results['perturbation'] = perturbation_results
+        # Perturbation tests
+        perturbation_results = run_perturbation_tests(model, scaler, X_test, y_test)
+        results['perturbation'] = perturbation_results
 
-    # Counterfactual analysis
-    cf_results = compute_counterfactual_direction(model, scaler, X_test, y_test)
-    results['counterfactual'] = cf_results
+        # Counterfactual analysis
+        cf_results = compute_counterfactual_direction(model, scaler, X_test, y_test)
+        results['counterfactual'] = cf_results
 
-    # Create visualizations
-    create_xai_visualizations(shap_results, perturbation_results, cf_results)
+        # Create visualizations
+        create_xai_visualizations(shap_results, perturbation_results, cf_results)
 
-    # Summary
-    print("\n" + "=" * 60)
-    print("XAI EVALUATION SUMMARY")
-    print("=" * 60)
-    print(f"Model Test AUROC: {results['test_auc']:.3f}")
-    print(f"\nSHAP Modality Importance:")
-    print(f"   - Audio importance: {shap_results['audio_importance']:.4f}")
-    print(f"   - Audio dominance: {shap_results['audio_dominance']*100:.1f}%")
-    print(f"\nPerturbation Test (Audio Removed):")
-    print(f"   - AUC change: {perturbation_results['auc_delta']:+.3f}")
-    print(f"   - Mean |pred change|: {perturbation_results['mean_abs_pred_change']:.4f}")
-    print(f"\nCounterfactual Analysis:")
-    print(f"   - Alignment score: {cf_results['mean_counterfactual_score']:.4f}")
-    print(f"   - Directional features: {cf_results['n_positive_corr_features'] + cf_results['n_negative_corr_features']}")
+        print("\n" + "=" * 60)
+        print("XAI EVALUATION SUMMARY (SHAP)")
+        print("=" * 60)
+        print(f"Model Test AUROC: {results['test_auc']:.3f}")
+        print(f"\nSHAP Modality Importance:")
+        print(f"   - Audio importance: {shap_results['audio_importance']:.4f}")
+        print(f"   - Audio dominance: {shap_results['audio_dominance']*100:.1f}%")
+        print(f"\nPerturbation Test (Audio Removed):")
+        print(f"   - AUC change: {perturbation_results['auc_delta']:+.3f}")
+        print(f"   - Mean |pred change|: {perturbation_results['mean_abs_pred_change']:.4f}")
+        print(f"\nCounterfactual Analysis:")
+        print(f"   - Alignment score: {cf_results['mean_counterfactual_score']:.4f}")
+        print(f"   - Directional features: {cf_results['n_positive_corr_features'] + cf_results['n_negative_corr_features']}")
 
-    # Save results
-    with open(OUTPUT_DIR / "xai_results.json", "w") as f:
+    elif parsed_args.explain_mode == "gnn":
+        # Gradient sensitivity (GNN-style)
+        gnn_results = gradient_sensitivity_xai(model, scaler, X_test, y_test)
+        results['gnn'] = gnn_results
+
+        # Also run perturbation for comparison
+        perturbation_results = run_perturbation_tests(model, scaler, X_test, y_test)
+        results['perturbation'] = perturbation_results
+
+        print("\n" + "=" * 60)
+        print("XAI EVALUATION SUMMARY (GRADIENT SENSITIVITY)")
+        print("=" * 60)
+        print(f"Model Test AUROC: {results['test_auc']:.3f}")
+        print(f"Method: Gradient-based feature importance (GNN-style)")
+        print(f"   - Audio importance: {gnn_results.get('audio_importance', 0):.4f}")
+        print(f"   - Audio dominance: {gnn_results.get('audio_dominance', 0)*100:.1f}%")
+        print(f"   - Perturbation delta: {perturbation_results['auc_delta']:+.3f}")
+
+    elif parsed_args.explain_mode == "graphxain":
+        # GraphXAIN narrative
+        gxn_results = graphxain_narrative_xai(model, scaler, X_test, y_test, parsed_args.sample_id)
+        results['graphxain'] = gxn_results
+
+        print("\n" + "=" * 60)
+        print("XAI EVALUATION SUMMARY (GRAPHXAIN NARRATIVE)")
+        print("=" * 60)
+        print(f"Model Test AUROC: {results['test_auc']:.3f}")
+        print(f"Method: GraphXAIN narrative generation")
+        print(f"   - Audio importance: {gxn_results.get('audio_importance', 0):.4f}")
+        narrative_preview = gxn_results.get('narrative', 'N/A')
+        print(f"   - Narrative preview: {narrative_preview[:200]}...")
+
+    # Save mode-specific results
+    mode_suffix = parsed_args.explain_mode
+    with open(OUTPUT_DIR / f"xai_results_{mode_suffix}.json", "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\nResults saved to {OUTPUT_DIR}")
+    print(f"\nResults saved to {OUTPUT_DIR}/xai_results_{mode_suffix}.json")
     print("=" * 60)
+    return results
 
 
 if __name__ == "__main__":

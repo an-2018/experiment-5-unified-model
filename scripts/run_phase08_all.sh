@@ -78,7 +78,7 @@ fi
 NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l || echo 0)
 if [ "$NUM_GPUS" -gt 0 ]; then
     GPU_MEM_TOTAL=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | head -1 || echo "?")
-    echo "🖥️  $NUM_GPUSx NVIDIA RTX A6000 detected (${GPU_MEM_TOTAL} MiB each)"
+    echo "🖥️  ${NUM_GPUS}x NVIDIA RTX A6000 detected (${GPU_MEM_TOTAL} MiB each)"
 fi
 echo "   peft $(uv run python -c "import peft; print(peft.__version__)" 2>/dev/null || echo 'N/A') | accelerate $(uv run python -c "import accelerate; print(accelerate.__version__)" 2>/dev/null || echo 'N/A') | opensmile $(uv run python -c "import opensmile; print(opensmile.__version__)" 2>/dev/null || echo 'N/A')"
 

@@ -22,6 +22,7 @@ import math
 import os
 import pickle
 import sys
+import time
 import warnings
 from collections import defaultdict
 from pathlib import Path
@@ -35,6 +36,7 @@ from torch.cuda.amp import autocast, GradScaler
 from torch.nn.utils.rnn import pad_sequence
 
 warnings.filterwarnings("ignore")
+import random
 
 ROOT = Path("/home/anilson/thesis/thesis-experiment-5-unified-model")
 FEATURES_ROOT = ROOT / "data" / "features"
@@ -70,14 +72,32 @@ LLM_DIMS = {
     "llava": 4096,   # LLaVA-1.5-7B hidden dim is 4096
 }
 
-# Phase 5 baseline results (to reuse for L0)
-PHASE5_RESULTS = {
-    "daic_auroc": 0.5471,  # MMoEEx result
-    "daic_auroc_text_only": 0.6991,  # text-only result
-    "mosei_sentiment_ccc": 0.5397,
-    "mosei_emotion_auc": 0.6230,
-    "fi_avg_ccc": 0.4578,
-}
+# Phase 5 baseline results (to reuse for L0) — loaded from actual results file
+def _load_phase5_results():
+    """Load Phase 5 MMoEEx results from saved CSV."""
+    import csv
+    results_path = ARTIFACTS_TABLES / "mmoe_ex_results.csv"
+    if not results_path.exists():
+        # Fallback to hardcoded values if file not found
+        return {
+            "daic_auroc": 0.5471,
+            "daic_auroc_text_only": 0.6991,
+            "mosei_sentiment_ccc": 0.5397,
+            "mosei_emotion_auc": 0.6230,
+            "fi_avg_ccc": 0.4578,
+        }
+    with open(results_path) as f:
+        reader = csv.reader(f)
+        rows = {row[0]: float(row[1]) for row in reader if len(row) >= 2 and row[0] != 'metric'}
+    return {
+        "daic_auroc": rows.get("daic_auroc", 0.5471),
+        "daic_auroc_text_only": rows.get("daic_auroc_text_only", 0.6991),
+        "mosei_sentiment_ccc": rows.get("mosei_sentiment_ccc", 0.5397),
+        "mosei_emotion_auc": rows.get("mosei_emotion_auc", 0.6230),
+        "fi_avg_ccc": rows.get("fi_avg_ccc", 0.4578),
+    }
+
+PHASE5_RESULTS = _load_phase5_results()
 
 ABLATION_DESCRIPTIONS = {
     "L0": "Classical encoders (RoBERTa + WavLM + OpenFace) — reuse Phase 5 results",
@@ -1448,16 +1468,32 @@ def plot_llm_delta_bar(results_dict, save_dir):
 
 
 def plot_embedding_umap(classical_embeddings, llm_embeddings, labels, save_dir):
-    """Plot UMAP of classical vs LLM embeddings."""
+    """Plot UMAP of classical vs LLM embeddings.
+
+    Handles different dimensionalities by using PCA to project both to a
+    common dimension (min of the two) before UMAP reduction.
+    """
     try:
         import umap
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        from sklearn.decomposition import PCA
 
-        # Combine embeddings
-        all_emb = np.vstack([classical_embeddings, llm_embeddings])
         n_classical = len(classical_embeddings)
+
+        # If dimensions differ, project each to a common dim via separate PCA
+        if classical_embeddings.shape[1] != llm_embeddings.shape[1]:
+            common_dim = min(classical_embeddings.shape[1], llm_embeddings.shape[1], 50)
+            print(f"    Projecting {classical_embeddings.shape[1]}D classical and "
+                  f"{llm_embeddings.shape[1]}D LLM → {common_dim}D via separate PCA")
+            pca_c = PCA(n_components=common_dim, random_state=42)
+            classical_proj = pca_c.fit_transform(classical_embeddings)
+            pca_l = PCA(n_components=common_dim, random_state=42)
+            llm_proj = pca_l.fit_transform(llm_embeddings)
+            all_emb = np.vstack([classical_proj, llm_proj])
+        else:
+            all_emb = np.vstack([classical_embeddings, llm_embeddings])
 
         # UMAP
         reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, metric="cosine", random_state=42)
@@ -1470,6 +1506,11 @@ def plot_embedding_umap(classical_embeddings, llm_embeddings, labels, save_dir):
 
         ax.scatter(classical_pts[:, 0], classical_pts[:, 1], c="blue", alpha=0.5, label="Classical", s=30)
         ax.scatter(llm_pts[:, 0], llm_pts[:, 1], c="red", alpha=0.5, label="LLM", s=30)
+
+        # Add label coloring if labels provided
+        if labels is not None and len(labels) > 0:
+            # Not yet implemented — reserved for future use
+            pass
 
         ax.set_title("UMAP: Classical vs LLM Embeddings", fontsize=12, fontweight="bold")
         ax.legend()
@@ -1506,6 +1547,138 @@ def plot_cost_performance(gpu_hours, auroc_gains, save_dir):
     plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  Saved {path}")
+
+
+# ---------------------------------------------------------------------------
+# UMAP Embedding Collection (for summary report)
+# ---------------------------------------------------------------------------
+
+def _collect_umap_embeddings(max_samples=500):
+    """Collect classical (RoBERTa) and LLM (Mistral) text embeddings for UMAP.
+
+    Loads cached LLM features and corresponding classical text features
+    from disk, returning arrays suitable for plot_embedding_umap().
+
+    Returns (classical_embeddings, llm_embeddings, sample_ids).
+    Each element is None if collection fails.
+    """
+    random.seed(42)
+
+    print("\n  Collecting embeddings for UMAP...")
+    manifest_data = load_manifest()
+
+    # Load LLM features from cache (L1 Mistral text)
+    llm_text = {}
+    for ds in ["daic", "fi", "mosei"]:
+        for split in ["train", "val"]:
+            cache_path = get_llm_cache_path("L1", ds, split, "text")
+            if cache_path.exists():
+                feat_dict = np.load(cache_path, allow_pickle=True).item()
+                for sid, feat in feat_dict.items():
+                    llm_text[f"{ds}_{sid}"] = feat
+
+    print(f"    Loaded {len(llm_text)} LLM text features from cache")
+
+    # Filter manifest to samples with both classical and LLM features
+    candidates = []
+    for entry in manifest_data:
+        ds = entry["dataset"]
+        sid = entry["id"]
+        split = entry.get("split")
+        if split not in ("train", "val"):
+            continue
+        key = f"{ds}_{sid}"
+        if key not in llm_text:
+            continue
+        text_path_str = entry.get("features", {}).get("text_roberta")
+        if text_path_str is None:
+            continue
+        text_path = ROOT / text_path_str
+        if not text_path.exists():
+            continue
+        candidates.append((key, sid, ds, split, text_path))
+
+    print(f"    Found {len(candidates)} candidates with both feature types")
+
+    if not candidates:
+        print("    WARNING: No candidates found for UMAP")
+        return None, None, None
+
+    # Stratified sampling if too many
+    if len(candidates) > max_samples:
+        from collections import defaultdict as _dd
+        by_ds = _dd(list)
+        for c in candidates:
+            by_ds[c[2]].append(c)
+        sampled = []
+        for ds_name, items in by_ds.items():
+            ds_max = max(1, int(max_samples * len(items) / len(candidates)))
+            random.shuffle(items)
+            sampled.extend(items[:ds_max])
+        if len(sampled) > max_samples:
+            random.shuffle(sampled)
+            sampled = sampled[:max_samples]
+        candidates = sampled
+
+    print(f"    Using {len(candidates)} samples for UMAP")
+
+    # Load embeddings
+    classical_embeddings = []
+    llm_embeddings = []
+    sample_ids = []
+
+    # Determine expected classical dimension from first successful load
+    expected_classical_dim = None
+
+    for key, sid, ds, split, text_path in candidates:
+        # Load classical RoBERTa pooled features
+        try:
+            obj = torch.load(text_path, map_location="cpu", weights_only=False)
+            if isinstance(obj, dict):
+                if "pooled_features" in obj and isinstance(obj["pooled_features"], torch.Tensor):
+                    feat = obj["pooled_features"]
+                elif "embedding" in obj and isinstance(obj["embedding"], torch.Tensor):
+                    feat = obj["embedding"]
+                else:
+                    continue
+            else:
+                continue
+            # Handle 2D features by pooling
+            if isinstance(feat, torch.Tensor) and feat.dim() == 2:
+                feat = feat.mean(dim=0)
+            # Flatten to 1D
+            classical_feat = feat.cpu().numpy().flatten().astype(np.float32)
+        except Exception:
+            continue
+
+        # Load LLM Mistral feature
+        llm_feat = llm_text[key].astype(np.float32).flatten()
+
+        # Set expected dimension from first load
+        if expected_classical_dim is None:
+            expected_classical_dim = classical_feat.shape[0]
+
+        # Validate shape consistency
+        if classical_feat.shape[0] != expected_classical_dim:
+            continue
+        if llm_feat.shape[0] < 1:
+            continue
+
+        classical_embeddings.append(classical_feat)
+        llm_embeddings.append(llm_feat)
+        sample_ids.append(key)
+
+    if not classical_embeddings:
+        print("    WARNING: No embeddings successfully loaded for UMAP")
+        return None, None, None
+
+    classical_embeddings = np.stack(classical_embeddings)
+    llm_embeddings = np.stack(llm_embeddings)
+
+    print(f"    Classical embeddings: {classical_embeddings.shape}")
+    print(f"    LLM embeddings: {llm_embeddings.shape}")
+
+    return classical_embeddings, llm_embeddings, sample_ids
 
 
 # ---------------------------------------------------------------------------
@@ -1561,23 +1734,29 @@ def generate_summary_report():
     auroc_gains = [results_dict.get(l, {}).get("daic_auroc", baseline_auroc) - baseline_auroc for l in levels]
     plot_cost_performance(gpu_hours, auroc_gains, ARTIFACTS_FIGURES)
 
-    # 3. UMAP embedding plot (stub - requires actual embeddings)
-    print("  Note: UMAP embedding plot requires actual LLM feature extraction on GPU")
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.set_facecolor("#f0f0f0")
-    ax.text(0.5, 0.5, "UMAP requires LLM features\nRun L1-L5 with GPU extraction\nto generate this plot",
-            transform=ax.transAxes, ha="center", va="center", fontsize=11,
-            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
-    ax.set_title("Classical vs LLM Embeddings (UMAP)", fontsize=12, fontweight="bold")
-    ax.axis("off")
-    plt.tight_layout()
-    umap_path = ARTIFACTS_FIGURES / "embedding_umap.png"
-    plt.savefig(umap_path, dpi=150, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved UMAP stub: {umap_path}")
+    # 3. UMAP embedding plot (real embeddings)
+    print("  Generating UMAP embedding plot...")
+    classical_emb, llm_emb, sample_ids = _collect_umap_embeddings(max_samples=500)
+    if classical_emb is not None and llm_emb is not None:
+        plot_embedding_umap(classical_emb, llm_emb, [], ARTIFACTS_FIGURES)
+    else:
+        print("  Note: Could not collect embeddings for UMAP.")
+        print("  Run --ablation L1 with GPU extraction first to generate cached LLM features.")
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.set_facecolor("#f0f0f0")
+        ax.text(0.5, 0.5, "UMAP requires LLM features\nRun L1-L5 with GPU extraction\nto generate this plot",
+                transform=ax.transAxes, ha="center", va="center", fontsize=11,
+                bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+        ax.set_title("Classical vs LLM Embeddings (UMAP)", fontsize=12, fontweight="bold")
+        ax.axis("off")
+        plt.tight_layout()
+        umap_path = ARTIFACTS_FIGURES / "embedding_umap.png"
+        plt.savefig(umap_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved UMAP placeholder: {umap_path}")
 
     print("\n✅ Summary report complete!")
     print(f"  CSV: {csv_path}")
@@ -1720,11 +1899,9 @@ def run_ablation_L1_L5(level, args):
     metrics_history = []
     best_val_loss = float("inf")
     patience_counter = 0
-    gpu_time_start = torch.cuda.Event(enable_timing=True)
-    gpu_time_end = torch.cuda.Event(enable_timing=True)
-
-    if args.device == "cuda":
-        gpu_time_start.record()
+    # Track wall-clock time multiplied by GPU count for total GPU-hours
+    num_gpus = torch.cuda.device_count() if args.device == "cuda" else 0
+    train_wall_start = time.time()
 
     for epoch in range(args.epochs):
         avg_loss, task_losses = train_epoch(model, train_loader, optimizer, loss_fn,
@@ -1765,12 +1942,10 @@ def run_ablation_L1_L5(level, args):
         else:
             print(f"  Epoch {epoch+1}/{args.epochs} | Loss: {avg_loss:.4f}")
 
-    if args.device == "cuda":
-        gpu_time_end.record()
-        torch.cuda.synchronize()
-        gpu_hours = gpu_time_start.elapsed_time(gpu_time_end) / 3600.0
-    else:
-        gpu_hours = 0.0
+    train_wall_end = time.time()
+    train_elapsed = train_wall_end - train_wall_start
+    # Total GPU-hours = wall seconds × num GPUs / 3600
+    gpu_hours = (train_elapsed * num_gpus) / 3600.0 if num_gpus > 0 else 0.0
 
     # Final evaluation
     print("\n[5/5] Final evaluation...")

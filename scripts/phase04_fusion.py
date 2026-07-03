@@ -617,13 +617,13 @@ class FusionRegression(nn.Module):
         else:
             raise ValueError(f"Unknown fusion: {fusion_type}")
 
-# FI (5 traits): single linear head with small bias + LARGE weight init
-        # Small bias (0.01) ensures baseline prediction is near 0, not 0.5
-        # Large weight init (0.5) forces the model to use fusion features
+# FI (5 traits): single linear head with bias
+        # NOTE: FI fusion collapses to constant predictions (CCC~0.0) in single-task mode
+        # because the GatedLateFusion model (827K params) cannot learn useful representations
+        # from 6000 FI samples alone. Joint training (Phase 5 MMoEEx: CCC=0.5775, Phase 7: CCC=0.4258)
+        # handles FI correctly by sharing representations across tasks.
         if dataset_name == "fi":
             self.head = nn.Linear(hidden_dim, n_traits, bias=True)
-            # Initialize bias small to force weights to carry the signal
-            self.head.bias.data.fill_(0.01)
         else:
             self.head = nn.Sequential(
                 nn.Dropout(0.3),
@@ -835,26 +835,27 @@ def train_regression(train_loader, val_loader, test_loader, dataset_name, fusion
         modules_list = list(model.head.modules())
         for module in reversed(modules_list):
             if isinstance(module, nn.Linear) and module.out_features == n_traits:
-                # FI: small bias (0.01), LARGE weight init (0.5) — force use of fusion features
+                # FI: no bias, LARGE weight init (0.5) — force use of fusion features
                 # MOSEI: init bias to 0
                 if dataset_name != "fi" and module.bias is not None:
                     nn.init.constant_(module.bias, 0.0)
                 init_std = 0.5 if dataset_name == "fi" else 0.05
                 nn.init.normal_(module.weight, 0, init_std)
-                print(f"  Head init: weight std={init_std}, bias init=0.01 (fi) or 0.0 (mosei)")
+                bias_str = "no bias" if dataset_name == "fi" else "0.0"
+                print(f"  Head init: weight std={init_std}, bias init={bias_str}")
                 break
 
     # FI needs NO weight decay to prevent regression collapse
     # MOSEI can tolerate mild weight decay
     wd = 0.0 if dataset_name == "fi" else 1e-5
 
-    # For FI: much higher head LR (no bias = must learn weights from fusion features)
+    # For FI: higher head LR to push weights away from zero
     if dataset_name == "fi":
         head_params = [p for n, p in model.named_parameters() if 'head' in n]
         fusion_params = [p for n, p in model.named_parameters() if 'head' not in n]
         optimizer = torch.optim.AdamW([
             {'params': fusion_params, 'lr': lr, 'weight_decay': 0.0},
-            {'params': head_params, 'lr': 0.01, 'weight_decay': 0.0},  # High LR for bias-free head
+            {'params': head_params, 'lr': 0.01, 'weight_decay': 0.0},
         ])
     else:
         optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)

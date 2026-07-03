@@ -1,129 +1,127 @@
-%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '13px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
-flowchart TD
-    Start["Start:<br/>Unified multimodal GG-MoE experiment"] --> P0
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+graph TD
+    %% =========================================================================
+    %% Phase 0: Environment Setup
+    %% =========================================================================
+    P0["Phase 0: Environment & Dataset Contracts<br>(uv init, pyproject.toml, AGENTS.md)"]
+    P0_Out["Artifacts: project structure, AGENTS.md,<br>dataset path config, modality masks"]
 
-    %% =====================
-    %% Phase 0
-    %% =====================
-    P0["Phase 0:<br/>Dataset contract, setup, and EDA"] --> P1
-    subgraph P0D["Phase 0 details"]
-        P0A["Define sample granularity<br/>DAIC session/turn<br/>MOSEI utterance<br/>FI clip"]
-        P0B["Validate splits<br/>subject independence<br/>missing-modality masks<br/>label distributions"]
-        P0C["EDA visualizations<br/>class balance<br/>PHQ distribution<br/>sentiment/emotion histograms<br/>Big-Five trait distributions"]
-        P0D1["Data-quality visualizations<br/>duration plots<br/>missing modality heatmaps<br/>dataset scale comparison"]
-    end
+    %% =========================================================================
+    %% Phase 1: EDA
+    %% =========================================================================
+    P1["Phase 1: Exploratory Data Analysis<br>(scripts/phase01_eda.py)"]
+    P1_Out["Artifacts: label distributions,<br>missing-modality heatmaps, duration plots,<br>class balance, PHQ-8 histograms,<br>sentiment/emotion histograms,<br>Big-Five trait distributions"]
 
-    %% =====================
-    %% Phase 1
-    %% =====================
-    P1["Phase 1:<br/>Preprocessing and feature extraction"] --> P2
-    subgraph P1D["Phase 1 details"]
-        P1A["Extract baseline features<br/>Wav2Vec/WavLM<br/>OpenFace/ViT<br/>RoBERTa/ClinicalBERT"]
-        P1B["Extract LLM features as ablations<br/>Mistral-LoRA text<br/>Audio-LLM features<br/>Vision/Video-LLM features"]
-        P1C["Feature visualizations<br/>embedding UMAPs<br/>feature norm distributions<br/>audio/video/text alignment checks"]
-        P1D1["Sample-level inspection panels<br/>transcript + waveform summary<br/>key frames + AUs<br/>labels + masks"]
-    end
+    P0 --> P0_Out --> P1
+    P1 --> P1_Out
 
-    %% =====================
-    %% Phase 2
-    %% =====================
-    P2["Phase 2:<br/>Unimodal and simple fusion baselines"] --> P3
-    subgraph P2D["Phase 2 details"]
-        P2A["Train unimodal baselines<br/>text-only<br/>audio-only<br/>video-only"]
-        P2B["Train per-dataset late fusion<br/>DAIC, MOSEI, FI"]
-        P2C["Baseline visualizations<br/>metric bars with CIs<br/>confusion matrices<br/>prediction-vs-target plots"]
-        P2D1["Modality comparison<br/>which modality works best<br/>per dataset and task"]
-    end
+    %% =========================================================================
+    %% Phase 2: Preprocessing
+    %% =========================================================================
+    P2["Phase 2: Feature Extraction & Caching<br>(scripts/phase02_preprocess.py)"]
+    P2_Out["Artifacts: data/features/ directory<br>with RoBERTa(768), WavLM(768),<br>ViT(1536), OpenFace AU tensors<br>per sample, manifest.json"]
 
-    %% =====================
-    %% Phase 3
-    %% =====================
-    P3["Phase 3:<br/>Fusion and shared representation"] --> P4
-    subgraph P3D["Phase 3 details"]
-        P3A["Implement LMF / gated fusion<br/>with missing-modality masks"]
-        P3B["Train fusion-only models<br/>before MoE and graph routing"]
-        P3C["Fusion visualizations<br/>modality gate weights<br/>attention heatmaps<br/>fused embedding UMAP"]
-        P3D1["Failure analysis<br/>samples where fusion helps or hurts"]
-    end
+    P1_Out --> P2
+    P2 --> P2_Out
 
-    %% =====================
-    %% Phase 4
-    %% =====================
-    P4["Phase 4:<br/>MMoEEx multitask backbone without graph"] --> P5
-    subgraph P4D["Phase 4 details"]
-        P4A["Add K experts<br/>task-specific gates<br/>exclusivity regularizer"]
-        P4B["Train per-dataset and joint multitask variants<br/>without graph"]
-        P4C["Expert visualizations<br/>task-by-expert heatmaps<br/>expert diversity plots<br/>gate entropy curves"]
-        P4D1["Training visualizations<br/>loss curves<br/>learned uncertainty weights<br/>negative transfer diagnostics"]
-    end
+    %% =========================================================================
+    %% Phase 3: Unimodal Baselines
+    %% =========================================================================
+    P3["Phase 3: Unimodal & Simple Baselines<br>(scripts/phase03_unimodal_baselines.py)"]
+    P3_Out["Artifacts: unimodal metric tables<br>(AUROC, CCC, F1 per modality),<br>confusion matrices, prediction scatterplots,<br>modality importance charts"]
 
-    %% =====================
-    %% Phase 5
-    %% =====================
-    P5["Phase 5:<br/>Graph construction and GG-MoE router"] --> P6
-    subgraph P5D["Phase 5 details"]
-        P5A["Build KNN graphs<br/>from h_i and optionally<br/>ImageBind-style embeddings"]
-        P5B["Use leakage-safe graph protocol<br/>main: inductive<br/>secondary: transductive ablation"]
-        P5C["Train GraphSAGE/GAT router<br/>produce r_i over experts"]
-        P5D1["Graph visualizations<br/>KNN examples<br/>degree distribution<br/>dataset mixing matrix<br/>subgraph samples"]
-        P5E["Router visualizations<br/>routing entropy<br/>expert usage<br/>graph-vs-gate contribution"]
-    end
+    P2_Out --> P3
+    P3 --> P3_Out
 
-    %% =====================
-    %% Phase 6
-    %% =====================
-    P6["Phase 6:<br/>Joint multimodal multitask GG-MoE training"] --> P7
-    subgraph P6D["Phase 6 details"]
-        P6A["Mixed DAIC/MOSEI/FI batches<br/>task masks and dataset balancing"]
-        P6B["Forward path<br/>encoders -> fusion -> experts -> graph router -> heads"]
-        P6C["Periodic embedding refresh<br/>and optional graph rebuild"]
-        P6D1["Training dashboards<br/>per-task losses<br/>uncertainty weights<br/>routing entropy<br/>GPU/memory usage"]
-    end
+    %% =========================================================================
+    %% Phase 4: Fusion
+    %% =========================================================================
+    P4["Phase 4: Multimodal Fusion<br>(scripts/phase04_fusion.py)"]
+    P4_Sub["Sub-methods tested:<br>- GatedLateFusion<br>- LMF (Low-Rank Multimodal Fusion)<br>- CrossAttnFusion (Cross-modal Attention)"]
+    P4_Out["Artifacts: fusion metric comparisons,<br>modality gate weight heatmaps,<br>cross-modal attention matrices,<br>fused embedding UMAP projections"]
 
-    %% =====================
-    %% Phase 7
-    %% =====================
-    P7["Phase 7:<br/>LLM-enhanced ablations"] --> P8
-    subgraph P7D["Phase 7 details"]
-        P7A["Text LLM ablation<br/>Mistral-LoRA vs RoBERTa/ClinicalBERT"]
-        P7B["Audio LLM ablation<br/>audio-language descriptors or embeddings"]
-        P7C["Video LLM ablation<br/>vision/video-language embeddings"]
-        P7D1["Shared embedding ablation<br/>ImageBind-style graph embeddings"]
-        P7E["LLM visualizations<br/>feature attribution comparison<br/>embedding separability<br/>cost/performance plots"]
-    end
+    P2_Out & P3_Out --> P4
+    P4 --> P4_Sub --> P4_Out
 
-    %% =====================
-    %% Phase 8
-    %% =====================
-    P8["Phase 8:<br/>Domain adaptation and ablation grid"] --> P9
-    subgraph P8D["Phase 8 details"]
-        P8A["Add MMD, CORAL, and DANN<br/>on shared representation h_i"]
-        P8B["Run FI->DAIC and MOSEI->DAIC<br/>adaptation experiments"]
-        P8C["Core ablations<br/>no graph<br/>no multitask<br/>no LLM<br/>modality drops<br/>no domain adaptation"]
-        P8D1["Ablation visualizations<br/>parallel coordinates<br/>critical-difference plots<br/>domain alignment UMAPs"]
-    end
+    %% =========================================================================
+    %% Phase 5: MMoEEx (No Graph)
+    %% =========================================================================
+    P5["Phase 5: MMoEEx Multitask Backbone<br>(scripts/phase05_mmoe_ex.py)"]
+    P5_Sub["Key params:<br>- 8 experts (2 per task group)<br>- Expert isolation: {0→[0,1], 1→[2,3], 2→[2,3], 3→[4,5]}<br>- Homoscedastic uncertainty weighting<br>- Task-specific linear gates"]
+    P5_Out["Artifacts: task-expert heatmaps,<br>expert diversity plots, gate entropy curves,<br>loss curves per task, uncertainty weights,<br>best checkpoint: mmoe_ex_best.pt"]
 
-    %% =====================
-    %% Phase 9
-    %% =====================
-    P9["Phase 9:<br/>Evaluation, calibration, and statistics"] --> P10
-    subgraph P9D["Phase 9 details"]
-        P9A["Metrics<br/>DAIC: AUROC, AUPRC, F1, sensitivity, specificity<br/>MOSEI: MAE, F1, AUROC<br/>FI: CCC, MAE"]
-        P9B["Calibration<br/>Brier score<br/>ECE<br/>reliability curves"]
-        P9C["Statistical testing<br/>BCa bootstrap CIs<br/>DeLong AUROC<br/>permutation tests<br/>effect sizes"]
-        P9D1["Evaluation visualizations<br/>bar charts with CIs<br/>ROC/PR curves<br/>Bland-Altman plots<br/>calibration plots"]
-    end
+    P2_Out & P4_Out --> P5
+    P5 --> P5_Sub --> P5_Out
 
-    %% =====================
-    %% Phase 10
-    %% =====================
-    P10["Phase 10:<br/>XAI, narrative explanations, and thesis figures"] --> End
-    subgraph P10D["Phase 10 details"]
-        P10A["SHAP / Integrated Gradients<br/>feature and modality attribution"]
-        P10B["Grad-CAM / frame saliency<br/>for visual branch"]
-        P10C["GNNExplainer / PGExplainer<br/>subgraph explanations"]
-        P10D1["GraphXAIN-style LLM narratives<br/>convert technical explanations<br/>into readable case narratives"]
-        P10E["Final visual assets<br/>case-study panels<br/>subgraphs<br/>routing heatmaps<br/>failure-mode gallery"]
-    end
+    %% =========================================================================
+    %% Phase 6: Graph Construction
+    %% =========================================================================
+    P6["Phase 6: Leakage-Safe Graph Construction<br>(scripts/phase06_graph.py, src/data/graph_builder.py)"]
+    P6_Sub["Graph types:<br>- split-local (PRIMARY): per-split KNN<br>- inductive: test→train only edges<br>- transductive (ABLATION): cross-split edges<br>KNN params: k=10, cosine distance<br>Validation: validate_graph_leakage()"]
+    P6_Out["Artifacts: KNN graph edge indices,<br>degree distributions, dataset mixing matrices,<br>neighborhood examples,<br>leakage validation reports"]
 
-    End["End:<br/>Thesis-ready experiment chapter<br/>methods, results, visualizations, XAI, discussion"]
+    P2_Out & P5_Out --> P6
+    P6 --> P6_Sub --> P6_Out
+
+    %% =========================================================================
+    %% Phase 7: Joint GG-MoE Training (CORE)
+    %% =========================================================================
+    P7["Phase 7: Joint Multitask GG-MoE Training<br>(scripts/phase07_joint_training.py)"]
+    P7_Sub["Training config:<br>- 150 epochs, AdamW lr=3e-4<br>- CosineAnnealingLR scheduler<br>- Batch size: 32, Temperature: 3.0<br>- Projectors frozen 0-20 epochs<br>- Graph weight: 0.5 (log-space fusion)<br>- Negative transfer monitor (95% baseline)<br>- GraphSAGE/GAT router with KNN edges<br>- Early stopping patience: 20 epochs<br>- Gradient clipping: max_norm=1.0"]
+    P7_Monitors["Training monitors:<br>- Per-task loss curves (4 tasks)<br>- AUROC/CCC metrics over time<br>- Routing entropy over time<br>- Negative transfer regression log<br>- Uncertainty-weighted multi-task loss<br>- Expert usage statistics"]
+    P7_Out["Artifacts: training curves,<br>metrics over training, routing entropy plot,<br>best checkpoint: phase07_best.pt,<br>results: phase07_results.csv"]
+
+    P2_Out & P5_Out & P6_Out --> P7
+    P7 --> P7_Sub --> P7_Monitors --> P7_Out
+
+    %% =========================================================================
+    %% Phase 8: LLM Ablations
+    %% =========================================================================
+    P8["Phase 8: LLM-Enhanced Ablations (L0-L5)<br>(scripts/phase08_llm_ablations.py)"]
+    P8_Levels["LLM Ablation Matrix:<br>L0: Classical only (RoBERTa+WavLM+OpenFace)<br>L1: +Mistral-7B text (frozen, dim=4096)<br>L2: +Mistral-7B text (LoRA r=16, α=32)<br>L3: +CLAP audio (dim=512)<br>L4: +LLaVA video (dim=4096)<br>L5: Full LLM stack (T:4096, A:512, V:4096)"]
+    P8_Out["Artifacts: per-level predictions,<br>LLM feature UMAP projections,<br>cost/performance plot,<br>feature attribution comparisons,<br>checkpoints: phase08_L{0-5}_best.pt"]
+
+    P2_Out & P7_Out --> P8
+    P8 --> P8_Levels --> P8_Out
+
+    %% =========================================================================
+    %% Phase 9: Domain Adaptation
+    %% =========================================================================
+    P9["Phase 9: Domain Adaptation<br>(scripts/phase09_domain_adaptation.py,<br>src/training/domain_adaptation.py)"]
+    P9_Methods["Methods:<br>- CORAL (correlation alignment)<br>- MMD (RBF kernel)<br>- DANN (gradient reversal)<br>- All three combined"]
+    P9_Out["Artifacts: domain alignment UMAPs,<br>domain shift metrics,<br>adaptation ablation tables"]
+
+    P2_Out & P7_Out --> P9
+    P9 --> P9_Methods --> P9_Out
+
+    %% =========================================================================
+    %% Phase 10: Calibration & Evaluation
+    %% =========================================================================
+    P10["Phase 10: Calibration & Statistical Validation<br>(scripts/phase10_calibration.py,<br>scripts/statistical_validation.py)"]
+    P10_Calib["Calibration methods:<br>- Temperature scaling (L-BFGS)<br>- Platt scaling (L-BFGS)<br>- Isotonic regression<br>Metrics: Brier score, ECE, reliability curves"]
+    P10_Stats["Statistical tests:<br>- BCa bootstrap CIs (2000 samples)<br>- DeLong test for AUROC comparison<br>- Paired permutation tests (10000)<br>- Cohen's d effect size<br>- Paired bootstrap delta CIs"]
+    P10_Out["Artifacts: reliability diagrams,<br>ROC/PR curves, calibration curves,<br>bootstrap CI bar charts,<br>Bland-Altman plots,<br>statistical significance tables"]
+
+    P7_Out & P8_Out & P9_Out --> P10
+    P10 --> P10_Calib --> P10_Stats --> P10_Out
+
+    %% =========================================================================
+    %% Phase 11: XAI
+    %% =========================================================================
+    P11["Phase 11: Explainability (XAI)<br>(scripts/xai_analysis.py,<br>scripts/phase11_xai.py)"]
+    P11_Methods["Methods:<br>- SHAP (modality-level attribution)<br>- Gradient sensitivity (feature-level)<br>- GNNExplainer (subgraph importance)<br>- Perturbation tests (modality removal)<br>- Counterfactual tests (minimal change needed)<br>- GraphXAIN LLM narratives"]
+    P11_Out["Artifacts: SHAP force plots,<br>GNN subgraph visualizations,<br>routing weight heatmaps,<br>modality attribution bar charts,<br>GraphXAIN LLM narrative examples,<br>case-study panels"]
+
+    P7_Out & P8_Out & P10_Out --> P11
+    P11 --> P11_Methods --> P11_Out
+
+    %% =========================================================================
+    %% Phase 12: Thesis Export
+    %% =========================================================================
+    P12["Phase 12: Thesis Chapter Export<br>(scripts/phase12_thesis.py)"]
+    P12_Out["Artifacts: paper/chapter_8.tex,<br>paper/figures/ (10 figures),<br>paper/tables/ (14 tables),<br>all architecture .mmd diagrams,<br>visualization summary (10 phases)"]
+
+    P3_Out & P4_Out & P5_Out & P6_Out --> P12
+    P7_Out & P8_Out & P9_Out --> P12
+    P10_Out & P11_Out --> P12
+    P12 --> P12_Out
