@@ -90,7 +90,7 @@ This chapter makes the following contributions:
 
 \subsection{Multimodal Fusion in Affective Computing}
 
-Early multimodal fusion for mental health used simple concatenation or early fusion \citep{dupont2020multitask}. Later approaches adopted late fusion with learned modality gates \citep{hazdar2024gated} or Low-Rank Multimodal Fusion (LMF) \citep{zadeh2017LMF} to avoid the parameter explosion of tensor fusion networks. More recently, cross-modal attention mechanisms have been proposed for depression detection \citep{kim2024crossmodal}. However, we show in \S\ref{sec:fusion_ablation} that cross-attention fails on our datasets due to overparameterization, contradicting the claimed +0.041 AUROC gain. To address this, we introduce the Low-Rank Dynamic Gating Network (LR-DGN), which applies a low-rank bottleneck (rank $r=8$--16) before computing gate weights, achieving SOTA dynamic modality balancing with drastically fewer parameters than full cross-attention and preventing the overfitting observed on small clinical datasets.
+Early multimodal fusion for mental health used simple concatenation or early fusion \citep{dupont2020multitask}. Later approaches adopted late fusion with learned modality gates \citep{hazdar2024gated} or Low-Rank Multimodal Fusion (LMF) \citep{zadeh2017LMF} to avoid the parameter explosion of tensor fusion networks. More recently, cross-modal attention mechanisms have been proposed for depression detection \citep{kim2024crossmodal}. However, we show in Section \ref{sec:fusion_ablation} that cross-attention fails on our datasets due to overparameterization, contradicting the claimed +0.041 AUROC gain. To address this, we introduce the Low-Rank Dynamic Gating Network (LR-DGN), which applies a low-rank bottleneck (rank $r=8$--16) before computing gate weights, achieving SOTA dynamic modality balancing with drastically fewer parameters than full cross-attention and preventing the overfitting observed on small clinical datasets.
 
 \subsection{Mixture of Experts in Multitask Learning}
 
@@ -114,7 +114,7 @@ The DAIC-WOZ corpus \citep{gratch2014distress} contains 189 clinical interviews 
 \section{Dataset and Preprocessing}
 \label{sec:dataset}
 
-We use three datasets with different sample granularities. The dataset contract is formally defined in \texttt{configs/dataset\_contract.yaml} and leakage checks are described in \S\ref{sec:leakage_protocol}.
+We use three datasets with different sample granularities. The dataset contract is formally defined in \texttt{configs/dataset\_contract.yaml} and leakage checks are described in Section \ref{sec:leakage_protocol}.
 
 \subsection{DAIC-WOZ: Clinical Depression Interviews}
 \label{sec:daic}
@@ -132,7 +132,7 @@ CMU-MOSEI \citep{zadeh2018multimodal} contains 22,777 utterance-level samples (1
 
 Text features: same RoBERTa encoder as DAIC, 768-dim. Audio and video features are not preprocessed for MOSEI in this chapter (text-only baseline); multimodal MOSEI results use synthetic audio/video features for completeness.
 
-MOSEI is 120$\times$ larger than DAIC. Without mitigation, MOSEI would dominate every training batch. We address this with temperature-balanced sampling (T=2.0) as described in \S\ref{sec:training_setup}.
+MOSEI is 120$\times$ larger than DAIC. Without mitigation, MOSEI would dominate every training batch. We address this with temperature-balanced sampling (T=2.0) as described in Section~\ref{sec:training_setup}.
 
 \subsection{ChaLearn First Impressions: Apparent Personality}
 \label{sec:fi}
@@ -617,7 +617,7 @@ Source: \texttt{artifacts/figures/phase\_11\_xai/} (18 figures, 9 case studies).
     \item \textbf{L4 feature dimension mismatch}: The L4 checkpoint was trained with 768-dim WavLM audio features, but the inference dataset uses 512-dim Whisper features. This mismatch causes degraded performance (AUROC=0.3587 vs expected $\approx$0.65). Retraining L4 with matching audio dimensions would resolve this.
     \item Graph routing increases inference complexity (KNN lookup + GraphSAGE aggregation) vs non-graph MMoEEx.
     \item FI apparent personality is not clinical depression; the auxiliary supervision framing is valid but limited.
-    \item \textbf{Cross-demographic generalization is limited}: MPDD experiments show that models trained on young adults fail catastrophically on elderly adults (AUROC=0.395 vs within-group 0.277). Different age groups appear to have different depression biomarkers.
+    \item \textbf{Cross-demographic generalization is limited}: MPDD experiments show that models trained on young adults fail on elderly adults (AUROC=0.395 vs within-group 0.277). Different age groups appear to have different depression biomarkers.
     \item \textbf{Anti-predictive features}: On DAIC, XAI analysis reveals that removing audio features \emph{improves} AUROC from 0.35 to 0.43, indicating that raw audio features contain anti-predictive information. Feature selection or re-extraction may be needed.
     \item All evaluation results use real model predictions from trained checkpoints; no synthetic data or fallback values are used.
     \item Statistical comparisons use BCa bootstrap (2,000 iterations) with 95\% confidence intervals; DeLong test for AUROC; paired permutation tests (10,000 sign-flips) for F1/CCC/MAE.
