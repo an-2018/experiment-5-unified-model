@@ -1,0 +1,46 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+graph TD
+    subgraph ModelAccess["Model for XAI"]
+        MA["_UnifiedInferenceModel (L0-L5)<br/>forward_encoded() method<br/>gnn_forward() method<br/>predict_task() method"]
+    end
+
+    subgraph SHAP["SHAP Analysis (src/evaluation/xai_engine.py)"]
+        S_MODALITY["Modality-level SHAP<br/>Marginal contribution:<br/>f(all) - f(all \\ {modality})<br/>KernelSHAP approximation"]
+        S_FEATURE["Feature-level SHAP<br/>KernelExplainer<br/>with zero background<br/>200 samples / feature"]
+        S_FALLBACK["Gradient sensitivity fallback<br/>if shap not installed"]
+    end
+
+    subgraph GNN["GNN Explanations"]
+        GNN_EXPLAIN["GNNExplainerWrapper<br/>PyG native or custom<br/>Gradient-based edge/feature importance<br/>Degree-based edge heuristic fallback"]
+        G_SUBGRAPH["Subgraph extraction<br/>Top-k influential neighbors<br/>by edge weight / attention"]
+    end
+
+    subgraph Perturb["Perturbation Tests"]
+        PT_REMOVE["Modality removal test:<br/>Zero out text/audio/video<br/>Measure prediction change"]
+        PT_CF["Counterfactual test:<br/>Minimal L2 perturbation<br/>needed to change prediction<br/>by target_delta=0.1<br/>Gradient-guided direction"]
+    end
+
+    subgraph Routing["Routing Analysis"]
+        R_HEAT["Expert routing heatmaps<br/>Per-sample expert weights<br/>Per task gate distributions"]
+        R_ENTROPY["Routing entropy over dataset<br/>Measures expert specialization"]
+    end
+
+    subgraph GraphXAIN["GraphXAIN Narrative (src/evaluation/graph_xai.py)"]
+        GX_PROMPT["Build prompt with:<br/>- Task, dataset, prediction, confidence<br/>- SHAP modality importance<br/>- Top-k influential neighbors<br/>- Subgraph structure"]
+        GX_LLM["LLM generation:<br/>Mistral-7B-Instruct<br/>max_new_tokens=150<br/>temperature=0.7<br/>Fallback: template-fill"]
+        GX_OUTPUT["Human-readable narrative<br/>e.g.<br/>'The model detected depression<br/>primarily from text sentiment<br/>(SHAP=+0.34) and similar<br/>high-risk sessions in graph<br/>neighborhood.'"]
+    end
+
+    MA --> S_MODALITY
+    MA --> S_FEATURE
+    MA --> S_FALLBACK
+    MA --> GNN_EXPLAIN
+    MA --> PT_REMOVE
+    MA --> PT_CF
+
+    GNN_EXPLAIN --> G_SUBGRAPH
+    S_MODALITY & G_SUBGRAPH --> GraphXAIN
+    PT_REMOVE & PT_CF --> R_HEAT
+    R_HEAT --> R_ENTROPY
+
+    GraphXAIN --> GX_PROMPT --> GX_LLM --> GX_OUTPUT

@@ -1,0 +1,63 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+graph LR
+    subgraph L0["L0: Classical Baseline"]
+        L0_T["Text Encoder<br/>RoBERTa (768)"]
+        L0_A["Audio Encoder<br/>WavLM (768)"]
+        L0_V["Video Encoder<br/>ViT (1536)"]
+        L0_F["GatedLateFusion<br/>Text-only routing (DAIC)"]
+        L0_M["MMoEEx<br/>8 experts, no LLM"]
+        L0_R["DAIC: 0.547 AUROC<br/>MOSEI Sent: 0.540 CCC<br/>FI: 0.458 CCC"]
+    end
+    L0_T & L0_A & L0_V --> L0_F --> L0_M --> L0_R
+
+    subgraph L1["L1: +Mistral Text (Frozen)"]
+        L1_T["Text Encoder<br/>Mistral-7B Frozen (4096)"]
+        L1_A["Audio Encoder<br/>WavLM (768)"]
+        L1_V["Video Encoder<br/>OpenFace AU (768)"]
+        L1_P["LLM Projectors:<br/>text: 4096→256<br/>audio: 768→256<br/>video: 768→256"]
+        L1_M["MMoEEx<br/>8 experts"]
+        L1_R["DAIC: 0.641 AUROC"]
+    end
+    L1_T & L1_A & L1_V --> L1_P --> L1_M --> L1_R
+
+    subgraph L2["L2: +Mistral Text (LoRA)"]
+        L2_T["Text Encoder<br/>Mistral-7B LoRA<br/>r=16, alpha=32<br/>q_proj + v_proj (4096)"]
+        L2_A["Audio Encoder<br/>WavLM (768)"]
+        L2_V["Video Encoder<br/>OpenFace AU (768)"]
+        L2_P["LLM Projectors<br/>(same as L1)"]
+        L2_M["MMoEEx<br/>8 experts"]
+        L2_R["DAIC: 0.681 AUROC"]
+    end
+    L2_T & L2_A & L2_V --> L2_P --> L2_M --> L2_R
+
+    subgraph L3["L3: +CLAP Audio"]
+        L3_T["Text Encoder<br/>Mistral-7B Frozen (4096)"]
+        L3_A["Audio Encoder<br/>CLAP (512)"]
+        L3_V["Video Encoder<br/>OpenFace AU (768)"]
+        L3_P["LLM Projectors:<br/>text: 4096→256<br/>audio: 512→256<br/>video: 768→256"]
+        L3_M["MMoEEx<br/>8 experts"]
+        L3_R["DAIC: 0.721 AUROC<br/>(PEAK)"]
+    end
+    L3_T & L3_A & L3_V --> L3_P --> L3_M --> L3_R
+
+    subgraph L4["L4: +LLaVA Video"]
+        L4_T["Text Encoder<br/>Mistral-7B Frozen (4096)"]
+        L4_A["Audio Encoder<br/>WavLM (768)"]
+        L4_V["Video Encoder<br/>LLaVA (4096)"]
+        L4_P["LLM Projectors:<br/>text: 4096→256<br/>audio: 768→256<br/>video: 4096→256"]
+        L4_M["MMoEEx<br/>8 experts"]
+        L4_R["DAIC: 0.681 AUROC"]
+    end
+    L4_T & L4_A & L4_V --> L4_P --> L4_M --> L4_R
+
+    subgraph L5["L5: Full LLM Stack"]
+        L5_T["Text Encoder<br/>Mistral-7B Frozen (4096)"]
+        L5_A["Audio Encoder<br/>CLAP (512)"]
+        L5_V["Video Encoder<br/>LLaVA (4096)"]
+        L5_P["LLM Projectors:<br/>text: 4096→256<br/>audio: 512→256<br/>video: 4096→256"]
+        L5_M["MMoEEx<br/>8 experts"]
+        L5_R["DAIC: 0.692 AUROC"]
+    end
+    L5_T & L5_A & L5_V --> L5_P --> L5_M --> L5_R
+
+    L0 -.->|"Progressive replacement: L1 adds LLM text, L3 replaces audio, L4 replaces video, L5 = full"| L1 -.-> L2 -.-> L3 -.-> L4 -.-> L5

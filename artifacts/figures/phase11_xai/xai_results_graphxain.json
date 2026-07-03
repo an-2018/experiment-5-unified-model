@@ -1,0 +1,24 @@
+{
+  "test_auc": 0.35064935064935066,
+  "explain_mode": "graphxain",
+  "sample_id": "daic_test_001",
+  "graphxain": {
+    "narrative": "The model did not detect depression in this case, primarily relying on the audio modality. Specifically, the model identified a pattern in the patient's speech that was less indicative of depression, such as a more positive tone or a higher energy level. This conclusion was further supported by the context of the DaIC dataset, where similar samples with less severe depression symptoms also exhibited similar audio patterns.",
+    "baseline_auc": 0.35064935064935066,
+    "perturbed_auc": 0.5,
+    "top_features": [
+      631,
+      613,
+      441,
+      448,
+      443,
+      703,
+      364,
+      103,
+      76,
+      199
+    ],
+    "audio_importance": 0.15099978798919517,
+    "method": "graphxain_narrative"
+  }
+}

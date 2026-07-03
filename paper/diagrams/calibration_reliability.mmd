@@ -1,0 +1,47 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
+graph LR
+    subgraph Predictions["Model Predictions"]
+        P_DAIC["DAIC logits (N, 1)"]
+        P_SENT["MOSEI sentiment (N, 1)"]
+        P_EMO["MOSEI emotion (N, 6)"]
+        P_FI["FI personality (N, 5)"]
+    end
+
+    subgraph Calibration["Post-Hoc Calibration"]
+        C_TEMP["Temperature Scaling<br/>logits / T → probabilities<br/>T learned via L-BFGS"]
+        C_PLATT["Platt Scaling<br/>σ(a·logit + b)<br/>a,b learned via L-BFGS"]
+        C_ISO["Isotonic Regression<br/>Non-parametric monotonic fit<br/>sklearn.IsotonicRegression"]
+        C_NONE["No calibration<br/>(raw sigmoid)"]
+    end
+
+    subgraph Metrics["Evaluation Metrics"]
+        M_DAIC["DAIC Depression:<br/>AUROC, AUPRC, F1,<br/>Sensitivity, Specificity,<br/>Brier score, ECE"]
+        M_SENT["MOSEI Sentiment:<br/>CCC, MAE, Pearson/Spearman r"]
+        M_EMO["MOSEI Emotion:<br/>Per-emotion AUROC,<br/>Mean AUROC across 6 classes"]
+        M_FI["FI Personality:<br/>Per-trait CCC (5 traits),<br/>Avg CCC across 5 traits, MAE"]
+    end
+
+    subgraph Stats["Statistical Validation"]
+        S_BOOT["BCa Bootstrap CI (2000 samples)<br/>Confidence level: 95%"]
+        S_DELONG["DeLong Test for AUROC<br/>Compares two models' AUROCs<br/>z-statistic + p-value"]
+        S_PERM["Paired Permutation Test<br/>10000 permutations<br/>Tests mean difference"]
+        S_EFFECT["Cohen's d Effect Size<br/>Standardized mean difference"]
+        S_PAIRED["Paired Bootstrap Delta<br/>Bootstrapped CI on difference"]
+    end
+
+    subgraph Visualizations["Output Visualizations"]
+        V_CALIB["Reliability Diagrams<br/>(calibration curves with<br/>perfect calibration line)"]
+        V_ROC["ROC Curves with CIs<br/>Overlay multiple models"]
+        V_PR["Precision-Recall Curves"]
+        V_BAR["Bar Charts with 95% CI<br/>Across models and tasks"]
+        V_BA["Bland-Altman Plots<br/>(agreement analysis)"]
+    end
+
+    P_DAIC --> C_TEMP & C_PLATT & C_ISO & C_NONE
+    C_TEMP & C_PLATT & C_ISO & C_NONE --> M_DAIC
+    P_SENT --> M_SENT
+    P_EMO --> M_EMO
+    P_FI --> M_FI
+
+    M_DAIC & M_SENT & M_EMO & M_FI --> S_BOOT & S_DELONG & S_PERM & S_EFFECT & S_PAIRED
+    S_BOOT & S_DELONG & S_PERM & S_PAIRED --> Visualizations
