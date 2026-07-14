@@ -91,6 +91,13 @@ We leverage a unified corpus constructed from three diverse, heterogeneous publi
 
 \textbf{ChaLearn First Impressions (FI)} \cite{escalante2020chalearn} consists of 10,000 video clips annotated for apparent Big Five personality traits. We include this to enrich the visual and acoustic encoder representations, serving purely as auxiliary supervision. We explicitly state that apparent personality and clinical depression are fundamentally distinct psychological constructs.
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{phase_03_unimodal_baselines/umap_fi_text.png}
+\caption{UMAP projection of textual embeddings from the ChaLearn FI benchmark, demonstrating the initial topological structure prior to fusion.}
+\label{fig:umap_text}
+\end{figure}
+
 \subsection{Leakage-Safe Graph Protocol}
 Graph-based machine learning on tabular or multimodal datasets carries an extreme risk of test-label leakage if validation or test nodes are allowed to form edges with each other, implicitly smoothing test labels during inference. We implement a rigorous \textit{inductive} graph construction protocol:
 1. A base KNN graph ($K=10$ or $K=15$) is built strictly from the training embeddings.
@@ -162,7 +169,16 @@ where $\mathcal{L}_{\text{ortho}}$ penalizes cosine similarity between expert we
 
 We evaluate performance using AUROC and F1 (DAIC depression, MOSEI emotion) and Concordance Correlation Coefficient (CCC) for regression (MOSEI sentiment, FI personality). All reported metrics include 95\% Bootstrap Confidence Intervals generated over 1,000 iterations.
 
-\subsection{Main Performance and Fusion Ablation}
+\subsection{Main Performance and SOTA Comparison}
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.48\linewidth]{phase_03_unimodal_baselines/baseline_metrics_bar.png}
+\hfill
+\includegraphics[width=0.48\linewidth]{phase_03_unimodal_baselines/soa_comparison_bar.png}
+\caption{(Left) Performance across standard unimodal baselines, demonstrating the dominance of text in DAIC and video in FI. (Right) Comparison of our GG-MoE (V3) against recent SOTA architectures on DAIC-WOZ (AUROC), illustrating the superiority of structural graph routing over heavily parameterized transformers.}
+\label{fig:sota_baselines}
+\end{figure*}
+
 Table~\ref{tab:main_results} compares standard fusion paradigms against the GG-MoE variants.
 
 \begin{table*}[t]
@@ -191,7 +207,20 @@ KNN-Voting Baseline & $0.80 \pm 0.03$ & $0.70 \pm 0.03$ & $0.85 \pm 0.01$ & $0.4
 
 The GG-MoE variants significantly outperform early, late, and standard MMoE fusion across all datasets. Notably, V3 achieves a state-of-the-art AUROC of 0.89 on DAIC-WOZ, compared to standard gated fusion at 0.74. 
 
-\textbf{Cross-Attention Failure:} A critical negative finding is the failure of cross-attention fusion, which performs worse than simple gated fusion on our low-resource clinical setting. As shown in the inference profiling (Table~\ref{tab:inference_cost}), cross-attention requires roughly 2.8M parameters. Given DAIC's 107 training samples, the cross-attention mechanism severely overfits, reinforcing warnings regarding overparameterization in clinical ML.
+\subsection{Fusion Analysis and Robustness}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.48\linewidth]{phase_04_fusion/gate_weights_daic_gated.png}
+\hfill
+\includegraphics[width=0.48\linewidth]{phase_04_fusion/modality_dropout_daic_gated.png}
+\caption{(Left) Learned gating weights for DAIC-WOZ, indicating a strong dynamic preference for text and audio modalities over video in clinical interviews. (Right) Modality dropout robustness. The gated network degrades gracefully when modalities (e.g., video) are artificially dropped during inference.}
+\label{fig:fusion_analysis}
+\end{figure*}
+
+As illustrated in Figure~\ref{fig:fusion_analysis} (Left), the gated late fusion learns to heavily prioritize textual and acoustic features over video for depression assessment, aligning with clinical intuition. Furthermore, Figure~\ref{fig:fusion_analysis} (Right) demonstrates the model's robustness to missing modalities. When video features are dropped, the model degrades gracefully rather than failing catastrophically, a critical requirement for real-world deployment where sensor occlusion is common.
+
+\textbf{Cross-Attention Failure:} A critical negative finding is the failure of cross-attention fusion, which performs worse than simple gated fusion on our low-resource clinical setting. As shown in the inference profiling (Table~\ref{tab:inference_cost}), cross-attention requires roughly 2.8M parameters. Given DAIC's 107 training samples, the cross-attention mechanism severely overfit the training distribution, reinforcing warnings regarding overparameterization in clinical ML.
 
 \subsection{Graph Sensitivity and Baselines}
 To prove the learned GraphSAGE router adds value beyond naive label smoothing, we introduced a non-parametric KNN-Voting baseline. As seen in Table~\ref{tab:main_results}, while KNN-Voting improves over standard MMoE (0.80 vs 0.76 on DAIC), the learned GraphSAGE router (V3) adds an additional +0.09 AUROC, proving the efficacy of dynamically modulating expert parameters via local topology.
@@ -256,7 +285,36 @@ A common failure mode in MoE architectures is expert collapse, where the gating 
 \label{fig:routing_entropy}
 \end{figure}
 
-As shown in Figure~\ref{fig:routing_entropy}, the routing entropy drops slightly from uniform initialization but stabilizes around 1.85, well above collapse thresholds. This indicates that the GraphSAGE router actively and diversely specializes experts based on the neighborhood topology.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.48\linewidth]{phase_05_mmoe_ex/expert_routing.png}
+\hfill
+\includegraphics[width=0.48\linewidth]{phase_05_mmoe_ex/fi_per_trait_comparison.png}
+\caption{(Left) Expert routing distribution showing active diversification of the MoE pathways across samples. (Right) Breakdown of GG-MoE performance across the Big Five personality traits on the ChaLearn FI benchmark, highlighting robust auxiliary multitask learning.}
+\label{fig:mmoe_analysis}
+\end{figure*}
+
+As shown in Figure~\ref{fig:routing_entropy} and Figure~\ref{fig:mmoe_analysis}, the routing entropy drops slightly from uniform initialization but stabilizes around 1.85, well above collapse thresholds. This indicates that the GraphSAGE router actively and diversely specializes experts based on the neighborhood topology.
+
+\subsection{LLM Feature Ablation}
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{phase_08_llm_ablations/llm_delta_bar.png}
+\caption{Performance $\Delta$ when substituting classical encoders with frozen LLM features (Mistral, CLAP, LLaVA). While LLMs provide consistent gains, the improvements are orthogonal to, and smaller than, the gains from graph routing.}
+\label{fig:llm_delta}
+\end{figure}
+
+As shown in Figure~\ref{fig:llm_delta}, replacing classical encoders with LLM-derived features provides a marginal but consistent improvement across all datasets. However, these gains do not surpass the improvements generated by integrating the GraphSAGE router, suggesting that foundation models provide complementary but redundant signals compared to structural topology modeling.
+
+\subsection{Negative Transfer in Domain Adaptation}
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{phase_09_domain_adaptation/da_embedding_comparison.png}
+\caption{Embedding spaces during unsupervised domain adaptation (DANN/CORAL). The alignment forces the clinical DAIC representations into a degenerate space, resulting in negative transfer compared to plain multitask learning.}
+\label{fig:da_negative_transfer}
+\end{figure}
+
+We attempted Unsupervised Domain Adaptation (UDA) to align feature distributions across demographics. However, as visualized in Figure~\ref{fig:da_negative_transfer}, methods like DANN and CORAL forced the clinical representations into a degenerate, overlapping space, causing severe negative transfer (reducing AUROC back to baseline levels). This suggests that in clinical datasets with high natural variance, simple multitask learning preserves discriminative boundaries far better than adversarial domain alignment.
 
 \begin{table}[htbp]
 \centering
