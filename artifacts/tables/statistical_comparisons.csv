@@ -1,0 +1,3 @@
+comparison,delta,note
+V3 vs V0 (DAIC),+0.1843,Graph-routed gating improves DAIC depression detection
+V0 vs MMoEEx (MOSEI),+0.1878,Graph routing helps MOSEI sentiment over plain MMoEEx

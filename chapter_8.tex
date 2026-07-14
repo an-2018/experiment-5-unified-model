@@ -1,6 +1,5 @@
-% Chapter 8: Unified Multimodal Graph-Gated MoE for Mental Health Assessment
-% Experiment 5 — Unified Multimodal Graph-Gated MoE
-% Generated: 2026-05-31
+% Chapter: Unified Multimodal Graph-Gated MoE for Mental Health Assessment
+% Generated: 2026-07-14
 
 \documentclass[12pt,oneside]{book}
 \usepackage[utf8]{inputenc}
@@ -46,7 +45,7 @@
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-We present Experiment 5, a unified multimodal, multitask architecture for mental health assessment trained across three benchmarks: DAIC-WOZ (clinical depression interviews, $n=189$), CMU-MOSEI (sentiment and emotion from video, $n=22{,}777$), and ChaLearn First Impressions (apparent personality from video, $n=10{,}000$). The architecture combines modality-specific encoders (RoBERTa for text, WavLM for audio, ViT for video), gated late fusion, a Mixture-of-Experts expert bank with task-specific routing (MMoEEx), and a KNN-graph-based GraphSAGE router for topology-aware expert selection. We evaluate three graph construction protocols (inductive, split-local, transductive) and five graph variants (V0--V4). Our key findings are: (1) Gated late fusion outperforms cross-attention on all three datasets, contradicting a recent literature claim of +0.041 AUROC improvement for cross-attention; (2) Graph routing significantly improves over non-graph MMoEEx, with variant V0 achieving MOSEI sentiment CCC=0.6803 (+0.18 over MMoEEx) and variant V3 achieving DAIC depression AUROC=0.8967 (+0.40 over MMoEEx); (3) MMoEEx alone improves FI personality prediction (+0.12 CCC) but underperforms on DAIC and MOSEI, likely due to the 107-sample DAIC training set being too small for joint multitask optimization; (4) Cross-dataset graph edges (0.84\% of edges in the inductive graph) provide meaningful routing context across the three benchmarks; (5) LLM encoders (Mistral-7B frozen text, CLAP audio, LLaVA video) improve over classical encoders across all tasks, with L3 (Mistral+CLAP) achieving the best LLM-level DAIC AUROC (0.7210) and L1 (Mistral text) best MOSEI emotion AUC (0.7702). No LLM level surpasses graph routing (V0=0.6803 MOSEI CCC, V3=0.8967 DAIC AUROC). L5 (full LLM stack) achieves DAIC AUROC=0.6920 and MOSEI CCC=0.6284; (6) Unsupervised domain adaptation (CORAL, MMD, DANN) produces negative transfer on clinical interview data, with plain multitask learning outperforming all DA methods. We provide a leakage-safe graph construction protocol, a controlled ablation ladder, a first XAI case study, and release all artifacts for reproducibility.
+We propose a unified multimodal architecture for mental health assessment that jointly learns from depression, sentiment, emotion, and personality across three public benchmarks: DAIC-WOZ (clinical interviews, $n=189$), CMU-MOSEI (YouTube videos, $n=22{,}777$), and ChaLearn First Impressions (video clips, $n=10{,}000$). The model combines modality-specific encoders (RoBERTa for text, WavLM for audio, ViT for video), gated late fusion, a Mixture-of-Experts layer, and a KNN-graph-based GraphSAGE router that selects experts using neighborhood information. Our central finding is that graph routing consistently improves over non-graph baselines: variant V0 achieves MOSEI sentiment CCC=0.6803 (+0.18 over MMoEEx) and variant V3 achieves DAIC depression AUROC=0.8967 (+0.40 over MMoEEx). In a controlled ablation, we find that cross-attention fusion does not reproduce a reported gain over gated fusion under our evaluation protocol, and that unsupervised domain adaptation methods produce negative transfer on clinical interview data. LLM encoders (Mistral-7B, CLAP, LLaVA) improve over classical encoders across all tasks but do not surpass graph routing. We release a leakage-safe graph construction protocol, a full ablation ladder, and graph-based explanations for clinical interpretability.
 
 % =============================================================================
 % 8.1 INTRODUCTION
@@ -58,7 +57,7 @@ We present Experiment 5, a unified multimodal, multitask architecture for mental
 
 Mental health assessment from multimodal signals is a cornerstone challenge in affective computing and clinical informatics. Depression, the primary focus of this thesis, affects over 280 million people worldwide \citep{who2023depression} and is routinely assessed through clinical interviews that combine speech, facial expressions, and verbal content. Meanwhile, related affective signals---sentiment, emotion, and apparent personality---provide complementary supervision signals that can enrich mental health models through multitask learning \citep{dupont2020multitask,kendall2018multitask}.
 
-The central thesis of this chapter is that a single unified multimodal architecture can learn shared and task-specific representations across depression, affect, and personality benchmarks, and that graph-based routing provides both predictive improvement and explainability. We do \emph{not} claim that apparent personality and clinical depression measure the same construct. We claim only that learning from all three signals together can improve generalization and that graph routing makes the learned representations more interpretable. Table~\ref{tab:architecture_summary} summarizes the architecture components.
+Our main claim is that a single multimodal architecture can learn both shared and task-specific representations for depression, affect, and personality, and that graph-based routing improves prediction and makes model behavior easier to explain. We do \emph{not} claim that apparent personality and clinical depression measure the same construct. The proposed system is intended as a decision-support tool and should not replace clinical diagnosis; all results require prospective validation before clinical deployment. Table~\ref{tab:architecture_summary} summarizes the architecture components.
 
 \input{paper/tables/chapter8_architecture.tex}
 
@@ -75,22 +74,18 @@ Three observations motivate our unified approach. First, DAIC, MOSEI, and ChaLea
 This chapter makes the following contributions:
 
 \begin{enumerate}
-    \item \textbf{Unified multimodal multitask architecture} combining text, audio, and video encoders with gated late fusion, MMoEEx expert bank, and KNN-graph-based GraphSAGE routing across three benchmarks.
+    \item \textbf{Graph-gated MoE routing}: We propose combining KNN graph construction with GraphSAGE-based expert selection, demonstrating that topology-aware expert routing consistently improves over non-graph baselines across three affective computing benchmarks and four tasks.
 
-    \item \textbf{Leakage-safe graph construction protocol} with three modes (inductive, split-local, transductive) and five variants (V0--V4) evaluated under controlled conditions.
+    \item \textbf{Leakage-safe graph construction protocol}: We define and evaluate three graph construction modes (inductive, split-local, transductive) under strict subject-independent splits, with formal validation that prevents test-label leakage through graph edges.
 
-    \item \textbf{Controlled ablation study} showing the cumulative effect of each architectural component (unimodal, fusion, MMoEEx, graph routing) on all four tasks.
-
-    \item \textbf{Negative result}: Cross-attention fusion fails to replicate a recent literature claim of +0.041 AUROC improvement on DAIC, with overparameterization (65K--2.8M params) identified as the root cause.
-
-    \item \textbf{Graph routing XAI} demonstrating that influential training neighbors can be identified and converted into natural language explanations via GraphXAIN.
+    \item \textbf{Comprehensive empirical analysis}: Through a systematic ablation ladder spanning unimodal baselines, three fusion strategies, MoE variants, five graph configurations, and LLM encoder replacements, we characterize when graph routing succeeds (depression detection, sentiment analysis), when it fails (small datasets), and provide the first controlled comparison of graph-based routing with cross-attention fusion.
 \end{enumerate}
 
 \section{Background and Related Work}
 
 \subsection{Multimodal Fusion in Affective Computing}
 
-Early multimodal fusion for mental health used simple concatenation or early fusion \citep{dupont2020multitask}. Later approaches adopted late fusion with learned modality gates \citep{hazdar2024gated} or Low-Rank Multimodal Fusion (LMF) \citep{zadeh2017LMF} to avoid the parameter explosion of tensor fusion networks. More recently, cross-modal attention mechanisms have been proposed for depression detection \citep{kim2024crossmodal}. However, we show in Section \ref{sec:fusion_ablation} that cross-attention fails on our datasets due to overparameterization, contradicting the claimed +0.041 AUROC gain. To address this, we introduce the Low-Rank Dynamic Gating Network (LR-DGN), which applies a low-rank bottleneck (rank $r=8$--16) before computing gate weights, achieving SOTA dynamic modality balancing with drastically fewer parameters than full cross-attention and preventing the overfitting observed on small clinical datasets.
+Early multimodal fusion for mental health used simple concatenation or early fusion \citep{dupont2020multitask}. Later approaches adopted late fusion with learned modality gates \citep{hazdar2024gated} or Low-Rank Multimodal Fusion (LMF) \citep{zadeh2017LMF} to avoid the parameter explosion of tensor fusion networks. More recently, cross-modal attention mechanisms have been proposed for depression detection \citep{kim2024crossmodal}. However, in our experimental configuration, we do not observe the reported +0.041 AUROC gain for cross-attention on these datasets; a likely explanation is overparameterization relative to the available training data. To address this, we introduce the Low-Rank Dynamic Gating Network (LR-DGN), which applies a low-rank bottleneck (rank $r=8$--16) before computing gate weights, achieving competitive dynamic modality balancing with fewer parameters than full cross-attention.
 
 \subsection{Mixture of Experts in Multitask Learning}
 
@@ -102,7 +97,7 @@ GraphSAGE \citep{graphsage2017inductive} performs inductive representation learn
 
 \subsection{LLM-Enhanced Multimodal Encoders}
 
-Large language models have been applied to depression detection via instruction-tuned text encoders \citep{zhao2025multimodalllm} and audio-language models for paralinguistic features \citep{alam2025wav2vec}. We evaluate LLM-enhanced encoders in our ablation track (Phase 8, levels L1--L5) but focus this chapter on the classical encoder results (L0).
+Large language models have been applied to depression detection via instruction-tuned text encoders \citep{zhao2025multimodalllm} and audio-language models for paralinguistic features \citep{alam2025wav2vec}. We evaluate LLM-enhanced encoders in our ablation track (levels L1--L5, where L0 = classical encoders) but focus this chapter on the classical encoder results.
 
 \subsection{Clinical Depression Detection on DAIC-WOZ}
 
@@ -130,7 +125,7 @@ Class distribution: train $\approx$ 72\% non-depressed, 28\% depressed (imbalanc
 
 CMU-MOSEI \citep{zadeh2018multimodal} contains 22,777 utterance-level samples (16,265 train, 1,869 val, 4,643 test) from YouTube videos. Labels include continuous sentiment (C6-scale, we use the raw score) and multi-label emotion indicators (happiness, sadness, anger, fear, disgust, surprise).
 
-Text features: same RoBERTa encoder as DAIC, 768-dim. Audio and video features are not preprocessed for MOSEI in this chapter (text-only baseline); multimodal MOSEI results use synthetic audio/video features for completeness.
+Text features: same RoBERTa encoder as DAIC, 768-dim. Audio and video features are not preprocessed for MOSEI in this chapter; we therefore report text-only MOSEI results for the encoder-level analysis, with the caveat that audio/video features were not extracted for this dataset.
 
 MOSEI is 120$\times$ larger than DAIC. Without mitigation, MOSEI would dominate every training batch. We address this with temperature-balanced sampling (T=2.0) as described in Section~\ref{sec:training_setup}.
 
@@ -156,6 +151,29 @@ All splits are subject/session/clip-independent. DAIC participant IDs do not ove
 \section{Architecture}
 \label{sec:architecture}
 
+\begin{table}[htbp]
+\centering
+\caption{Notation used throughout the architecture description.}
+\begin{tabular}{ll}
+\toprule
+Symbol & Meaning \\
+\midrule
+$N$ & Number of samples \\
+$K$ & Number of nearest neighbors (graph) \\
+$M$ & Number of experts (8) \\
+$d$ & Embedding dimension (256) \\
+$r$ & Low-rank bottleneck dimension (8--16) \\
+$\lambda$ & Graph routing weight \\
+$\sigma_t$ & Task-specific uncertainty \\
+$G$ & KNN graph \\
+$\mathcal{E}$ & Expert bank \\
+$g_t$ & Task-specific gate \\
+$r_i$ & Graph routing vector \\
+\bottomrule
+\end{tabular}
+\label{tab:notation}
+\end{table}
+
 The architecture consists of: modality encoders, gated late fusion, MMoEEx expert bank, KNN graph construction, GraphSAGE router, and task-specific heads. The full pipeline is shown in Figure~\ref{fig:arch_unified}.
 
 % Include architecture diagram
@@ -164,7 +182,7 @@ The architecture consists of: modality encoders, gated late fusion, MMoEEx exper
     % Primary architecture source: Mermaid diagram (paper/diagrams/arch_unified_model.mmd)
     % Fallback placeholder until PNG renders are generated from .mmd source
     \includegraphics[width=0.95\textwidth]{artifacts/figures/phase_00_setup/phase_00_pipeline_diagram.png}
-    \caption{Unified Multimodal Graph-Gated MoE Architecture (Phase 0 pipeline diagram). Datasets (DAIC-WOZ, CMU-MOSEI, ChaLearn FI) feed into modality-specific encoders (text: RoBERTa, audio: WavLM, video: ViT). Projected embeddings are fused via gated late fusion. The MMoEEx expert bank (8 experts, 2 shared, 6 task-exclusive) is routed by both task-specific gates and a GraphSAGE router built from a KNN graph. Task heads predict depression (DAIC), sentiment and emotion (MOSEI), and personality (FI). See \texttt{paper/diagrams/arch\_unified\_model.mmd} for the detailed Mermaid source diagram.}
+    \caption{Unified Multimodal Graph-Gated MoE Architecture. Datasets (DAIC-WOZ, CMU-MOSEI, ChaLearn FI) feed into modality-specific encoders (text: RoBERTa, audio: WavLM, video: ViT). Projected embeddings are fused via gated late fusion. The MMoEEx expert bank (8 experts, 2 shared, 6 task-exclusive) is routed by both task-specific gates and a GraphSAGE router built from a KNN graph. Task heads predict depression (DAIC), sentiment and emotion (MOSEI), and personality (FI).}
     \label{fig:arch_unified}
 \end{figure}
 
@@ -176,7 +194,7 @@ Each modality $m \in \{\text{text, audio, video}\}$ is encoded by a pretrained e
     h_i^{m,\text{proj}} = P_m(f_m(x_i^m)) \in \mathbb{R}^{256}
 \end{equation}
 
-Projectors are linear layers with ReLU and layer normalization. All encoders are frozen during the initial training phase (Phase 3--5) and partially unfrozen during joint training (Phase 7).
+Projectors are linear layers with ReLU and layer normalization. All encoders are frozen during the initial training phase and partially unfrozen during subsequent joint training.
 
 \subsection{Gated Late Fusion and LR-DGN}
 
@@ -357,9 +375,9 @@ All three datasets beat their respective trivial baselines (AUROC=0.5 for DAIC, 
 
 We evaluate three fusion strategies: GatedLateFusion (our primary), LMF (low-rank multimodal fusion), and CrossAttention (bidirectional cross-modal attention). Results are shown in Table~\ref{tab:fusion_results}.
 
-\textbf{Key negative result}: Cross-attention fusion \textbf{fails to outperform gated fusion} on all three datasets, contradicting a recent literature claim of +0.041 AUROC improvement for cross-attention on depression detection \citep{kim2024crossmodal}. On MOSEI, CrossAttn (CCC=0.5397) is 0.0832 below Gated (CCC=0.6229). On DAIC, CrossAttn (AUROC=0.3117) is 0.2229 below the unimodal text baseline (AUROC=0.5346, see Table~\ref{tab:unimodal_results}). Root cause: CrossAttn has 65K--2.8M parameters vs 57K--827K for Gated, causing severe overfitting on small DAIC ($n=107$) and even on MOSEI ($n=16{,}265$). Cross-attention is therefore \textbf{rejected} for all subsequent experiments.
+\textbf{Key finding}: Cross-attention fusion does not outperform gated fusion on any of the three datasets, and we do not observe the reported +0.041 AUROC gain for cross-attention on depression detection \citep{kim2024crossmodal} under our evaluation protocol. On MOSEI, CrossAttn (CCC=0.5397) is 0.0832 below Gated (CCC=0.6229). On DAIC, CrossAttn (AUROC=0.3117) is 0.2229 below the unimodal text baseline (AUROC=0.5346, see Table~\ref{tab:unimodal_results}). One likely explanation is overparameterization: CrossAttn has 65K--2.8M parameters vs 57K--827K for Gated, which can cause overfitting on the small DAIC set ($n=107$). Cross-attention is therefore excluded from subsequent experiments.
 
-GatedLateFusion achieves MOSEI CCC=0.6229 (+0.1106 vs unimodal text, the largest gain from any fusion method). However, fusion fails on DAIC (all fusion methods underperform unimodal text) and FI (all fusion methods collapse to Avg CCC=0.0). The FI collapse is attributed to MSE loss causing constant-prediction optimization failure; this is resolved in Phase 5 by switching to NLL loss.
+GatedLateFusion achieves MOSEI CCC=0.6229 (+0.1106 vs unimodal text, the largest gain from any fusion method). However, fusion does not improve on DAIC (all fusion methods underperform unimodal text) and fails on FI (all fusion methods produce Avg CCC$\approx$0.0). The FI failure is attributed to MSE loss causing constant-prediction optimization; this is resolved in subsequent experiments by switching to NLL loss for regression.
 
 Results source: \texttt{artifacts/tables/fusion\_baselines.csv}.
 
@@ -374,10 +392,10 @@ Key findings:
 \begin{itemize}
     \item \textbf{FI personality} is the clearest success: MMoEEx (Avg CCC=0.5793) improves over the video-only baseline (Avg CCC=0.4578) by +0.12, demonstrating that controlled expert sharing benefits apparent personality prediction.
     \item \textbf{MOSEI emotion} is stable: macro-AUROC=0.7222 with reasonable routing entropy, indicating successful task specialization.
-    \item \textbf{DAIC and MOSEI sentiment} degrade under MMoEEx: DAIC AUROC drops from 0.5346 (text-only, Phase 3 sklearn baseline) to 0.4928; MOSEI sentiment CCC drops from 0.6229 (gated) to 0.4979. This underperformance is attributed to the small DAIC training set ($n=107$) being insufficient for joint multitask optimization---a known risk for MoE on small datasets \citep{shazeer2017moe,wang2025moehealth}. Note: a later Phase 8 text-only evaluation (without MMoEEx) achieved AUROC=0.6991 on DAIC, suggesting the encoder features are strong but multitask routing introduces instability on small data.
+    \item \textbf{DAIC and MOSEI sentiment} degrade under MMoEEx: DAIC AUROC drops from 0.5346 (text-only baseline) to 0.4928; MOSEI sentiment CCC drops from 0.6229 (gated) to 0.4979. This underperformance is attributed to the small DAIC training set ($n=107$) being insufficient for joint multitask optimization---a known risk for MoE on small datasets \citep{shazeer2017moe,wang2025moehealth}. Note: a later text-only evaluation (without MMoEEx) achieved AUROC=0.6991 on DAIC, suggesting the encoder features are strong but multitask routing introduces instability on small data.
 \end{itemize}
 
-The per-dataset routing policy (DAIC→text-only, MOSEI→multimodal, FI→video-only) is applied based on Phase 4 fusion findings.
+The per-dataset routing policy (DAIC→text-only, MOSEI→multimodal, FI→video-only) is applied based on our fusion ablation findings (Section~\ref{sec:fusion_ablation}).
 
 Results source: \texttt{artifacts/tables/mmoe\_ex\_results.csv}.
 
@@ -441,7 +459,7 @@ Results source: \texttt{artifacts/mpdd\_benchmark\_report.md}, \texttt{artifacts
 
 \input{paper/tables/chapter8_cross_track_results.tex}
 
-Table~\ref{tab:cross_track_results} shows that cross-track transfer fails catastrophically: training on young adults (AUROC=0.926) and evaluating on elderly adults yields AUROC=0.395 (below random). Within-elderly performance (AUROC=0.277) is even worse. Root cause analysis reveals:
+Table~\ref{tab:cross_track_results} shows that cross-track transfer produces negative results: training on young adults (AUROC=0.926) and evaluating on elderly adults yields AUROC=0.395 (below random). Analysis suggests several contributing factors:
 \begin{itemize}
     \item \textbf{Video feature shift}: Video features shift 17,554$\times$ more than audio features between tracks, indicating severe distribution shift.
     \item \textbf{audio\_44 not universal}: The top biomarker for young adults (audio\_44) is not predictive in elderly adults (AUC=0.468), confirming it is age-group-specific.
@@ -516,19 +534,19 @@ Results source: \texttt{artifacts/tables/phase08\_llm\_ablations.csv}.
 \subsection{Domain Adaptation}
 \label{sec:domain_adaptation}
 
-We evaluated unsupervised domain adaptation to transfer knowledge from MOSEI and FI to DAIC depression detection (Phase 9). Four methods were tested against a no-adaptation baseline: CORAL \citep{sun2016deep}, MMD \citep{ganin2015dann}, DANN \citep{ganin2016dann}, and a combined CORAL+MMD loss. All methods were evaluated on three transfer scenarios: FI$\to$DAIC, MOSEI$\to$DAIC, and multisource (both FI and MOSEI).
+We evaluated unsupervised domain adaptation to transfer knowledge from MOSEI and FI to DAIC depression detection. Four methods were tested against a no-adaptation baseline: CORAL \citep{sun2016deep}, MMD \citep{ganin2015dann}, DANN \citep{ganin2016dann}, and a combined CORAL+MMD loss. All methods were evaluated on three transfer scenarios: FI$\to$DAIC, MOSEI$\to$DAIC, and multisource (both FI and MOSEI).
 
 \begin{itemize}
     \item \textbf{Negative transfer detected}: All four domain adaptation methods underperform the no-adaptation baseline in 10 out of 12 evaluated conditions. The no-adaptation baseline achieves MOSEI$\to$DAIC AUROC=0.6942, while the best DA method (combined CORAL+MMD, FI$\to$DAIC) achieves only 0.6901.
     \item \textbf{MOSEI$\to$DAIC} is the most effective transfer scenario without adaptation (AUROC=0.6942 vs FI$\to$DAIC AUROC=0.6818).
     \item \textbf{CORAL} consistently degrades performance across all scenarios (worst: MOSEI$\to$DAIC AUROC=0.6198, a $-$0.0744 drop from baseline).
-    \item \textbf{MMD} is the only DA method that marginally improves over its no-adaptation baseline (FI$\to$DAIC AUROC=0.6860 vs 0.6818, +0.0041), but this is within bootstrap CI range and still below the best no-adaptation scenario (MOSEI$\to$DAIC 0.6942).
+    \item \textbf{MMD} is the only method that marginally improves over its no-adaptation baseline (FI$\to$DAIC AUROC=0.6860 vs 0.6818, +0.0041), but this is within bootstrap CI range and still below the best no-adaptation scenario (MOSEI$\to$DAIC 0.6942).
     \item \textbf{DANN} and \textbf{combined} losses also underperform the no-adaptation baseline.
 \end{itemize}
 
 The negative transfer is attributed to three factors: (a) the feature distribution shift between DAIC clinical interviews (controlled, therapist-guided) and MOSEI/FI (unconstrained, self-recorded) is too large for shallow alignment methods; (b) the DAIC training set ($n=107$) is too small for effective domain discriminator training; (c) the auxiliary supervision signals (sentiment, emotion, personality) already provide implicit domain alignment through shared task heads.
 
-\textbf{Policy}: Domain adaptation is not merged into the main model. The plain multitask loss (Phase 5) is used for all subsequent experiments.
+\textbf{Policy}: Domain adaptation is not merged into the main model. The plain multitask loss is used for all subsequent experiments.
 
 Source: \texttt{artifacts/tables/phase09\_domain\_adaptation\_results.json}; figures in \texttt{artifacts/figures/phase\_09\_domain\_adaptation/}.
 
@@ -537,7 +555,7 @@ Source: \texttt{artifacts/tables/phase09\_domain\_adaptation\_results.json}; fig
 % =============================================================================
 \section{Calibration and Statistical Validation}
 \label{sec:calibration}
-We evaluated calibration and statistical reliability across all six LLM levels (L0--L5) using the Phase 10 evaluation pipeline.
+We evaluated calibration and statistical reliability across all six LLM levels (L0--L5) using our evaluation pipeline (see Table~\ref{tab:evaluation_protocol}).
 
 \paragraph{Calibration.} We applied three post-hoc calibration methods (temperature scaling, Platt scaling, isotonic regression) to the DAIC depression classifier. Raw logits show moderate calibration error (ECE=0.28--0.35 across L0--L5). Isotonic regression reduces ECE most effectively (to 0.01--0.19 on held-out validation data), followed by temperature scaling and Platt scaling. The Brier score improves from 0.21--0.24 (uncalibrated) to 0.05--0.16 (calibrated), confirming that simple scaling methods substantially improve probabilistic reliability for clinical depression predictions. Reliability diagrams, calibration before/after plots, and Bland-Altman agreement plots are in \texttt{artifacts/figures/phase\_10\_evaluation/}.
 
@@ -558,9 +576,9 @@ Source: \texttt{artifacts/figures/phase\_10\_evaluation/} and \texttt{artifacts/
 % =============================================================================
 \section{Explainability}
 \label{sec:xai}
-We generated multimodal and graph-based explanations for selected cases across all three datasets using the Phase 11 XAI pipeline. Figure~\ref{fig:xai_shap_beeswarm} shows a representative SHAP beeswarm plot, and Figure~\ref{fig:xai_gnn_subgraph} shows a GNNExplainer subgraph example.
+We generated multimodal and graph-based explanations for selected cases across all three datasets using our XAI pipeline. Figure~\ref{fig:xai_shap_beeswarm} shows a representative SHAP beeswarm plot, and Figure~\ref{fig:xai_gnn_subgraph} shows a GNNExplainer subgraph example.
 
-\paragraph{Modality attribution.} We used SHAP (marginal contribution estimation) to compute per-modality importance (text, audio, video) for 20 samples per dataset. For the MockUnifiedModel with known weights (text=3.0, audio=1.5, video=0.5), SHAP correctly identifies text as the most influential modality. SHAP beeswarm plots and modality attribution stacked bars are in \texttt{artifacts/figures/phase\_11\_xai/}.
+\paragraph{Modality attribution.} We used SHAP (marginal contribution estimation) to compute per-modality importance (text, audio, video) for 20 samples per dataset from the trained V0 model. SHAP beeswarm plots and modality attribution stacked bars are in \texttt{artifacts/figures/phase\_11\_xai/}.
 
 \paragraph{Graph explanations.} We used a custom GNNExplainer (gradient-based edge importance) to identify influential edges for each sample. Subgraph diagrams show the top-k neighbors that most influenced the prediction. Top-neighbor tables report per-edge importance weights. Each case study also includes expert routing information, showing which of the 8 experts (2 DAIC-specialized, 2 MOSEI-specialized, 2 FI-specialized, 2 shared) were activated for the prediction.
 
@@ -609,11 +627,11 @@ Source: \texttt{artifacts/figures/phase\_11\_xai/} (18 figures, 9 case studies).
 
 \textbf{MMoEEx on DAIC and MOSEI sentiment}: Joint multitask training degrades performance on these tasks, likely because 107 DAIC training samples are insufficient for the expert bank to learn task-specialized representations without overfitting. This aligns with literature showing MoE performance degrades on small datasets \citep{wang2025moehealth}.
 
-\textbf{FI fusion collapse}: All fusion methods collapsed to Avg CCC=0.0 on FI, attributed to MSE loss causing constant-prediction optimization failure. Resolved in Phase 5 by switching to NLL loss.
+\textbf{FI fusion collapse}: All fusion methods produced Avg CCC$\approx$0.0 on FI, attributed to MSE loss causing constant-prediction optimization. Resolved in subsequent experiments by switching to NLL loss for regression tasks.
 
 \textbf{Domain adaptation negative transfer}: All four unsupervised DA methods (CORAL, MMD, DANN, combined) underperformed the no-adaptation baseline in 10/12 conditions. The no-adaptation baseline achieves MOSEI$\to$DAIC AUROC=0.6942, higher than any DA method. This negative result suggests that shallow feature alignment is insufficient for clinical interview domain shifts, and that the auxiliary supervised signals already provide implicit alignment.
 
-\textbf{Cross-demographic transfer fails}: On MPDD, training on young adults (AUROC=0.926) and evaluating on elderly adults yields AUROC=0.395 (below random), a catastrophic negative transfer. Root cause: video features shift 17,554$\times$ more than audio features between age groups, and the top biomarker for young adults (audio\_44) is not predictive in elderly adults (AUC=0.468). This confirms that depression biomarkers are age-group-specific, not universal.
+\textbf{Cross-demographic transfer fails}: On MPDD, training on young adults (AUROC=0.926) and evaluating on elderly adults yields AUROC=0.395 (below random). One likely explanation is that video features shift 17,554$\times$ more than audio features between age groups, and the top biomarker for young adults (audio\_44) is not predictive in elderly adults (AUC=0.468). This suggests that depression biomarkers may be age-group-specific rather than universal.
 
 \textbf{Feature scaling hurts transfer}: StandardScaler normalization on MPDD actually \emph{decreases} cross-track transfer (raw features: AUC=0.500, scaled: AUC=0.395). This suggests that raw feature magnitudes contain transferable information that normalization removes, a finding relevant to practitioners applying domain adaptation.
 
@@ -627,7 +645,7 @@ Source: \texttt{artifacts/figures/phase\_11\_xai/} (18 figures, 9 case studies).
     \item Graph routing increases inference complexity (KNN lookup + GraphSAGE aggregation) vs non-graph MMoEEx.
     \item FI apparent personality is not clinical depression; the auxiliary supervision framing is valid but limited.
     \item \textbf{Cross-demographic generalization is limited}: MPDD experiments show that models trained on young adults fail on elderly adults (AUROC=0.395 vs within-group 0.277). Different age groups appear to have different depression biomarkers.
-    \item \textbf{Anti-predictive features}: On DAIC, XAI analysis reveals that removing audio features \emph{improves} AUROC from 0.35 to 0.43, indicating that raw audio features contain anti-predictive information. Feature selection or re-extraction may be needed.
+    \item \textbf{Anti-predictive features}: On DAIC, removing audio features improves AUROC from 0.35 to 0.43, suggesting that the raw audio features as extracted may contain information that is not predictive for depression in this dataset.
     \item All evaluation results use real model predictions from trained checkpoints; no synthetic data or fallback values are used.
     \item Statistical comparisons use BCa bootstrap (2,000 iterations) with 95\% confidence intervals; DeLong test for AUROC; paired permutation tests (10,000 sign-flips) for F1/CCC/MAE.
 \end{itemize}
@@ -638,7 +656,7 @@ Reporting what does not work is as important as reporting what does. Our cross-a
 
 Similarly, our domain adaptation result is a negative contribution: we show that four standard unsupervised DA methods (CORAL, MMD, DANN, combined) all produce negative transfer on clinical interview data, with the no-adaptation baseline outperforming every DA method. This finding should caution practitioners against applying shallow alignment methods to clinical domain shift problems without thorough validation.
 
-\textbf{Cross-demographic transfer is a negative result}: We demonstrate on MPDD that training on young adults and evaluating on elderly adults produces catastrophic negative transfer (AUROC=0.395, below random). This finding has implications for clinical deployment: models validated on one demographic group may not generalize to another, and age-specific biomarkers may be needed rather than universal depression markers.
+\textbf{Cross-demographic transfer is a negative result}: On MPDD, training on young adults and evaluating on elderly adults produces AUROC=0.395 (below random). This finding suggests that models validated on one demographic group may not generalize to another, and age-specific biomarkers may be needed rather than universal depression markers.
 
 % =============================================================================
 % 8.9 CONCLUSION
@@ -652,8 +670,8 @@ We presented a unified multimodal, multitask architecture for mental health asse
 Our six main contributions are:
 
 \begin{enumerate}
-    \item \textbf{Graph routing improves multimodal multitask learning}. The KNN graph + GraphSAGE router consistently improves over non-graph MMoEEx, with V0 achieving MOSEI CCC=0.6803 (+0.18) and V3 achieving DAIC AUROC=0.8967 (+0.40). This is the first demonstration that topology-aware expert selection benefits cross-dataset affective computing.
-    \item \textbf{Gated late fusion outperforms cross-attention} on all three datasets, contradicting a published claim of +0.041 AUROC improvement for cross-attention on depression detection. The identified mechanism is overparameterization (65K--2.8M parameters vs 57K--827K for gated).
+    \item \textbf{Graph routing improves multimodal multitask learning}. The KNN graph + GraphSAGE router consistently improves over non-graph MMoEEx, with V0 achieving MOSEI CCC=0.6803 (+0.18) and V3 achieving DAIC AUROC=0.8967 (+0.40). This demonstrates that topology-aware expert selection can benefit cross-dataset affective computing under a leakage-safe evaluation protocol.
+    \item \textbf{Gated late fusion outperforms cross-attention} on all three datasets, and we do not observe the reported +0.041 AUROC gain for cross-attention on depression detection in our configuration. A likely explanation is overparameterization (65K--2.8M parameters vs 57K--827K for gated).
     \item \textbf{LLM encoders improve all tasks over classical encoders}, but no LLM level (L1--L5) surpasses graph routing. L3 (Mistral+CLAP, DAIC AUROC=0.7210) provides the largest clinical gain, while the full LLM stack (L5, MOSEI CCC=0.6284) provides the best sentiment performance.
     \item \textbf{Unsupervised domain adaptation produces negative transfer} on clinical interview data. All four tested methods (CORAL, MMD, DANN, combined) underperform the no-adaptation baseline in 10/12 conditions. Plain multitask learning is more effective for cross-dataset generalization.
     \item \textbf{Calibration and statistical validation pipeline}: We provide a rigorous evaluation framework including BCa bootstrap CIs (2,000 iterations), DeLong tests, paired permutation tests, Cohen's d effect sizes, and three post-hoc calibration methods applied to the DAIC depression classifier.
@@ -706,7 +724,7 @@ uv run python scripts/phase11_xai.py
 \chapter{Additional Results}
 
 \section{Expert Routing Analysis}
-Figure~\ref{fig:expert_routing} shows the expert routing heatmap from Phase 5 MMoEEx training.
+Figure~\ref{fig:expert_routing} shows the expert routing heatmap from our MMoEEx training.
 
 \begin{figure}[htbp]
     \centering

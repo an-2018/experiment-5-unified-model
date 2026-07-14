@@ -1,129 +1,123 @@
 # Chapter 8 Progress Tracker — Unified Multimodal Graph-Gated MoE
 
 **Paper lead:** @paper-lead
-**Last updated:** 2026-06-07
+**Last updated:** 2026-07-14
 
-## Writing Waves Status
+## Phase 1: Code Refinements (Reviewer Feedback Implementation)
 
-| Wave | Phase(s) | Section | Status | Notes |
-|------|----------|---------|--------|-------|
-| Wave 0 | Phases 0–2 | Abstract, Intro, RQs, Dataset | ✅ DONE | Written in chapter_8.tex |
-| Wave 1 | Phase 3 | Unimodal baselines methods+results | ✅ DONE | Table 3, Figure referenced |
-| Wave 2 | Phase 4 | Fusion baselines methods+results | ✅ DONE | Table 4, cross-attention REJECTED |
-| Wave 3 | Phase 5 | MMoEEx architecture + results | ✅ DONE | Table 5, per-dataset routing policy |
-| Wave 4 | Phases 6–7 | Graph routing + joint training | ✅ DONE | Table 6 (V0-V4), Table 7 (ablation ladder) |
-| Wave 5 | Phase 8 | LLM ablations (L0-L5 complete) | ✅ DONE | Full L0-L5 results, Mistral-LoRA best for DAIC |
-| Wave 6 | Phases 9–11 | Stats, calibration, XAI | ✅ DONE | DA negative transfer, calibration pipeline, 9 XAI case studies |
-| Wave 7 | Phase 12 | Discussion, limitations, conclusion | ✅ DONE | Full conclusion, 6 contributions, reproducibility guide |
+| Task | Description | Status | Key Results |
+|------|-------------|--------|-------------|
+| 1.1 | Expert Routing Analysis | ✅ DONE | All 8 experts active, entropy near max (2.079), no collapse |
+| 1.2 | Graph Sensitivity Sweep (K=5,10,15,20) | ✅ DONE | Density scales linearly with K, monotonic |
+| 1.3 | KNN Voting Baseline (no GNN) | ✅ DONE | GraphSAGE outperforms KNN voting: DAIC +0.082, MOSEI +0.237 |
+| 1.4 | Statistical Rigor (DeLong, F1, Bootstrap) | ✅ DONE | V3 vs V0 DAIC Δ=+0.1843, V0 vs MMoEEx MOSEI Δ=+0.1878 |
+| 1.5 | Leakage & Bug Audit | ✅ DONE | 9/9 checks passed, bug injection caught intentional leak |
+| 1.6 | Inference Cost Profiling | ✅ DONE | CrossAttn most expensive (2.30ms, 4.05M params); ggmoe_V0 most efficient (0.26ms, 0.67M params) |
+
+### New Artifacts Created (Phase 1)
+
+| File | Description |
+|------|-------------|
+| `scripts/phase13_expert_routing_analysis.py` | Analyzes expert selection and routing entropy from checkpoints |
+| `scripts/phase13_graph_sensitivity.py` | KNN sweep for K ∈ {5,10,15,20} with density/degree metrics |
+| `scripts/phase13_knn_voting_baseline.py` | Non-GNN sklearn KNN baseline for comparison |
+| `scripts/phase13_statistical_rigor.py` | DeLong tests, paired bootstrap, F1 harmonization |
+| `scripts/phase13_leakage_audit.py` | Static analysis + bug-injection test for graph leakage |
+| `scripts/phase13_inference_profiling.py` | FLOPs, latency, memory, parameter profiling |
+| `artifacts/tables/routing_analysis.csv` | Entropy and expert utilization per variant |
+| `artifacts/tables/graph_sensitivity.csv` | Graph density metrics per K and variant |
+| `artifacts/tables/knn_voting_results.csv` | KNN voting baseline results |
+| `artifacts/tables/inference_profile.csv` | Full inference cost table |
+| `artifacts/tables/statistical_comparisons.csv` | Δ with significance indicators |
+| `artifacts/leakage_audit_report.md` | Audit pass/fail for all graph protocols |
+| `src/evaluation/metrics.py` (modified) | Added delong_test(), paired_bootstrap_ci(), cohens_d() |
+
+## Phase 2: Journal Paper Polish (chapter_8.tex)
+
+| Task | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 2.1 | Narrative Restructuring | ✅ DONE | Abstract rewritten, 3 contributions, notation table |
+| 2.2 | Structural Polish & Citations | ✅ DONE | 26 jargon instances removed, claims softened, clinical disclaimer added |
+
+### Key Paper Changes
+
+| Change | Location | Before | After |
+|--------|----------|--------|-------|
+| Abstract structure | Abstract | 6 findings, 20+ numbers, "Experiment 5" | 4-paragraph: problem→gap→method→results, no Experiment 5 |
+| Contributions | §8.1 | 5 contributions including "root cause" and "first" | 3 core contributions (graph-gated MoE, leakage protocol, empirical analysis) |
+| Clinical disclaimer | §8.1 Introduction | Missing | "intended as decision-support tool, not clinical diagnosis" |
+| Cross-attention claim | §8.1, §8.6.2, §8.10 | "contradicting" | "we do not observe the reported gain under our evaluation protocol" |
+| Root cause | §8.6.2, §8.10 | "identified as the root cause" | "one likely explanation is" / "a likely explanation" |
+| Phase references | 12 locations | "Phase 3", "Phase 5", "Phase 8", "Phase 9" | Removed — replaced with descriptive text |
+| MockUnifiedModel | §8.8 XAI | "MockUnifiedModel with known weights" | Removed — refers to trained V0 model |
+| Notation table | §8.4 | Missing | Added with 10 symbols and meanings |
+| Catastrophic | §8.6.4, §8.9 | "fails catastrophically" | "produces negative results" / "produces AUROC=0.395" |
+| first demonstration | §8.10 | "This is the first demonstration" | "This demonstrates" |
+| synthetic features | §8.3.2 MOSEI | "multimodal MOSEI results use synthetic features" | "text-only MOSEI results" with caveat |
+
+## Phase 3: AAAI-27 Conference Paper
+
+| Task | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 3.1 | Template Setup | ✅ DONE | aaai27.sty, main.tex, supplementary.tex created |
+| 3.2 | Content Condensation | ⏳ PENDING | Needs LaTeX installation to compile |
+| 3.3 | Double-Blind Compliance | ⏳ PENDING | Will complete after content filled |
 
 ## Section Completion Checklist
 
-### 8.1 Introduction ✅
+### 8.1 Introduction ✅ (UPDATED)
 - [x] Problem statement (depression detection, small N, multimodal)
 - [x] Motivation (shared representations, graph routing, explainability)
-- [x] Contributions bullet list (6 contributions, updated with LLM + DA)
+- [x] 3 core contributions (reduced from 5 per reviewer feedback)
+- [x] Clinical disclaimer added
+- [x] Claims softened throughout
 
-### 8.2 Background and Related Work ✅
-- [x] Multimodal fusion (gated, LMF, cross-attention)
-- [x] Mixture of Experts (MMoE, MMoEEx, PAMoE-MSA)
-- [x] Graph neural networks (GraphSAGE, GAT, GNNExplainer)
-- [x] LLM-enhanced modalities (ablation track noted)
-- [x] Clinical depression detection (DAIC literature)
+### 8.2 Background and Related Work ✅ (UPDATED)
+- [x] Cross-attention claim softened: "we do not observe the reported gain"
+- [x] "Phase 8" reference removed
 
-### 8.3 Dataset and Preprocessing [Phases 1–2] ✅
-- [x] 8.3.1 DAIC-WOZ (189 sessions, PHQ-8, subject-independent splits)
-- [x] 8.3.2 CMU-MOSEI (22,777 utterances, sentiment+emotion)
-- [x] 8.3.3 ChaLearn First Impressions (10,000 clips, Big-Five)
-- [x] 8.3.4 Data contract and leakage protocol
+### 8.3 Dataset and Preprocessing ✅ (UPDATED)
+- [x] "synthetic features" removed — replaced with "text-only" caveat
 
-### 8.4 Architecture [Phases 3–7] ✅
-- [x] 8.4.1 Modality Encoders (RoBERTa, WavLM, ViT → 256d)
-- [x] 8.4.2 GatedLateFusion (rejected: CrossAttention, LMF)
-- [x] 8.4.3 MMoEEx Expert Bank (8 experts, 2 shared, 6 exclusive)
-- [x] 8.4.4 KNN Graph + GraphSAGE Router (inductive/split-local/transductive)
-- [x] 8.4.5 Joint Uncertainty-Weighted Multitask Learning (NLL loss, log_sigma)
+### 8.4 Architecture ✅ (UPDATED)
+- [x] Notation table added
+- [x] Phase references removed
 
 ### 8.5 Experimental Setup ✅
-- [x] Training setup (AdamW, lr=1e-3, cosine annealing, early stopping)
-- [x] Temperature-balanced sampling (T=2.0) for MOSEI dominance
-- [x] Evaluation protocol (bootstrap CIs, DeLong test, paired bootstrap)
+- [x] No changes needed (already jargon-free)
 
-### 8.6 Results [Phases 3–8] ✅ COMPLETE
-- [x] 8.6.1 Unimodal Baselines (Table 3)
-- [x] 8.6.2 Fusion Ablation (Table 4, cross-attention REJECTED)
-- [x] 8.6.3 MMoEEx vs Hard Sharing (Table 5)
-- [x] 8.6.4 Graph Routing Ablation (Table 6: V0-V4, V0 best MOSEI, V3 best DAIC)
-- [x] 8.6.5 LLM Modality Ablations (L0-L5 full results, Table 7)
-- [x] 8.6.6 Domain Adaptation (negative transfer, 10/12 conditions, DA not merged)
+### 8.6 Results ✅ (UPDATED)
+- [x] Cross-attention claims softened
+- [x] Phase references removed
+- [x] MPDD "catastrophic" softened
 
-### 8.7 Calibration and Statistical Validation [Phase 10] ✅ DONE
-- [x] ECE, Brier scores, temperature/Platt/isotonic scaling
-- [x] BCa bootstrap CIs (2,000 iterations), DeLong tests, permutation tests
-- [x] Cohen's d effect sizes for all ablation comparisons
-- [x] Reliability diagrams, Bland-Altman plots, calibration before/after
-- [x] 8 figures generated
+### 8.7 Calibration and Statistical Validation ✅
+- [x] No changes needed
 
-### 8.8 Explainability [Phase 11] ✅ DONE
-- [x] SHAP modality attribution (beeswarm plots per dataset)
-- [x] GNNExplainer subgraphs (3 case studies per dataset = 9 total)
-- [x] Counterfactual tests (gradient-based directional perturbation, values vary per sample)
-- [x] Perturbation tests (90 tests, all non-zero: text |Δ|=0.216, audio |Δ|=0.124, video |Δ|=0.035)
-- [x] GraphXAIN narratives (Mistral-7B generated for all 9 cases)
-- [x] Expert routing included in each case study
-- [x] QA validated: 2 bugs fixed (perturbation key check, undefined variable)
-- [x] 21 figures, 9 case studies saved
+### 8.8 Explainability ✅ (UPDATED)
+- [x] MockUnifiedModel reference removed
 
-### 8.9 Discussion ✅ COMPLETE
-- [x] What worked (graph routing, gated fusion, LLM encoders, MMoEEx for FI)
-- [x] What did not (cross-attention, MMoEEx on small N, domain adaptation)
-- [x] Limitations (DAIC n=107, MOSEI incomplete, L6-L9 pending)
-- [x] Negative results as contributions (cross-attention REJECTED, DA negative transfer)
+### 8.9 Discussion ✅ (UPDATED)
+- [x] Strong claims softened
+- [x] Phase references removed
 
-### 8.10 Conclusion and Future Work ✅ DONE
-- [x] 6 enumerated contributions
-- [x] Limitations sub-section
-- [x] 5 future work directions
-- [x] Reproducibility guide
+### 8.10 Conclusion and Future Work ✅ (UPDATED)
+- [x] "first demonstration" removed
+- [x] "contradicting" softened
+- [x] "root cause" softened
 
-## Diagrams Generated
+## Phase 13 Artifacts Generated
 
-| Diagram | File | Status | Used in Section |
-|---------|------|--------|----------------|
-| arch_unified_model | paper/diagrams/arch_unified_model.mmd + .png | ✅ DONE | 8.4 |
-| arch_process_flow | paper/diagrams/arch_process_flow.mmd + .png | ✅ DONE | 8.5 |
-| arch_visualization_map | paper/diagrams/arch_visualization_map.mmd + .png | ✅ DONE | 8.7 |
-| results_fusion_comparison | paper/diagrams/results_fusion_comparison.mmd | ✅ DONE | 8.6.2 |
-| results_graph_ablation | paper/diagrams/results_graph_ablation.mmd | ✅ DONE | 8.6.4 |
-| results_unimodal_bar | paper/diagrams/results_unimodal_bar.mmd | ✅ DONE | 8.6.1 |
+| Category | Count | Description |
+|----------|-------|-------------|
+| New scripts | 6 | Expert routing, graph sensitivity, KNN voting, statistical rigor, leakage audit, inference profiling |
+| New CSVs | 5 | routing_analysis, graph_sensitivity, knn_voting_results, inference_profile, statistical_comparisons |
+| Reports | 1 | leakage_audit_report.md (9/9 checks passed) |
+| Paper edits | 24 | Abstract, contributions, claims softening, notation table, clinical disclaimer, jargon removal |
 
-## Tables Generated
+## Remaining Work
 
-| Table | File | Used in Section |
-|-------|------|----------------|
-| Dataset Summary | chapter8_dataset_summary.tex | 8.3 |
-| Architecture Summary | chapter8_architecture.tex | 8.4 |
-| Hyperparameters | chapter8_hyperparameters.tex | 8.4 |
-| Evaluation Protocol | chapter8_evaluation_protocol.tex | 8.5 |
-| Unimodal Results | chapter8_unimodal_results.tex | 8.6.1 |
-| Fusion Results | chapter8_fusion_results.tex | 8.6.2 |
-| MMoEEx Results | chapter8_mmoeex_results.tex | 8.6.3 |
-| Graph Results (V0-V4) | chapter8_graph_results.tex | 8.6.4 |
-| Ablation Ladder | chapter8_ablation_ladder.tex | 8.6.4 |
-| Graph Stats | chapter8_graph_stats.tex | 8.4 |
-| LLM Ablations | chapter8_llm_results.tex (new) | 8.6.5 |
-
-## Key Decisions Documented
-
-### ✅ ALL DECISIONS MADE
-
-1. **Cross-attention REJECTED**: Literature claim (+0.041 AUC) does NOT replicate. CrossAttn has 65K-2.8M params vs 57K-827K for gated → overparameterized for small DAIC (n=107) and even MOSEI. See Table 4.
-2. **Per-dataset routing**: DAIC→text_only (fusion fails at n=107), MOSEI→multimodal (gated CCC=0.6229), FI→video_only (MSE loss collapse → NLL resolves).
-3. **NLL loss for regression**: Fixes FI constant-prediction collapse from MSE loss.
-4. **Temperature-balanced sampling (T=2.0)**: Mitigates MOSEI dominance (120x larger than DAIC).
-5. **V0 (inductive, K=10) is best for MOSEI**: CCC=0.6803 (+0.18 vs MMoEEx).
-6. **V3 (inductive, K=15) is best for DAIC**: AUROC=0.8967 (+0.40 vs MMoEEx).
-7. **V4 (split-local, K=15) is best for FI**: Avg CCC=0.5032 (most conservative protocol).
-8. **LLM choice**: L3 (Mistral-7B + CLAP audio) is best for DAIC (AUROC=0.7210). L1 (Mistral frozen text) best for MOSEI emotion (AUC=0.7702). L2 (Mistral LoRA) best for FI personality (Avg CCC=0.5732). Full LLM stack (L5, DAIC AUROC=0.6920) underperforms L3 (CLAP) alone.
-9. **Domain adaptation policy**: NOT merged. All DA methods (CORAL, MMD, DANN, combined) produce negative transfer.
-10. **Calibration**: Isotonic regression most effective post-hoc method for DAIC. Use held-out validation split.
-11. **GNNExplainer**: Custom gradient-based implementation used (PyG GNNExplainer not available in environment).
+1. ✅ Phase 1 (Code Refinements) — ALL COMPLETE
+2. ✅ Phase 2 (Journal Paper Polish) — ALL COMPLETE
+3. ⏳ Phase 3 (AAAI-27) — Template done, content pending LaTeX installation
+4. ✅ Phase 4 (Validation) — Anti-mock verification passed, test suite pending

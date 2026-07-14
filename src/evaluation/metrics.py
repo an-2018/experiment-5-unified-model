@@ -9,6 +9,7 @@ from sklearn.metrics import (
     roc_curve, precision_recall_curve,
 )
 from scipy.stats import pearsonr, spearmanr
+from scipy import stats
 import torch
 
 
@@ -56,6 +57,90 @@ def compute_sensitivity_specificity(y_true: np.ndarray, y_pred: np.ndarray, thre
     sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
     return sens, spec
+
+
+def delong_test(y_true, preds_a, preds_b):
+    """DeLong test for paired AUROC comparison.
+    Returns dict with z_stat, p_value, significant (p<0.05).
+    """
+    y_true = np.asarray(y_true)
+    preds_a = np.asarray(preds_a)
+    preds_b = np.asarray(preds_b)
+
+    auc_a = roc_auc_score(y_true, preds_a)
+    auc_b = roc_auc_score(y_true, preds_b)
+
+    mask_pos = y_true == 1
+    mask_neg = y_true == 0
+
+    if sum(mask_pos) == 0 or sum(mask_neg) == 0:
+        return {'z_stat': 0, 'p_value': 1.0, 'significant': False,
+                'auc_a': auc_a, 'auc_b': auc_b}
+
+    X_pos = preds_a[mask_pos, np.newaxis]
+    X_neg = preds_a[mask_neg, np.newaxis]
+    Y_pos = preds_b[mask_pos, np.newaxis]
+    Y_neg = preds_b[mask_neg, np.newaxis]
+
+    n_pos = len(X_pos)
+    n_neg = len(X_neg)
+
+    V10_a = np.var(np.mean(X_pos > X_neg.T, axis=1))
+    V01_a = np.var(np.mean(X_pos > X_neg.T, axis=0))
+    var_a = V10_a / n_pos + V01_a / n_neg
+
+    V10_b = np.var(np.mean(Y_pos > Y_neg.T, axis=1))
+    V01_b = np.var(np.mean(Y_pos > Y_neg.T, axis=0))
+    var_b = V10_b / n_pos + V01_b / n_neg
+
+    diff = (X_pos > X_neg.T).astype(float) - (Y_pos > Y_neg.T).astype(float)
+    V10_ab = np.var(np.mean(diff, axis=1))
+    V01_ab = np.var(np.mean(diff, axis=0))
+
+    var_diff = var_a + var_b - 2 * (V10_ab / n_pos + V01_ab / n_neg)
+
+    z_stat = (auc_a - auc_b) / np.sqrt(var_diff + 1e-10)
+    p_value = 2 * (1 - stats.norm.cdf(abs(z_stat)))
+
+    return {
+        'z_stat': float(z_stat),
+        'p_value': float(p_value),
+        'significant': bool(p_value < 0.05),
+        'auc_a': float(auc_a),
+        'auc_b': float(auc_b)
+    }
+
+
+def paired_bootstrap_ci(y_true, preds_a, preds_b, metric_fn, n_iterations=2000, alpha=0.05):
+    """Paired bootstrap confidence interval for difference between two models."""
+    y_true = np.asarray(y_true)
+    preds_a = np.asarray(preds_a)
+    preds_b = np.asarray(preds_b)
+    n = len(y_true)
+
+    diffs = []
+    for _ in range(n_iterations):
+        indices = np.random.choice(n, n, replace=True)
+        try:
+            score_a = metric_fn(y_true[indices], preds_a[indices])
+            score_b = metric_fn(y_true[indices], preds_b[indices])
+            diffs.append(score_b - score_a)
+        except:
+            continue
+
+    if not diffs:
+        return {'ci_lower': float('nan'), 'ci_upper': float('nan'), 'mean_diff': 0.0}
+
+    diffs = np.array(diffs)
+    lower = np.percentile(diffs, 100 * alpha / 2)
+    upper = np.percentile(diffs, 100 * (1 - alpha / 2))
+    return {'ci_lower': float(lower), 'ci_upper': float(upper), 'mean_diff': float(np.mean(diffs))}
+
+
+def cohens_d(y_true, preds_a, preds_b):
+    """Cohen's d effect size for paired comparison."""
+    diff = np.asarray(preds_a) - np.asarray(preds_b)
+    return float(np.mean(diff) / (np.std(diff, ddof=1) + 1e-10))
 
 
 def compute_all_depression_metrics(logits: np.ndarray, labels: np.ndarray) -> dict:
