@@ -1,5 +1,5 @@
 \documentclass[letterpaper]{article}
-\usepackage[submission]{aaai27}
+\usepackage[submission]{aaai2027}
 \usepackage{times}
 \usepackage{helvet}
 \usepackage{courier}
@@ -68,7 +68,7 @@ Figure~\ref{fig:architecture} gives an overview: modality-specific encoders proj
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.85\textwidth]{../figures/model_architecture.png}
+\includegraphics[width=0.85\textwidth]{figures/model_architecture.png}
 \caption{Unified multimodal graph-gated MoE architecture, including per-dataset routing, the gated fusion mechanism, the MMoEEx expert bank, and the GraphSAGE/GAT router.}
 \label{fig:architecture}
 \end{figure*}
@@ -137,7 +137,7 @@ V4 (split-local-k15) & 0.540 & 0.511 & 0.540 \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\columnwidth]{../figures/graph_ablation.png}
+\includegraphics[width=\columnwidth]{figures/graph_ablation.png}
 \caption{Graph routing vs.\ non-graph baseline (red dashed line). Small, inconsistent edge on DAIC/MOSEI; consistently below baseline on FI.}
 \label{fig:graph_ablation_main}
 \end{figure}
