@@ -86,7 +86,7 @@ This work makes three contributions:
 
 \paragraph{DAIC-WOZ} contains 189 sessions (107 train, 35 val, 47 test) of human-agent interviews for depression assessment. Each session has a PHQ-8 binary label (depression $\ge$ 10). We use subject-independent splits: no participant appears in more than one split. Features: RoBERTa-base text (768-dim), WavLM-large audio (1536-dim), eGeMAPS (88-dim), ViT-B/16 video (1536-dim), OpenFace AUs (70-dim).
 
-\paragraph{CMU-MOSEI} \citep{zadeh2018multimodal} contains 22,777 utterance-level samples (16,265 train, 1,869 val, 4,643 test). Labels: continuous sentiment and multi-label emotion (happiness, sadness, anger, fear, disgust, surprise). MOSEI is 120$\times$ larger than DAIC, mitigated by temperature-balanced sampling (T=2.0).
+\paragraph{CMU-MOSEI} \citep{zadeh2018multimodal} contains 22,777 utterance-level samples (16,265 train, 1,869 val, 4,643 test). Labels: continuous sentiment and multi-label emotion (happiness, sadness, anger, fear, disgust, surprise). MOSEI is 120$\times$ larger than DAIC, mitigated by temperature-balanced sampling (T=3.0).
 
 \paragraph{ChaLearn First Impressions} \citep{escalante2020chalearn} contains 10,000 video clips (6,000 train, 2,000 val, 2,000 test) with Big-Five apparent personality labels. Personality is not the same construct as clinical depression; FI serves as auxiliary supervision.
 
@@ -118,8 +118,8 @@ $r_i$ & Graph routing vector \\
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.98\textwidth]{paper/figures/architecture.pdf}
-\caption{Unified multimodal graph-gated MoE architecture. Modality-specific encoders (RoBERTa/WavLM/ViT) project to a common $d=256$ space; gated late fusion combines them into $h_i^{\text{fused}}$; the MMoEEx expert bank and a KNN-graph GraphSAGE router jointly determine expert routing weights in log-space; task heads predict depression, sentiment, emotion, and personality.}
+\includegraphics[width=0.98\textwidth]{paper/figures/model_architecture.png}
+\caption{Unified multimodal graph-gated MoE architecture. Modality-specific encoders (RoBERTa/WavLM/ViT) project to a common $d=256$ space, routed per dataset (text-only for DAIC, video-only for FI, gated late fusion for MOSEI) into $h_i^{\text{fused}}$; the MMoEEx expert bank (8 experts, hidden dimension 256) and a KNN-graph GraphSAGE/GAT router jointly determine expert routing weights in log-space ($\lambda=0.5$); task heads predict depression, sentiment, emotion, and personality.}
 \label{fig:architecture}
 \end{figure*}
 
@@ -140,7 +140,7 @@ Figure~\ref{fig:architecture} gives an overview of the full pipeline.
 
 Each dataset is evaluated under a fixed, dataset-native routing policy chosen from our fusion ablation (Section~\ref{sec:results}): DAIC uses text-only routing ($h_i^{\text{fused}} = h_i^{\text{text}}$), FI uses video-only routing, and MOSEI uses the full gated fusion above. This is a deliberate architectural choice, not a missing-data fallback: text alone is DAIC's strongest single modality and video alone is FI's, so routing each dataset through its best-performing modality avoids diluting the fused representation with weaker signal on datasets too small to learn a reliable gate over all three. A direct consequence, verified in Section~\ref{sec:xai}, is that a modality outside a dataset's native routing contributes \emph{exactly} zero to that dataset's predictions and to any attribution computed on them (audio and video for DAIC; text and audio for FI) — not merely a small or negligible contribution.
 
-\paragraph{MMoEEx Expert Bank.} We instantiate $M=8$ expert MLPs $\{E_1, \ldots, E_8\}$ with residual connections. Two expert configurations are used across our experiments. In the non-graph MMoEEx baseline (Section~\ref{sec:results}, ``MMoEEx vs.\ Baselines''), experts have hidden dimension 256 and are hard-isolated per task group: depression uses $\{E_1,E_2\}$, MOSEI sentiment and emotion share $\{E_3,E_4\}$, and personality uses $\{E_5,E_6\}$; $E_7,E_8$ are allocated but unused under this isolation mask. In the graph-routed variants (V0--V4, our primary reported configuration), we disable hard isolation and use expert hidden dimension 128: task-specific gates $g_t: \mathbb{R}^{256} \to \mathbb{R}^8$ produce a full softmax over all 8 experts, and expert diversity is encouraged via orthogonality regularization rather than hard masking.
+\paragraph{MMoEEx Expert Bank.} We instantiate $M=8$ expert MLPs $\{E_1, \ldots, E_8\}$ with residual connections, hidden dimension 256 throughout. Two routing configurations are used across our experiments, differing in gating rather than expert size. In the non-graph MMoEEx baseline (Section~\ref{sec:results}, ``MMoEEx vs.\ Baselines''), experts are hard-isolated per task group: depression uses $\{E_1,E_2\}$, MOSEI sentiment and emotion share $\{E_3,E_4\}$, and personality uses $\{E_5,E_6\}$; $E_7,E_8$ are allocated but unused under this isolation mask. In the graph-routed variants (V0--V4, our primary reported configuration), we disable hard isolation: task-specific gates $g_t: \mathbb{R}^{256} \to \mathbb{R}^8$ produce a full softmax over all 8 experts, combined with the graph router in log-space (Section~\ref{sec:architecture}).
 
 \paragraph{KNN Graph Construction.} We construct an undirected KNN graph $G = (V, E)$ over all training samples using cosine similarity. Three construction modes are tested:
 \begin{itemize}
@@ -168,9 +168,9 @@ $\lambda$ is fixed to 0.5 (not tuned) in all reported graph-routed experiments.
 \section{Experimental Setup}
 \label{sec:setup}
 
-Training uses AdamW (lr=$1e-3$), cosine annealing, early stopping (patience=10). Temperature-balanced sampling (T=2.0) prevents MOSEI dominance. The loss combines per-task losses with learned uncertainty weights \citep{kendall2017uncertainties}:
+Training uses AdamW (lr=$3\times10^{-4}$), cosine annealing, early stopping (patience=20, max 150 epochs). Temperature-balanced sampling (T=3.0) prevents MOSEI dominance. The multitask objective is an unweighted sum of the four task losses; the two regression losses (sentiment, personality) additionally use a homoscedastic-uncertainty NLL form \citep{kendall2017uncertainties} with a single learned $\sigma$ shared across both:
 \begin{equation}
-    \mathcal{L} = \sum_t \frac{1}{2\sigma_t^2} \mathcal{L}_t + \log \sigma_t + \lambda_{\text{excl}} \mathcal{L}_{\text{excl}} + \lambda_{\text{L2}} \mathcal{L}_{\text{L2}}
+    \mathcal{L} = \mathcal{L}_{\text{dep}}^{\text{BCE}} + \mathcal{L}_{\text{emo}}^{\text{BCE}} + \frac{1}{2\sigma^2}\big(\mathcal{L}_{\text{sent}} + \mathcal{L}_{\text{pers}}\big) + \log \sigma
 \end{equation}
 
 Metrics: DAIC (AUROC, F1), MOSEI sentiment (CCC), MOSEI emotion (macro-AUROC), FI (mean CCC). All results report 95\% bootstrap CIs (1,000 iterations).
@@ -182,7 +182,14 @@ Metrics: DAIC (AUROC, F1), MOSEI sentiment (CCC), MOSEI emotion (macro-AUROC), F
 \label{fig:training_curves}
 \end{figure}
 
-Figure~\ref{fig:training_curves} shows representative per-task training curves for the V0 configuration: the two large-sample tasks (MOSEI sentiment, MOSEI emotion) converge smoothly, while DAIC depression and FI personality — the two small-sample tasks — are visibly noisier and begin to overfit after roughly epoch 20--30, motivating the early-stopping and uncertainty-weighting choices above.
+Figure~\ref{fig:training_curves} shows representative per-task training curves for the V0 configuration: the two large-sample tasks (MOSEI sentiment, MOSEI emotion) converge smoothly, while DAIC depression and FI personality — the two small-sample tasks — are visibly noisier and begin to overfit after roughly epoch 20--30, motivating the early-stopping choice above. Figure~\ref{fig:training_pipeline} details the implementation of this training procedure end to end, including the non-graph MMoEEx baseline (Phase 5) that precedes it and serves as the comparison point throughout Section~\ref{sec:results}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{paper/figures/training_pipeline.png}
+\caption{Implementation detail of joint multitask training: DataLoader tensor shapes, initialization, the epoch loop (forward pass, loss, optimizer step), and the negative-transfer monitor and progressive-unfreezing mechanisms. The graph router (bottom right) applies only to the graph-routed V0--V4 variants; the non-graph MMoEEx baseline (Phase 5) uses the task gate alone.}
+\label{fig:training_pipeline}
+\end{figure}
 
 \section{Results}
 \label{sec:results}

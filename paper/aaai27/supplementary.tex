@@ -45,6 +45,13 @@ Anonymous Authors
 \label{fig:process_flow}
 \end{figure*}
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{../figures/training_pipeline.png}
+\caption{Implementation detail of joint multitask training (Phase 7) and the non-graph MMoEEx baseline that precedes it (Phase 5): DataLoader tensor shapes, initialization, the epoch loop, and the negative-transfer monitor and progressive-unfreezing mechanisms. The graph router (bottom right) applies only to the graph-routed V0--V4 variants shown in Figure~\ref{fig:process_flow}; Phase 5 uses the task gate alone.}
+\label{fig:training_pipeline}
+\end{figure*}
+
 \section{Leakage Protocol Details}
 
 \subsection{Graph Construction per Split}
@@ -72,8 +79,7 @@ Parameter & Value \\
 \midrule
 Common dimension $d$ & 256 \\
 MMoEEx experts $M$ & 8 \\
-Expert hidden size (graph-routed) & 128 \\
-Expert hidden size (MMoEEx baseline) & 256 \\
+Expert hidden size (both configurations) & 256 \\
 GraphSAGE layers & 2 \\
 GraphSAGE hidden size & 126 \\
 GraphSAGE aggregation & Mean \\
@@ -81,13 +87,13 @@ GAT heads / head dim (ablation) & 3 / 42 \\
 KNN neighbours $K$ & 10 or 15 (per variant) \\
 Edge similarity metric & Cosine \\
 Graph routing weight $\lambda$ & 0.5 (fixed, not tuned) \\
-Learning rate & $1 \times 10^{-3}$ \\
+Learning rate & $3 \times 10^{-4}$ \\
 Optimizer & AdamW \\
 Batch size & 32 \\
 Epochs (max) & 150 \\
-Early stopping patience & 10 \\
+Early stopping patience & 20 \\
 Projector freeze epochs & 20 \\
-Temperature balance $T$ & 2.0 \\
+Temperature balance $T$ & 3.0 \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -143,7 +143,7 @@ CMU-MOSEI \citep{zadeh2018multimodal} contains 22,777 utterance-level samples (1
 
 Text features: same RoBERTa encoder as DAIC, 768-dim. Audio and video features are not preprocessed for MOSEI in this chapter; we therefore report text-only MOSEI results for the encoder-level analysis, with the caveat that audio/video features were not extracted for this dataset.
 
-MOSEI is 120$\times$ larger than DAIC. Without mitigation, MOSEI would dominate every training batch. We address this with temperature-balanced sampling (T=2.0) as described in Section~\ref{sec:training_setup}.
+MOSEI is 120$\times$ larger than DAIC. Without mitigation, MOSEI would dominate every training batch. We address this with temperature-balanced sampling (T=3.0) as described in Section~\ref{sec:training_setup}.
 
 \subsection{ChaLearn First Impressions: Apparent Personality}
 \label{sec:fi}
@@ -195,10 +195,8 @@ The architecture consists of: modality encoders, gated late fusion, MMoEEx exper
 % Include architecture diagram
 \begin{figure}[htbp]
     \centering
-    % Primary architecture source: Mermaid diagram (paper/diagrams/arch_unified_model.mmd)
-    % Fallback placeholder until PNG renders are generated from .mmd source
-    \includegraphics[width=0.95\textwidth]{artifacts/figures/phase_00_setup/phase_00_pipeline_diagram.png}
-    \caption{Unified Multimodal Graph-Gated MoE Architecture. Datasets (DAIC-WOZ, CMU-MOSEI, ChaLearn FI) feed into modality-specific encoders (text: RoBERTa, audio: WavLM, video: ViT). Projected embeddings are fused via gated late fusion. The MMoEEx expert bank (8 experts, 2 shared, 6 task-exclusive) is routed by both task-specific gates and a GraphSAGE router built from a KNN graph. Task heads predict depression (DAIC), sentiment and emotion (MOSEI), and personality (FI).}
+    \includegraphics[width=0.95\textwidth]{paper/figures/model_architecture.png}
+    \caption{Unified Multimodal Graph-Gated MoE Architecture. Datasets (DAIC-WOZ, CMU-MOSEI, ChaLearn FI) feed into modality-specific encoders (text: RoBERTa, audio: WavLM, video: ViT), routed per dataset (text-only for DAIC, video-only for FI, multimodal gated fusion for MOSEI). The MMoEEx expert bank (8 experts, hidden dimension 256) is routed by both a task-specific gate and a GraphSAGE/GAT router, combined in log-space with routing weight $\lambda=0.5$. Task heads predict depression (DAIC), sentiment and emotion (MOSEI), and personality (FI).}
     \label{fig:arch_unified}
 \end{figure}
 
@@ -327,23 +325,30 @@ All hyperparameters are listed in Table~\ref{tab:hyperparameters}.
 \subsection{Training Setup}
 \label{sec:training_setup}
 
-Training uses AdamW optimizer with initial learning rate $1e-3$, cosine annealing schedule, and early stopping (patience=10 epochs on validation loss). A warmup of 5 epochs is applied. All experiments use a single NVIDIA GPU.
+Training uses AdamW optimizer with initial learning rate $3\times10^{-4}$, cosine annealing schedule, and early stopping (patience=20 epochs on validation loss, max 150 epochs). Modality projectors are frozen for the first 20 epochs, then the top 2 projector layers are unfrozen for the remainder of training (this is the mechanism that plays the role a general learning-rate warmup would elsewhere). All experiments use a single NVIDIA GPU.
 
-The loss function combines per-task losses with learned uncertainty weights \citep{kendall2017uncertainties}:
+The multitask objective is an unweighted sum of the four task losses (binary cross-entropy for depression and emotion; NLL regression loss for sentiment and personality). The two regression losses additionally use a homoscedastic-uncertainty NLL form \citep{kendall2017uncertainties} with a single learned $\sigma$ shared across both, rather than a separate $\sigma_t$ per task:
 
 \begin{equation}
-    \mathcal{L} = \sum_t \frac{1}{2\sigma_t^2} \mathcal{L}_t + \log \sigma_t + \lambda_{\text{excl}} \mathcal{L}_{\text{excl}} + \lambda_{\text{L2}} \mathcal{L}_{\text{L2}}
+    \mathcal{L} = \mathcal{L}_{\text{dep}}^{\text{BCE}} + \mathcal{L}_{\text{emo}}^{\text{BCE}} + \frac{1}{2\sigma^2}\big(\mathcal{L}_{\text{sent}} + \mathcal{L}_{\text{pers}}\big) + \log \sigma
 \end{equation}
 
-where $\sigma_t$ is a learned per-task uncertainty parameter.
-
-\textbf{Temperature-balanced sampling}: To prevent MOSEI (16,265 samples) from dominating DAIC (107 samples) in joint training, we sample with temperature $T=2.0$:
+\textbf{Temperature-balanced sampling}: To prevent MOSEI (16,265 samples) from dominating DAIC (107 samples) in joint training, we sample with temperature $T=3.0$:
 
 \begin{equation}
     p_{\text{sampled}} \propto N_{\text{dataset}}^{1/T}
 \end{equation}
 
 This produces approximately balanced mini-batches across datasets.
+
+Figure~\ref{fig:training_pipeline} details the full implementation of this training procedure: the DataLoader's per-batch tensor shapes, model initialization, the epoch loop (forward pass, loss, optimizer step), and the negative-transfer monitor and progressive-unfreezing mechanisms described above.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{paper/figures/training_pipeline.png}
+    \caption{Implementation detail of Phase 7 joint multitask training, including the phase that precedes it (Phase 5, the non-graph MMoEEx baseline used as the comparison point throughout Section~\ref{sec:graph_results}). The graph router (bottom right) is used only for the graph-routed V0--V4 variants; Phase 5 uses the task gate alone.}
+    \label{fig:training_pipeline}
+\end{figure}
 
 \subsection{Evaluation Protocol}
 
@@ -403,7 +408,7 @@ Results source: \texttt{artifacts/tables/fusion\_baselines.csv}.
 
 \input{paper/tables/chapter8_mmoeex_results.tex}
 
-Table~\ref{tab:mmoeex_results} shows MMoEEx results compared to the best standalone baselines. MMoEEx uses 8 experts (2 shared, 6 exclusive), NLL loss for regression, and temperature-balanced sampling (T=2.0).
+Table~\ref{tab:mmoeex_results} shows MMoEEx results compared to the best standalone baselines. MMoEEx uses 8 experts (2 shared, 6 exclusive), NLL loss for regression, and temperature-balanced sampling (T=3.0).
 
 Key findings:
 \begin{itemize}

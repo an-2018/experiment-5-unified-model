@@ -66,12 +66,12 @@ Our contributions are threefold. First, a rigorously investigated negative resul
 
 Figure~\ref{fig:architecture} gives an overview: modality-specific encoders project to a common $d{=}256$ space; gated late fusion combines them; an MMoEEx expert bank and a KNN-graph GraphSAGE router jointly determine expert routing weights; task heads predict depression, sentiment, emotion, and personality.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{../figures/architecture.pdf}
-\caption{Unified multimodal graph-gated MoE architecture.}
+\includegraphics[width=0.85\textwidth]{../figures/model_architecture.png}
+\caption{Unified multimodal graph-gated MoE architecture, including per-dataset routing, the gated fusion mechanism, the MMoEEx expert bank, and the GraphSAGE/GAT router.}
 \label{fig:architecture}
-\end{figure}
+\end{figure*}
 
 \subsection{Modality Encoders and Gated Fusion}
 
@@ -83,7 +83,7 @@ h_i^{\text{fused}} = \sum_m \frac{\alpha_i \odot m_i}{\lVert \alpha_i \odot m_i 
 
 \subsection{MMoEEx Expert Bank and Graph-Guided Routing}
 
-We instantiate $M{=}8$ expert MLPs with residual connections. For the graph-routed configuration (our primary reported results), all 8 experts are available to every task via a full per-task softmax gate $g_t(h_i) \in \mathbb{R}^8$ (expert hidden dimension 128); we additionally report a non-graph MMoEEx baseline that hard-isolates experts per task group (hidden dimension 256), used to quantify the value added by graph routing.
+We instantiate $M{=}8$ expert MLPs with residual connections, hidden dimension 256 in both configurations we report. For the graph-routed configuration (our primary reported results), all 8 experts are available to every task via a full per-task softmax gate $g_t(h_i) \in \mathbb{R}^8$; we additionally report a non-graph MMoEEx baseline that hard-isolates experts per task group instead, used to quantify the value added by graph routing.
 
 We construct an undirected KNN graph over fused embeddings using cosine similarity, with three leakage-safe construction modes: \textbf{inductive} (graph on training data only; validation/test nodes connect solely to training neighbours), \textbf{split-local} (separate graphs per split, no cross-split edges), and \textbf{transductive} (graph over all splits — ablation only, explicitly not leakage-safe). A two-layer GraphSAGE router aggregates neighbourhood features into a routing vector $r_i = \text{softmax}(W_r h_i^{(2)}) \in \mathbb{R}^8$. Task gate and graph router combine in log-space:
 \[
@@ -93,9 +93,9 @@ with $\lambda{=}0.5$ fixed across all reported experiments (not tuned).
 
 \subsection{Task Heads and Training Objective}
 
-Depression (DAIC) uses a binary head with BCE loss; sentiment (MOSEI) a regression head with NLL loss; emotion (MOSEI, 6 labels) a multi-label BCE head; personality (FI, Big-Five) five regression heads with NLL loss. The multitask objective combines per-task losses with learned homoscedastic uncertainty weights \citep{kendall2017uncertainties}:
+Depression (DAIC) uses a binary head with BCE loss; sentiment (MOSEI) a regression head with NLL loss; emotion (MOSEI, 6 labels) a multi-label BCE head; personality (FI, Big-Five) five regression heads with NLL loss. The multitask objective is an unweighted sum of the four task losses; the two regression losses (sentiment, personality) additionally use a homoscedastic-uncertainty NLL form \citep{kendall2017uncertainties} with a single learned $\sigma$ shared across both:
 \[
-\mathcal{L} = \sum_t \tfrac{1}{2\sigma_t^2}\mathcal{L}_t + \log\sigma_t + \lambda_{\text{excl}}\mathcal{L}_{\text{excl}}.
+\mathcal{L} = \mathcal{L}_{\text{dep}}^{\text{BCE}} + \mathcal{L}_{\text{emo}}^{\text{BCE}} + \tfrac{1}{2\sigma^2}\big(\mathcal{L}_{\text{sent}} + \mathcal{L}_{\text{pers}}\big) + \log\sigma.
 \]
 
 \section{Experimental Setup}
@@ -106,7 +106,7 @@ Depression (DAIC) uses a binary head with BCE loss; sentiment (MOSEI) a regressi
 
 \subsection{Training Details}
 
-AdamW ($\text{lr}{=}1\times10^{-3}$), cosine annealing, early stopping (patience 10 epochs, max 150). Batch size 32. Temperature-balanced sampling ($T{=}2.0$) prevents MOSEI (120$\times$ larger than DAIC) from dominating joint training. Projectors are frozen for the first 20 epochs, then partially unfrozen.
+AdamW ($\text{lr}{=}3\times10^{-4}$), cosine annealing, early stopping (patience 20 epochs, max 150). Batch size 32. Temperature-balanced sampling ($T{=}3.0$) prevents MOSEI (120$\times$ larger than DAIC) from dominating joint training. Projectors are frozen for the first 20 epochs, then the top 2 layers are unfrozen.
 
 \subsection{Evaluation}
 
