@@ -36,147 +36,144 @@ Anonymous Authors
 \maketitle
 
 \begin{abstract}
-Mental health assessment increasingly relies on multimodal data such as language, speech, and facial behaviour. However, existing models often struggle to generalize across related tasks while remaining interpretable. We propose a graph-guided mixture-of-experts architecture that combines multimodal learning with graph-based routing to improve representation sharing across depression, sentiment, emotion, and personality prediction. Across three public benchmarks, our approach consistently improves performance on multiple tasks while providing interpretable routing decisions and robust calibration. The results show that graph-based routing offers a practical alternative to increasingly complex fusion architectures, particularly in low-resource clinical settings.
+We investigate whether graph-guided mixture-of-experts routing improves unified multimodal mental health assessment, jointly learning depression detection (DAIC-WOZ), sentiment/emotion recognition (CMU-MOSEI), and personality prediction (ChaLearn First Impressions) under a single model with modality-specific encoders, gated late fusion, an MMoEEx expert bank, and a leakage-safe KNN-graph GraphSAGE router. Across five leakage-safe graph configurations, graph routing does \emph{not} improve over a non-graph MMoEEx baseline: DAIC AUROC (0.489--0.551), MOSEI sentiment CCC (0.510--0.517), and MOSEI emotion AUROC (0.712--0.734) are statistically indistinguishable from the non-graph baseline (0.493/0.493/0.734), and FI personality CCC is consistently worse with graph routing (0.540--0.553 vs.\ 0.578). A graph-homophily diagnostic explains why: the routing graph carries no depression-label signal at all, while it carries real signal for sentiment and personality that the router fails to exploit; neither a learned per-task routing weight nor a $K$-sensitivity sweep recovers a benefit. We report this as a rigorously investigated negative result. Separately, cross-attention fusion does not reproduce a previously reported gain over gated fusion, and LLM-based encoders substantially outperform both classical encoders and graph routing on every task. We release a leakage-safe graph construction protocol and a full ablation ladder.
 \end{abstract}
 
 \section{Introduction}
 
-Multimodal mental health assessment integrates verbal and non-verbal signals---language, prosody, facial expressions---to predict clinically relevant constructs such as depression severity, emotional state, and personality traits. Prior work has tackled these tasks in isolation, using task-specific architectures that cannot share complementary information across related supervision signals. More recent efforts explore multitask and multimodal fusion, but often yield opaque models whose routing decisions are difficult to interpret.
+Multimodal mental health assessment integrates verbal and non-verbal signals — language, prosody, facial expressions — to predict clinically relevant constructs such as depression severity, emotional state, and personality traits. Prior work tackles these tasks in isolation with task-specific architectures that cannot share complementary information across related supervision signals. Multitask and multimodal fusion approaches exist, but often yield opaque models whose routing decisions are difficult to interpret, and rarely address label leakage introduced by graph-based sample relationships.
 
-In this paper, we address three interlocking challenges: (i) learning robust multimodal representations that transfer across tasks, (ii) maintaining interpretability in the fusion process, and (iii) preventing label leakage in graph-based modelling. We propose a unified architecture that combines modality-specific encoders, a gated late-fusion mechanism, a Mixture-of-Modality-Experts (MMoEEx) layer, and a graph-guided router built on a K-nearest-neighbour similarity graph over multimodal embeddings.
+We address three interlocking challenges: (i) learning multimodal representations that transfer across depression, affect, and personality tasks; (ii) maintaining interpretability in the fusion and routing process — both by characterizing depression jointly with sentiment, emotion, and personality rather than as an isolated score, and by making the routing graph itself a source of visual and machine-readable explanation (case studies in the supplementary material, ``Explainability Case Studies''); and (iii) preventing label leakage in graph-based routing. We propose a unified architecture combining modality-specific encoders, a gated late-fusion mechanism, an MMoEEx expert bank, and a graph-guided router built on a leakage-safe K-nearest-neighbour similarity graph over multimodal embeddings.
 
-Our contributions are threefold. First, we introduce a graph-guided gating mechanism that uses GraphSAGE-aggregated neighbourhood information to weight expert contributions dynamically. Second, we formalize a leakage-safe graph construction protocol that builds separate train/validation/test graphs, eliminating cross-split edge contamination. Third, we demonstrate consistent gains over unimodal baselines, standard fusion, and ablated routing variants across DAIC-WOZ (depression), CMU-MOSEI (sentiment and emotion), and ChaLearn First Impressions (personality).
+Our contributions are threefold. First, a rigorously investigated negative result: graph-guided gating that combines GraphSAGE-aggregated neighbourhood information with task-specific gates in log-space does not improve over a non-graph baseline, and we support this with a homophily diagnostic and two targeted fix attempts rather than a bare negative number. Second, a leakage-safe graph construction protocol with three modes (inductive, split-local, transductive) under strict subject-independent splits, with an explicit audit that no test-label leakage occurs through graph edges. Third, a systematic ablation ladder — unimodal baselines, three fusion strategies, an MMoEEx baseline, five graph-routing configurations, and LLM-encoder replacements — showing LLM-based encoders are the largest performance driver we observed, well above both classical encoders and graph routing.
 
 \section{Related Work}
 
-\textbf{Multimodal fusion} for affective computing spans early fusion (concatenation of modality features), late fusion (separate unimodal predictions aggregated by voting or averaging), and intermediate fusion (cross-modal attention or tensor fusion). Tensor fusion networks~\cite{zadeh2017tensor} model unimodal, bimodal, and trimodal interactions explicitly but scale poorly with modality count. Low-rank multimodal fusion~\cite{liu2018efficient} reduces the parameter cost while retaining cross-modal interactions.
+\textbf{Multimodal fusion} for affective computing spans early fusion (feature concatenation), late fusion (learned per-modality gates), and low-rank or cross-attention fusion. Gated late fusion with learned modality gates \citep{hazdar2024gated} and Low-Rank Multimodal Fusion \citep{zadeh2017LMF} avoid the parameter cost of full tensor fusion. Cross-modal attention has been proposed for depression detection with a reported AUROC gain \citep{kim2024crossmodal}; we do not observe this gain under our evaluation protocol (Section~\ref{sec:results}).
 
-\textbf{Mixture-of-experts} (MoE) models route inputs through a subset of expert sub-networks selected by a learned gating function. In multimodal settings, modality-aware MoE variants assign experts to modality combinations~\cite{wang2020modality}. The Mixture-of-Modality-Experts (MMoE) architecture uses shared-bottom layers with task-specific expert mixtures.
+\textbf{Mixture-of-experts.} The sparsely-gated MoE layer \citep{shazeer2017moe} routes inputs through a learned subset of experts. Multitask MoE (MMoE) adds task-specific gates \citep{ma2018model}, and MMoEEx adds expert exclusivity/orthogonality regularization to reduce expert collapse \citep{jacobs2024mmoe}. We build on MMoEEx and add graph-based routing.
 
-\textbf{Graph neural networks} operate on non-Euclidean data by propagating information along edges. GraphSAGE~\cite{hamilton2017inductive} learns aggregator functions that generalize to unseen nodes, making it suitable for inductive inference on new participants---a critical requirement in clinical deployment.
+\textbf{Graph neural networks for routing.} GraphSAGE \citep{graphsage2017inductive} learns inductive aggregator functions that generalize to unseen nodes — a requirement for clinical deployment on new participants. We use GraphSAGE (and, as an ablation, GAT \citep{gat2018attention}) as a router: aggregating features from a sample's K nearest neighbours to produce a routing vector that modulates expert weights.
 
-\textbf{Multitask learning} shares representations across related tasks to improve generalization. In mental health, joint training on depression and sentiment has shown benefits~\cite{haque2022measuring}, though careful balancing is required when datasets differ substantially in scale (e.g., utterance-level MOSEI versus session-level DAIC).
+\textbf{LLM-enhanced encoders.} Instruction-tuned LLMs have been applied to depression detection via text encoders \citep{zhao2025multimodalllm} and audio-language models \citep{alam2025wav2vec}. We evaluate LLM-based encoder replacements as a separate ablation track.
+
+\textbf{Multi-construct and graph-based interpretability.} Distinguishing personality-trait context from acute depression symptoms via a psychologically-grounded, interpretable graph model \citep{vyalla2026psygat} is closely related to our multi-construct characterization goal. Chain-of-thought reasoning improves mental-health text classification \citep{patil2025cognitivemental} but can be unfaithful when embedded directly in the clinical prediction pipeline \citep{wu2025cotfails}, motivating our use of LLM narratives as post-hoc explanation only (supplementary material).
+
+\textbf{Depression detection on DAIC-WOZ.} The corpus \citep{gratch2014distress} contains 189 clinical interviews with PHQ-8 labels. Reported results include Burdisso et al. GCN (F1=0.85) \citep{burdisso2024gcndp}, Zhang et al. MIL (AUROC=0.78) \citep{zhang2025mil}, Niu et al. multimodal fusion (F1=0.92) \citep{niu2021multimodal}, and Dai et al. full fusion (F1=0.96) \citep{dai2021fullfusion}. Direct comparison is limited since most prior work reports F1 while we report AUROC.
 
 \section{Method}
+\label{sec:method}
 
-Figure~\ref{fig:architecture} provides an overview. The model processes each sample through modality-specific encoders, an optional LLM-derived feature extractor, a gated fusion layer, the MMoEEx block, and task-specific heads. Graph routing is applied at the MMoEEx gating stage.
+Figure~\ref{fig:architecture} gives an overview: modality-specific encoders project to a common $d{=}256$ space; gated late fusion combines them; an MMoEEx expert bank and a KNN-graph GraphSAGE router jointly determine expert routing weights; task heads predict depression, sentiment, emotion, and personality.
 
-\subsection{Modality Encoders}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../figures/architecture.pdf}
+\caption{Unified multimodal graph-gated MoE architecture.}
+\label{fig:architecture}
+\end{figure}
 
-Text utterances are encoded with a frozen BERT-base model~\cite{devlin2019bert}, producing 768-dimensional embeddings. Audio features (acoustic prosody) are processed by a two-layer MLP with hidden size 256. Video features (facial action units and expression descriptors) use a separate two-layer MLP with hidden size 256. All encoder outputs are projected to a common dimension $d=256$ via linear projection layers.
+\subsection{Modality Encoders and Gated Fusion}
 
-\subsection{Gated Fusion}
-
-Let $\mathbf{h}_t$, $\mathbf{h}_a$, $\mathbf{h}_v$ denote the projected text, audio, and video embeddings. The gated fusion computes modality weights:
-
+Text is encoded with RoBERTa-base \citep{liu2019roberta} (768-dim), audio with WavLM-large \citep{chen2022wavlm} (1536-dim; eGeMAPS \citep{eyben2016geneva} for the classical-encoder ablation), and video with ViT-B/16 \citep{dosovitskiy2020image} (1536-dim; OpenFace \citep{baltrusaitis2018openface} action units as an alternative). Each is linearly projected to $d{=}256$. Given projected embeddings $h_i^{\text{text}}, h_i^{\text{audio}}, h_i^{\text{video}}$ and a modality-availability mask $m_i$ (FI has no text; some DAIC sessions have incomplete audio), gated late fusion computes:
 \[
-\mathbf{g} = \sigma\big(\mathbf{W}_g[\mathbf{h}_t;\mathbf{h}_a;\mathbf{h}_v] + \mathbf{b}_g\big),\quad
-\mathbf{f} = \sum_{m \in \{t,a,v\}} g_m \mathbf{h}_m,
+\alpha_i = \text{softmax}\big(W_\alpha[h_i^{\text{text}}; h_i^{\text{audio}}; h_i^{\text{video}}]\big), \quad
+h_i^{\text{fused}} = \sum_m \frac{\alpha_i \odot m_i}{\lVert \alpha_i \odot m_i \rVert_1 + \epsilon}[m]\, h_i^{m}.
 \]
 
-where $\sigma$ is softmax, $\mathbf{W}_g \in \mathbb{R}^{3 \times 3d}$, and $\mathbf{f} \in \mathbb{R}^d$ is the fused representation.
+\subsection{MMoEEx Expert Bank and Graph-Guided Routing}
 
-\subsection{Mixture-of-Modality-Experts (MMoEEx)}
+We instantiate $M{=}8$ expert MLPs with residual connections. For the graph-routed configuration (our primary reported results), all 8 experts are available to every task via a full per-task softmax gate $g_t(h_i) \in \mathbb{R}^8$ (expert hidden dimension 128); we additionally report a non-graph MMoEEx baseline that hard-isolates experts per task group (hidden dimension 256), used to quantify the value added by graph routing.
 
-The fused representation $\mathbf{f}$ is passed to $K$ expert networks. Each expert $E_k$ is a two-layer MLP with residual connection:
-
+We construct an undirected KNN graph over fused embeddings using cosine similarity, with three leakage-safe construction modes: \textbf{inductive} (graph on training data only; validation/test nodes connect solely to training neighbours), \textbf{split-local} (separate graphs per split, no cross-split edges), and \textbf{transductive} (graph over all splits — ablation only, explicitly not leakage-safe). A two-layer GraphSAGE router aggregates neighbourhood features into a routing vector $r_i = \text{softmax}(W_r h_i^{(2)}) \in \mathbb{R}^8$. Task gate and graph router combine in log-space:
 \[
-E_k(\mathbf{f}) = \mathbf{f} + \text{ReLU}(\mathbf{W}_k^{(2)}\text{ReLU}(\mathbf{W}_k^{(1)}\mathbf{f} + \mathbf{b}_k^{(1)}) + \mathbf{b}_k^{(2)}).
+\tilde w_{t,i} = \text{softmax}\big(\log g_t(h_i) + \lambda \log r_i\big),
 \]
-
-The output for task $t$ is a weighted sum of expert outputs:
-
-\[
-\mathbf{o}^{(t)} = \sum_{k=1}^K \pi_k^{(t)}(\mathbf{f}) E_k(\mathbf{f}),
-\]
-
-where $\pi_k^{(t)}$ are task-specific gating weights.
-
-\subsection{Graph-Guided Routing}
-
-We construct a K-nearest-neighbour graph over training-set fused representations $\{\mathbf{f}_i\}$. Edge weights use cosine similarity. Separate graphs are built for train, validation, and test splits to prevent label leakage.
-
-For each node $i$, GraphSAGE aggregates neighbour representations:
-
-\[
-\mathbf{n}_i = \text{mean}(\{\mathbf{f}_j : j \in \mathcal{N}(i)\}),\quad
-\mathbf{r}_i = [\mathbf{f}_i ; \mathbf{n}_i].
-\]
-
-The routing vector $\mathbf{r}_i$ modulates the expert gating weights $\pi_k^{(t)}$, replacing the standard MLP-based gating. The combined gate becomes:
-
-\[
-\pi_k^{(t)}(\mathbf{f}_i, \mathbf{r}_i) = \frac{\exp\big(\mathbf{w}_{tk}^\top[\mathbf{f}_i;\mathbf{r}_i]\big)}{\sum_{j=1}^K \exp\big(\mathbf{w}_{tj}^\top[\mathbf{f}_i;\mathbf{r}_i]\big)}.
-\]
+with $\lambda{=}0.5$ fixed across all reported experiments (not tuned).
 
 \subsection{Task Heads and Training Objective}
 
-Each task has a linear prediction head. For regression tasks (depression PHQ-8, sentiment polarity, personality Big Five), we use mean squared error. For classification tasks (emotion categories), we use cross-entropy loss. The total objective is a weighted sum:
-
+Depression (DAIC) uses a binary head with BCE loss; sentiment (MOSEI) a regression head with NLL loss; emotion (MOSEI, 6 labels) a multi-label BCE head; personality (FI, Big-Five) five regression heads with NLL loss. The multitask objective combines per-task losses with learned homoscedastic uncertainty weights \citep{kendall2017uncertainties}:
 \[
-\mathcal{L} = \sum_{t \in \mathcal{T}} \lambda_t \mathcal{L}_t,
+\mathcal{L} = \sum_t \tfrac{1}{2\sigma_t^2}\mathcal{L}_t + \log\sigma_t + \lambda_{\text{excl}}\mathcal{L}_{\text{excl}}.
 \]
-
-with task weights $\lambda_t$ tuned on validation performance.
 
 \section{Experimental Setup}
 
 \subsection{Datasets}
 
-We evaluate on three benchmarks: \textbf{DAIC-WOZ} (clinical depression, PHQ-8 regression, 189 sessions), \textbf{CMU-MOSEI} (sentiment and 6-emotion classification, 23k utterances), and \textbf{ChaLearn First Impressions} (Big Five personality regression, 10k clips). Subject-independent splits are enforced for DAIC; utterance-level splits are used for MOSEI; clip-level splits for ChaLearn.
+\textbf{DAIC-WOZ}: 189 clinical interview sessions (107 train / 35 val / 47 test), PHQ-8 binary depression label, subject-independent splits. \textbf{CMU-MOSEI} \citep{zadeh2018multimodal}: 22{,}777 utterance-level samples (16{,}265 / 1{,}869 / 4{,}643), continuous sentiment and 6-label emotion. \textbf{ChaLearn First Impressions} \citep{escalante2020chalearn}: 10{,}000 clips (6{,}000 / 2{,}000 / 2{,}000), Big-Five apparent-personality regression; personality is a distinct construct from clinical depression and serves as auxiliary supervision only.
 
 \subsection{Training Details}
 
-Models are trained with Adam ($\beta_1=0.9$, $\beta_2=0.999$, $\text{lr}=1\times10^{-3}$) for 100 epochs with early stopping (patience 10). Batch size is 64. The MMoEEx uses $K=4$ experts with hidden size 128. GraphSAGE uses 2 layers with mean aggregation and hidden size 64. Temperature-balanced sampling prevents MOSEI from dominating the gradient.
+AdamW ($\text{lr}{=}1\times10^{-3}$), cosine annealing, early stopping (patience 10 epochs, max 150). Batch size 32. Temperature-balanced sampling ($T{=}2.0$) prevents MOSEI (120$\times$ larger than DAIC) from dominating joint training. Projectors are frozen for the first 20 epochs, then partially unfrozen.
 
 \subsection{Evaluation}
 
-Depression is evaluated with RMSE, MAE, and AUROC (binarized at PHQ-8 $\geq 10$). Sentiment uses MAE and binary $F_1$; emotion uses macro $F_1$; personality uses CCC. All results report mean $\pm$ 95\% CI over 5 random seeds. Paired bootstrap tests assess statistical significance.
+DAIC: AUROC (primary) and F1. MOSEI sentiment: CCC (primary). MOSEI emotion: macro-AUROC over 6 emotions. FI: mean CCC over five traits. All results report 95\% BCa bootstrap confidence intervals; AUROC comparisons use the DeLong test; CCC/F1 comparisons use paired permutation tests; effect sizes are Cohen's $d$.
 
 \section{Results}
-
-Table~\ref{tab:main} reports main results. Full ablation and per-task breakdowns appear in the supplementary material.
+\label{sec:results}
 
 \begin{table}[t]
 \centering
-\caption{Main results across datasets. Bold indicates best within each block.}
-\label{tab:main}
+\caption{Graph routing vs.\ non-graph MMoEEx baseline, real labels and evaluation throughout. Best per-column among graph variants in \textbf{bold}; baseline row is the reference, not part of the ablation.}
+\label{tab:graph_ablation}
 \small
-\begin{tabular}{lcc}
+\begin{tabular}{lccc}
 \toprule
-Model & DAIC AUROC & MOSEI Sentiment $F_1$ \\
+Variant & DAIC AUROC & MOSEI CCC & FI CCC \\
 \midrule
-Unimodal (text) & 0.71 & 0.82 \\
-Unimodal (audio) & 0.65 & 0.76 \\
-Unimodal (video) & 0.63 & 0.74 \\
+\emph{Non-graph MMoEEx} & \emph{0.493} & \emph{0.493} & \emph{\textbf{0.578}} \\
 \midrule
-Early fusion & 0.73 & 0.83 \\
-Late fusion & 0.74 & 0.83 \\
-Tensor fusion & 0.75 & 0.84 \\
-\midrule
-Ours (no graph) & 0.76 & 0.85 \\
-Ours (graph routing) & $\mathbf{0.78}$ & $\mathbf{0.86}$ \\
+V0 (inductive-k10) & 0.515 & \textbf{0.517} & 0.542 \\
+V1 (split-local-k10) & \textbf{0.551} & 0.514 & 0.542 \\
+V2 (transductive-k10) & 0.507 & 0.515 & 0.553 \\
+V3 (inductive-k15) & 0.525 & 0.510 & 0.544 \\
+V4 (split-local-k15) & 0.540 & 0.511 & 0.540 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Ablation: Graph Routing Variants}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../figures/graph_ablation.png}
+\caption{Graph routing vs.\ non-graph baseline (red dashed line). Small, inconsistent edge on DAIC/MOSEI; consistently below baseline on FI.}
+\label{fig:graph_ablation_main}
+\end{figure}
 
-Graph-based routing consistently outperforms mean-pooling and attention-based alternatives, with the largest gains on DAIC (Table~\ref{tab:graph_ablation}).
+Every graph-routed variant is within bootstrap-CI-width of the non-graph baseline on DAIC and MOSEI, and every variant underperforms the baseline on FI personality. A KNN-voting baseline (label smoothing over the same graph neighbourhoods, no learned router) reaches DAIC AUROC=0.630 — higher than every learned graph-routed variant. A homophily diagnostic (same-dataset edge label agreement/correlation vs.\ random pairing, Table~\ref{tab:homophily}) explains this differently per task: DAIC's routing graph carries no signal beyond chance, while MOSEI and FI both carry real signal the router fails to exploit.
 
-\subsection{Cross-Dataset and LLM Ablation}
+\begin{table}[t]
+\centering
+\caption{Real graph neighbours vs.\ random pairing (val split, averaged over 4 leakage-safe variants).}
+\label{tab:homophily}
+\small
+\begin{tabular}{lcc}
+\toprule
+Task & Real graph & Random baseline \\
+\midrule
+DAIC (label agreement) & 0.568 & 0.555 \\
+MOSEI (correlation) & 0.249 & $-$0.006 \\
+FI (correlation) & 0.279 & $-$0.002 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-Integrating LLM-derived features as auxiliary inputs yields marginal improvement ($\Delta \text{AUROC} \approx +0.01$), consistent with prior findings that foundation model embeddings provide complementary but redundant signal.
+Two targeted fixes did not recover a benefit: a $K\in\{5,10,15,20\}$ sweep shows no monotonic trend (Appendix, supplementary material), and a learned per-task routing weight (replacing the fixed $\lambda{=}0.5$) moved in the direction the diagnostic predicts (down for FI/MOSEI-emotion, up for MOSEI-sentiment) but only slightly ($\pm0.07$), with DAIC AUROC improving to 0.544 and FI CCC unchanged at 0.541.
+
+On fusion, cross-attention underperforms gated fusion on all three datasets and does not reproduce a previously reported +0.041 AUROC gain \cite{kim2024crossmodal}, likely due to overparameterization (65K--2.8M params vs.\ 57K--827K for gated) relative to DAIC's 107 training sessions. LLM-based encoders (Mistral-7B text, CLAP audio, LLaVA video) substantially outperform both classical encoders and every graph-routed variant on every task — the largest single performance driver in this study.
 
 \section{Discussion}
 
-The graph-guided router improves performance most on DAIC, where session-level structure provides meaningful neighbourhood information. On MOSEI, utterance-level graphs are noisier but still beneficial. The leakage-safe graph protocol is essential---naive global graph construction inflates DAIC AUROC by 0.08--0.12.
+The leakage-safe graph protocol is essential regardless of whether graph routing helps: transductive (non-leakage-safe) construction is retained only as an ablation, with each edge's split membership determined by direct lookup of the destination node's split label rather than an assumption about how samples are ordered in memory.
 
-Limitations include reliance on pretrained BERT for text encoding (computationally expensive for deployment) and sensitivity to graph quality when modalities are missing. Future work should explore dynamic graph construction and cross-modal graph alignment.
+Limitations include DAIC's small training set ($n{=}107$), which limits statistical power for all pairwise comparisons; reliance on frozen pretrained encoders; sensitivity to graph quality when modalities are missing; and that our two fix attempts do not exhaust the candidate remedies the homophily diagnostic suggests (a jointly-trained or contrastively-pretrained embedding space for graph construction, graph rewiring/structure learning, and task-affinity-aware expert grouping remain untried; supplementary material).
 
 \section{Conclusion}
 
-We presented a graph-guided mixture-of-experts architecture for unified multimodal mental health assessment. By combining gated fusion, MMoEEx, and GraphSAGE-based routing with a leakage-safe graph protocol, our approach achieves consistent gains over unimodal and standard fusion baselines. The framework offers a practical, interpretable, and statistically sound foundation for multitask multimodal clinical assessment.
+We investigated whether graph-guided mixture-of-experts routing improves unified multimodal mental health assessment, and found that it does not: across five leakage-safe configurations, a $K$-sweep, and a learned routing weight, graph routing fails to beat a non-graph baseline and consistently harms personality prediction. A homophily diagnostic localizes why, giving future work on graph-based routing in low-resource clinical settings a concrete starting point rather than an unexplained null result. LLM-based encoders, not routing architecture, are the largest performance driver we observed.
 
-\bibliography{../references/bibliography}
+\bibliographystyle{unsrtnat}
+\bibliography{../../artifacts/references/bibliography}
 \end{document}

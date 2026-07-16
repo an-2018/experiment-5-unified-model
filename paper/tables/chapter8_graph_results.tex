@@ -1,18 +1,18 @@
 \begin{table}[htbp]
 \centering
-\caption{Graph Routing Ablation: 5 Variants (V0--V4) Across All Tasks. Best result per task in bold. Graph routing consistently improves over non-graph MMoEEx (Table~\ref{tab:mmoeex_results}). V0 (inductive, K=10) best for MOSEI; V3 (inductive, K=15) best for DAIC; V4 (split-local, K=15) best for FI. See Section~\ref{sec:graph_results}. Source: \texttt{artifacts/tables/ggmoe\_results.csv}.}
+\caption{Graph Routing Ablation: 5 Variants (V0--V4) Across All Tasks, real labels and real evaluation. Best result per task in bold. Graph routing does \emph{not} improve over the non-graph MMoEEx baseline: it is roughly tied on DAIC/MOSEI and consistently worse on FI. See Section~\ref{sec:graph_results}. Source: \texttt{artifacts/tables/ggmoe\_results.csv} (regenerated via \texttt{scripts/phase07\_joint\_training.py} after removing a fabricated-data script, see Section~\ref{sec:graph_results}).}
 \label{tab:graph_results}
 \begin{tabular}{lcccc}
 \toprule
 Variant & DAIC AUROC & MOSEI CCC & MOSEI Emotion AUROC & FI Avg CCC \\
 \midrule
-V0 (inductive, K=10) & 0.7124 & \textbf{0.6803} & 0.7562 & 0.4395 \\
-V1 (split-local, K=10) & 0.6345 & 0.5436 & 0.5467 & 0.2962 \\
-V2 (transductive, K=10) & 0.8505 & 0.3419 & \textbf{0.7606} & 0.3442 \\
-V3 (inductive, K=15) & \textbf{0.8967} & 0.5198 & 0.5985 & 0.2309 \\
-V4 (split-local, K=15) & 0.8351 & 0.5539 & 0.5872 & \textbf{0.5032} \\
+V0 (inductive, K=10) & 0.5145 & \textbf{0.5166} & 0.7190 & 0.5415 \\
+V1 (split-local, K=10) & \textbf{0.5507} & 0.5137 & 0.7120 & 0.5416 \\
+V2 (transductive, K=10) & 0.5072 & 0.5151 & 0.7199 & 0.5525 \\
+V3 (inductive, K=15) & 0.5254 & 0.5098 & \textbf{0.7340} & 0.5438 \\
+V4 (split-local, K=15) & 0.5399 & 0.5105 & 0.7315 & 0.5397 \\
 \midrule
-MMoEEx (no graph) & 0.4928 & 0.4979 & 0.7222 & 0.5793 \\
+MMoEEx (no graph) & 0.4928 & 0.4925 & 0.7344 & \textbf{0.5775} \\
 \bottomrule
 \end{tabular}
 \end{table}

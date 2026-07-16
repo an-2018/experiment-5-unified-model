@@ -31,6 +31,8 @@ class SHAPExplainer:
         background_size: int = 100,
         modalities: Optional[list[str]] = None,
         pred_fn: Optional[Callable] = None,
+        task_id: int = 0,
+        routing: str = "multimodal",
     ) -> dict[str, float]:
         """Compute modality-level importance via marginal contribution estimation.
 
@@ -40,6 +42,17 @@ class SHAPExplainer:
             modalities: list of modality names to assess (default: text/audio/video)
             pred_fn: optional prediction function (model, sample, mask) -> scalar.
                      If None, uses default forward with masking.
+            task_id: 0=depression, 1=sentiment, 2=emotion, 3=personality — which
+                task head's output the attribution explains. Defaults to 0;
+                callers explaining a non-DAIC sample must pass the matching
+                task_id or the SHAP values explain the depression head instead
+                of the sample's own task.
+            routing: "text_only"/"video_only"/"multimodal" — must match the
+                sample's own dataset-native routing (see forward_encoded), or
+                the attribution reflects a fusion path the model never
+                actually takes for that sample (e.g. attributing nonzero SHAP
+                to audio/video on a DAIC sample, whose real routing is
+                text-only and so truly gets zero contribution from them).
 
         Returns:
             {modality: shap_value} where positive = pushes toward positive class
@@ -58,7 +71,7 @@ class SHAPExplainer:
             if x.ndim == 2:
                 x = x.unsqueeze(0)  # add batch dim -> (1, 1, D)
             with torch.no_grad():
-                out = self.model.forward_encoded(x)
+                out = self.model.forward_encoded(x, task_id=task_id, routing=routing)
             return out[0, 0].item() if isinstance(out, torch.Tensor) else out[0]
 
         predict_fn = pred_fn or _default_pred
@@ -239,6 +252,8 @@ def perturbation_test(
     sample: dict,
     model: nn.Module,
     modality_to_remove: str,
+    task_id: int = 0,
+    routing: str = "multimodal",
 ) -> float:
     """Perturbation test: remove one modality, measure prediction change.
 
@@ -246,13 +261,18 @@ def perturbation_test(
         sample: dict with modality tensors, must include a 'logits' or 'pred' key from base pred
         model: the model to test
         modality_to_remove: 'text', 'audio', or 'video'
+        task_id: 0=depression, 1=sentiment, 2=emotion, 3=personality — which
+            task head's prediction to measure the delta on. Defaults to 0;
+            callers testing a non-DAIC sample must pass the matching task_id.
+        routing: "text_only"/"video_only"/"multimodal" — must match the
+            sample's own dataset-native routing (see forward_encoded).
 
     Returns:
         delta = prediction_without_modality - prediction_with_all_modalities
         (negative means removing modality reduced the prediction)
     """
     # Get baseline prediction
-    baseline = _get_prediction(model, sample)
+    baseline = _get_prediction(model, sample, task_id=task_id, routing=routing)
 
     # Remove modality (keys are "text_feats", "audio_feats", "video_feats")
     perturbed = sample.copy()
@@ -260,11 +280,12 @@ def perturbation_test(
     if mod_key in perturbed:
         perturbed[mod_key] = torch.zeros_like(perturbed[mod_key])
 
-    new_pred = _get_prediction(model, perturbed)
+    new_pred = _get_prediction(model, perturbed, task_id=task_id, routing=routing)
     return float(new_pred - baseline)
 
 
-def _get_prediction(model: nn.Module, sample: dict) -> float:
+def _get_prediction(model: nn.Module, sample: dict, task_id: int = 0,
+                    routing: str = "multimodal") -> float:
     """Helper to get scalar prediction from model + sample dict."""
     with torch.no_grad():
         feats_list = []
@@ -283,7 +304,7 @@ def _get_prediction(model: nn.Module, sample: dict) -> float:
             x = x.unsqueeze(0)  # (1, 1, D)
 
         if hasattr(model, 'forward_encoded'):
-            out = model.forward_encoded(x)
+            out = model.forward_encoded(x, task_id=task_id, routing=routing)
         elif hasattr(model, 'forward'):
             out = model.forward(x)
         else:
@@ -298,6 +319,8 @@ def counterfactual_test(
     target_delta: float = 0.1,
     step_size: float = 0.02,
     max_steps: int = 50,
+    task_id: int = 0,
+    routing: str = "multimodal",
 ) -> dict[str, float]:
     """Counterfactual test: find minimal changes to each modality to achieve target_delta.
 
@@ -321,8 +344,21 @@ def counterfactual_test(
         {modality: min_change_needed} where min_change_needed is the L2 norm of
         cumulative perturbation required to achieve target_delta, or -1 if unreachable
     """
-    baseline = _get_prediction(model, sample)
+    baseline = _get_prediction(model, sample, task_id=task_id, routing=routing)
     results = {}
+
+    # Per-modality dims (text/audio/video need not match, e.g. LLM features:
+    # text=4096, audio=768, video=768 — using a single shared D for all three
+    # slices would silently read audio's/video's gradient from within the
+    # text portion of the concatenated vector).
+    t_dim = sample["text_feats"].flatten().shape[0] if "text_feats" in sample else 0
+    a_dim = sample["audio_feats"].flatten().shape[0] if "audio_feats" in sample else 0
+    v_dim = sample["video_feats"].flatten().shape[0] if "video_feats" in sample else 0
+    mod_slices = {
+        "text": (0, t_dim),
+        "audio": (t_dim, t_dim + a_dim),
+        "video": (t_dim + a_dim, t_dim + a_dim + v_dim),
+    }
 
     for mod in ["text", "audio", "video"]:
         mod_key = f"{mod}_feats"
@@ -345,12 +381,9 @@ def counterfactual_test(
         x_in = combined.unsqueeze(0)
         if x_in.ndim == 2:
             x_in = x_in.unsqueeze(0)
-        out = _model_forward(model, x_in)
+        out = _model_forward(model, x_in, task_id=task_id, routing=routing)
         loss = out[0, 0]
 
-        # Figure out which slice of combined belongs to this modality
-        D = feat.shape[0]
-        mod_slices = {"text": (0, D), "audio": (D, 2*D), "video": (2*D, 3*D)}
         s, e = mod_slices[mod]
 
         grad = torch.autograd.grad(loss, combined, retain_graph=True, allow_unused=True)[0]
@@ -377,7 +410,7 @@ def counterfactual_test(
             perturbed_sample = sample.copy()
             perturbed_sample[mod_key] = feat + cumulative_perturbation
 
-            new_pred = _get_prediction(model, perturbed_sample)
+            new_pred = _get_prediction(model, perturbed_sample, task_id=task_id, routing=routing)
             delta = abs(new_pred - baseline)
 
             if delta >= target_delta:
@@ -402,10 +435,11 @@ def _build_combined_input(sample: dict) -> torch.Tensor:
     return torch.cat(feats_list)
 
 
-def _model_forward(model: nn.Module, x: torch.Tensor) -> torch.Tensor:
+def _model_forward(model: nn.Module, x: torch.Tensor, task_id: int = 0,
+                   routing: str = "multimodal") -> torch.Tensor:
     """Forward pass through model with shape handling."""
     if hasattr(model, 'forward_encoded'):
-        return model.forward_encoded(x)
+        return model.forward_encoded(x, task_id=task_id, routing=routing)
     elif hasattr(model, 'forward'):
         return model.forward(x)
     return model(x)

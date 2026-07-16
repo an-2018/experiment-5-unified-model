@@ -250,16 +250,34 @@ class _UnifiedInferenceModel(nn.Module):
         # Personality head must use .heads wrapper to match checkpoint naming
         self.personality_head = _PersonalityHeads(EXPERT_DIM)
 
-    def forward_encoded(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward for SHAP/GNN explainers (uses DAIC task, text-only routing).
-        
+    def forward_encoded(self, x: torch.Tensor, task_id: int = 0,
+                        routing: str = "multimodal") -> torch.Tensor:
+        """Forward for SHAP/GNN/perturbation/counterfactual explainers.
+
         Reads modality dimensions from the projector layer weights to handle
         variable projections correctly (e.g. L1: text=4096, audio=768, video=768).
-        
+
         Args:
             x: (B, D) or (B, 1, D) concatenated text+audio+video features
+            task_id: 0=depression, 1=sentiment, 2=emotion, 3=personality.
+                Defaults to 0 (depression) for backward compatibility with
+                existing DAIC-only callers. Callers explaining a MOSEI/FI
+                sample must pass the matching task_id, otherwise the returned
+                value is the depression head's output on that sample, not the
+                task-native prediction.
+            routing: "text_only", "video_only", or "multimodal" — must match
+                the sample's own dataset-native routing (DAIC="text_only",
+                FI="video_only", MOSEI="multimodal"; see InferenceDataset).
+                Mirrors predict_task's fusion branch exactly. Defaults to
+                "multimodal" for backward compatibility, but explanations of a
+                DAIC/FI sample computed with the default will reflect a
+                full-fusion forward pass the model never actually takes for
+                that sample, not the text-only/video-only path that produced
+                its real prediction.
         Returns:
-            (B, 1) DAIC depression logit
+            (B, 1) scalar output for the given task (personality's 5 traits
+            are averaged to a single scalar for the explainers, mirroring the
+            "FI Avg CCC" aggregate used throughout the evaluation).
         """
         if x.ndim == 3:
             x = x.squeeze(1)  # (B, 1, D) -> (B, D)
@@ -273,19 +291,88 @@ class _UnifiedInferenceModel(nn.Module):
             a_dim = self.llm_audio_projector.net[0].in_features  # 768
             # video_dim inferred from remaining
             t_h = self.llm_text_projector(x[:, :t_dim])
-            a_h = self.llm_audio_projector(x[:, t_dim:t_dim + a_dim])
-            v_h = self.llm_video_projector(x[:, t_dim + a_dim:])
-            fused = self.llm_fusion(torch.cat([t_h, a_h, v_h], dim=-1))
+            if routing == "text_only":
+                fused = t_h
+            elif routing == "video_only":
+                v_h = self.llm_video_projector(x[:, t_dim + a_dim:])
+                fused = v_h
+            else:
+                a_h = self.llm_audio_projector(x[:, t_dim:t_dim + a_dim])
+                v_h = self.llm_video_projector(x[:, t_dim + a_dim:])
+                fused = self.llm_fusion(torch.cat([t_h, a_h, v_h], dim=-1))
         else:
             # Classical path: read dimensions from projector weights
             t_dim = self.text_projector.net[0].in_features  # 768
             a_dim = self.audio_projector.net[0].in_features  # 768
-            t_h = self.text_projector(x[:, :t_dim])
-            # For DAIC, use text projector output
-            fused = t_h
-        
-        expert_out = self.mmoe.forward(fused, task_id=0)
+            if routing == "text_only":
+                fused = self.text_projector(x[:, :t_dim])
+            elif routing == "video_only":
+                fused = self.video_projector(x[:, t_dim + a_dim:])
+            else:
+                mask = torch.ones(B, 3, dtype=torch.bool, device=x.device)
+                fused = self.fusion(x[:, :t_dim], x[:, t_dim:t_dim + a_dim],
+                                    x[:, t_dim + a_dim:], mask)
+
+        expert_out = self.mmoe.forward(fused, task_id=task_id)
+        if task_id == 0:
+            return self.depression_head(expert_out)
+        elif task_id == 1:
+            return self.sentiment_head(expert_out)
+        elif task_id == 2:
+            return self.emotion_head(expert_out)[:, :1]
+        elif task_id == 3:
+            out_dict = self.personality_head(expert_out)
+            return torch.cat([out_dict[t] for t in FI_TRAITS], dim=-1).mean(dim=-1, keepdim=True)
         return self.depression_head(expert_out)
+
+    def get_routing_weights(self, x: torch.Tensor, task_id: int = 0,
+                            routing: str = "multimodal") -> torch.Tensor:
+        """Return the real trained MMoEEx gate's routing weights for input x.
+
+        Mirrors forward_encoded's fusion path exactly (including the
+        `routing` argument — text_only/video_only/multimodal must match the
+        sample's own dataset-native convention), but returns the per-expert
+        softmax weights instead of the final task prediction — for
+        XAI/analysis use (e.g. reporting which experts a sample actually
+        routes to), not a hardcoded/simulated substitute.
+        """
+        if x.ndim == 3:
+            x = x.squeeze(1)
+        model_device = next(self.mmoe.parameters()).device
+        x = x.to(device=model_device)
+        if self.use_llm_projector:
+            t_dim = self.llm_text_projector.net[0].in_features
+            a_dim = self.llm_audio_projector.net[0].in_features
+            t_h = self.llm_text_projector(x[:, :t_dim])
+            if routing == "text_only":
+                fused = t_h
+            elif routing == "video_only":
+                v_h = self.llm_video_projector(x[:, t_dim + a_dim:])
+                fused = v_h
+            else:
+                a_h = self.llm_audio_projector(x[:, t_dim:t_dim + a_dim])
+                v_h = self.llm_video_projector(x[:, t_dim + a_dim:])
+                fused = self.llm_fusion(torch.cat([t_h, a_h, v_h], dim=-1))
+        else:
+            t_dim = self.text_projector.net[0].in_features
+            a_dim = self.audio_projector.net[0].in_features
+            if routing == "text_only":
+                fused = self.text_projector(x[:, :t_dim])
+            elif routing == "video_only":
+                fused = self.video_projector(x[:, t_dim + a_dim:])
+            else:
+                mask = torch.ones(x.shape[0], 3, dtype=torch.bool, device=x.device)
+                fused = self.fusion(x[:, :t_dim], x[:, t_dim:t_dim + a_dim],
+                                    x[:, t_dim + a_dim:], mask)
+
+        gate_logits = self.mmoe.gates[task_id](fused)
+        expert_indices = self.mmoe.task_to_experts.get(task_id, list(range(self.mmoe.num_experts)))
+        mask = torch.zeros(self.mmoe.num_experts, device=fused.device, dtype=torch.bool)
+        mask[expert_indices] = True
+        masked_logits = gate_logits.clone()
+        mask_expanded = mask.unsqueeze(0).expand_as(masked_logits)
+        masked_logits[~mask_expanded] = float("-inf")
+        return torch.softmax(masked_logits, dim=-1)
 
     def _select_projector(self, feat: torch.Tensor, llm_projector: nn.Module,
                            classical_projector: nn.Module) -> torch.Tensor:
@@ -357,6 +444,32 @@ class _UnifiedInferenceModel(nn.Module):
             out_dict = self.personality_head(expert_out)
             return torch.cat([out_dict[t] for t in FI_TRAITS], dim=-1)
         return expert_out
+
+    def get_fused_representation(self, text_feat, audio_feat, video_feat, modality_mask, routing) -> torch.Tensor:
+        """Return the fused representation only (no MMoE/task head), for building
+        a graph on the model's own trained embedding space rather than raw
+        concatenated modality features. Mirrors predict_task's fusion step exactly."""
+        if self.use_llm_projector:
+            t_h = self.llm_text_projector(text_feat)
+            if routing == "text_only":
+                fused = t_h
+            elif routing == "video_only":
+                v_h = self.llm_video_projector(video_feat)
+                fused = v_h
+            else:
+                a_proj = self._select_projector(audio_feat, self.llm_audio_projector, self.audio_projector)
+                v_proj = self._select_projector(video_feat, self.llm_video_projector, self.video_projector)
+                a_h = a_proj if a_proj is not None else t_h * 0
+                v_h = v_proj if v_proj is not None else t_h * 0
+                fused = self.llm_fusion(torch.cat([t_h, a_h, v_h], dim=-1))
+        else:
+            if routing == "text_only":
+                fused = self.text_projector(text_feat)
+            elif routing == "video_only":
+                fused = self.video_projector(video_feat)
+            else:
+                fused = self.fusion(text_feat, audio_feat, video_feat, modality_mask.bool())
+        return fused
 
     def gnn_forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
         """GNN forward for GNNExplainer — same as forward_encoded."""
@@ -1115,13 +1228,22 @@ def load_real_data_samples(dataset_name: str, n_samples: int = 5,
     return samples
 
 
-def build_real_graph(samples: list, n_neighbors: int = 5) -> tuple:
+def build_real_graph(samples: list, n_neighbors: int = 5, model=None, device: str = "cpu") -> tuple:
     """Build a KNN graph from real sample features.
-    
+
     Args:
         samples: list of dicts with text_feats, audio_feats, video_feats
         n_neighbors: number of nearest neighbors per sample
-    
+        model: if provided, build the graph on the model's own trained fused
+            representation (get_fused_representation) instead of raw
+            concatenated modality features. Raw features mix unrelated
+            embedding scales/dimensions across RoBERTa/WavLM/ViT and can
+            dominate cosine similarity in ways unrelated to task labels; the
+            trained fused space is what the router/heads actually reason
+            over, so neighbor-based explanations are more likely to reflect
+            genuine model behavior when built on it.
+        device: device for model forward passes (only used if model is given)
+
     Returns:
         (x, edge_index, meta_list, edge_distances) where
         x: (N, D) feature matrix
@@ -1132,23 +1254,41 @@ def build_real_graph(samples: list, n_neighbors: int = 5) -> tuple:
     from sklearn.neighbors import NearestNeighbors
 
     N = len(samples)
-    x_list = []
+    x_list = []       # raw concatenated features -- returned as `x`, consumed
+                      # downstream by forward_encoded()/gnn_forward() which
+                      # expect this exact raw dimensionality
+    topo_list = []    # fused representation -- used ONLY to decide graph
+                      # topology (KNN edges) when `model` is provided
     meta_list = []
 
     for s in samples:
-        feats = torch.cat([
+        raw_feats = torch.cat([
             s["text_feats"].float(),
             s["audio_feats"].float(),
             s["video_feats"].float(),
         ])
-        x_list.append(feats)
+        x_list.append(raw_feats)
+
+        if model is not None:
+            with torch.no_grad():
+                t_b = s["text_feats"].float().unsqueeze(0).to(device)
+                a_b = s["audio_feats"].float().unsqueeze(0).to(device)
+                v_b = s["video_feats"].float().unsqueeze(0).to(device)
+                mask = s["modality_mask"]
+                m_b = mask.unsqueeze(0).to(device) if hasattr(mask, "unsqueeze") \
+                    else torch.tensor(mask).unsqueeze(0).to(device)
+                topo_list.append(model.get_fused_representation(t_b, a_b, v_b, m_b, s["routing"]).squeeze(0).cpu())
+        else:
+            topo_list.append(raw_feats)
+
         meta_list.append({
             "id": s.get("id", len(meta_list)),
             "label": s.get("label", 0.0),
             "dataset": s.get("dataset", "?"),
         })
 
-    x = torch.stack(x_list)  # (N, D)
+    x = torch.stack(x_list)  # (N, D_raw) -- returned, for downstream model forward passes
+    x_topo = torch.stack(topo_list)  # (N, D_fused) -- graph topology only
 
     if N <= n_neighbors + 1:
         # Too few samples — fully connected graph
@@ -1164,8 +1304,9 @@ def build_real_graph(samples: list, n_neighbors: int = 5) -> tuple:
                     idx += 1
         return x, edge_index, meta_list, edge_distances
 
-    # KNN with cosine distance
-    x_np = x.numpy()
+    # KNN with cosine distance, computed on the topology representation
+    # (fused embedding if a model was provided, raw features otherwise)
+    x_np = x_topo.numpy()
     nn_model = NearestNeighbors(n_neighbors=min(n_neighbors + 1, N), metric="cosine")
     nn_model.fit(x_np)
     distances, indices = nn_model.kneighbors(x_np)

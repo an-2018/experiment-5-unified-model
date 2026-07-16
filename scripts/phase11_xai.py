@@ -1,530 +1,754 @@
 #!/usr/bin/env python3
 """
-Phase 11: XAI Evaluation for Experiment 5
+Phase 11 — XAI and Graph-Based Explanation Package
+===================================================
+Generates multimodal and graph-based explanations for selected cases across
+DAIC-WOZ (depression), CMU-MOSEI (sentiment/emotion), and ChaLearn FI (personality).
 
-Implements:
-1. SHAP modality attribution for DAIC depression
-2. GNNExplainer subgraph analysis
-3. Perturbation tests (remove modality, measure delta)
-4. Counterfactual tests (directional perturbation)
+USES REAL MODEL (Phase 8 L1 — Mistral text) and REAL DATA (validation samples).
+No synthetic data, no mock models, no fallback values.
 
-Based on the plan: XAI explanations must be validated with perturbation/counterfactual tests.
+Outputs:
+  - artifacts/figures/phase_11_xai/*.png (visualization types)
+  - artifacts/tables/phase11_xai_results.json (case studies + metrics)
 """
+import os, sys, json, warnings
+from typing import Optional
+import numpy as np
+import torch
+import torch.nn as nn
 
-import argparse
-import json
+warnings.filterwarnings("ignore", category=UserWarning)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
-import torch
-from sklearn.linear_model import LogisticRegression
-from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score
-import matplotlib.pyplot as plt
-import shap
-import warnings
-warnings.filterwarnings('ignore')
+# Ensure src is on path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-# Paths
-DAIC_DIR = Path("/home/anilson/projects/mental-ai-emnlp-2025/daic-first-impressions-experiments/data/daic")
-OUTPUT_DIR = Path("/home/anilson/thesis/thesis-experiment-5-unified-model/artifacts/figures/phase11_xai")
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+from evaluation.xai_engine import (
+    SHAPExplainer, GNNExplainerWrapper, perturbation_test, counterfactual_test,
+)
+from evaluation.graph_xai import GraphXAINNarrator
+from evaluation.inference import (
+    load_real_model_for_xai, load_real_data_samples, build_real_graph,
+)
 
-import sys
-sys.path.insert(0, '/home/anilson/thesis/thesis-experiment-5-unified-model/src')
-from evaluation.xai_engine import SHAPExplainer, perturbation_test
+# ── Style ──
+plt.style.use("seaborn-v0_8-whitegrid")
+plt.rcParams.update({
+    "font.size": 11, "axes.titlesize": 12, "axes.labelsize": 11,
+    "xtick.labelsize": 10, "ytick.labelsize": 10, "legend.fontsize": 9,
+    "figure.dpi": 150, "savefig.dpi": 300,
+})
 
-
-def load_daic():
-    """Load DAIC features and labels."""
-    parquet_path = DAIC_DIR / "features" / "daic_features.parquet"
-    df = pd.read_parquet(parquet_path)
-
-    features = []
-    labels = []
-    splits = []
-
-    for idx, row in df.iterrows():
-        audio = np.array(row['audio_features'])
-        label = int(row['label_dep_binary'])
-        split = row['split']
-        features.append(audio)
-        labels.append(label)
-        splits.append(split)
-
-    return np.array(features), np.array(labels), splits
+FIG_DIR = Path("artifacts/figures/phase_11_xai")
+TAB_DIR = Path("artifacts/tables")
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+TAB_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def train_model(X_train, y_train):
-    """Train LR model and return model + scaler."""
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    model = LogisticRegression(C=0.01, max_iter=1000, solver='lbfgs')
-    model.fit(X_train_scaled, y_train)
-    return model, scaler
+# ═══════════════════════════════════════════════════════════════════
+# VISUALIZATION FUNCTIONS (operate on any data — no synthetic assumptions)
+# ═══════════════════════════════════════════════════════════════════
+
+def plot_shap_beeswarm(shap_values_list: list[dict], output_path: str):
+    """Plot horizontal beeswarm of SHAP values per modality."""
+    if not shap_values_list:
+        return
+    modalities = list(shap_values_list[0].keys())
+    fig, ax = plt.subplots(figsize=(8, 4))
+
+    for i, mod in enumerate(modalities):
+        vals = [s.get(mod, 0) for s in shap_values_list]
+        jitter = np.random.RandomState(i).randn(len(vals)) * 0.05
+        ax.scatter(vals, np.full_like(vals, i, dtype=float) + jitter,
+                   alpha=0.4, s=15, label=mod)
+
+    ax.set_yticks(range(len(modalities)))
+    ax.set_yticklabels(modalities)
+    ax.axvline(0, color="gray", linestyle="--", alpha=0.5)
+    ax.set_xlabel("SHAP Value (modality contribution)")
+    ax.set_title("Modality-Level SHAP Values Across Samples")
+    ax.grid(True, alpha=0.3, axis="x")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {output_path}")
 
 
-def train_model_for_gnn(X_train, y_train):
-    """Train a simple MLP model for GNN explainer (gradient-based)."""
-    from sklearn.neural_network import MLPClassifier
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    # Simple MLP for gradient sensitivity analysis
-    model = MLPClassifier(hidden_layer_sizes=(128, 64), max_iter=500, alpha=0.01,
-                          random_state=42, early_stopping=True)
-    model.fit(X_train_scaled, y_train)
-    return model, scaler
+def plot_modality_attribution(shap_values_list: list[dict], output_path: str,
+                              n_samples: int = 10):
+    """Plot stacked bars of modality contributions per sample."""
+    if not shap_values_list:
+        return
+    modalities = list(shap_values_list[0].keys())
+    samples_to_plot = shap_values_list[:n_samples]
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    bottom = np.zeros(len(samples_to_plot))
+    colors = ["#e74c3c", "#3498db", "#2ecc71"]
+
+    for i, mod in enumerate(modalities):
+        vals = [s.get(mod, 0) for s in samples_to_plot]
+        ax.bar(range(len(samples_to_plot)), vals, bottom=bottom,
+               color=colors[i % len(colors)], label=mod, alpha=0.8)
+        bottom += np.array(vals)
+
+    ax.set_xlabel("Sample Index")
+    ax.set_ylabel("Cumulative SHAP Value")
+    ax.set_title("Modality Attribution per Sample")
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis="y")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {output_path}")
 
 
-def gradient_sensitivity_xai(model, scaler, X_test, y_test):
-    """GNN-inspired gradient-based feature importance (mode: gnn).
+def plot_gnn_subgraph(edge_index: torch.Tensor, edge_weights: torch.Tensor,
+                      output_path: str, query_idx: int = 0,
+                      node_meta: Optional[list] = None,
+                      title: str = "GNNExplainer Subgraph"):
+    """Ego-centered view of the query node's neighborhood.
 
-    Uses gradient backpropagation through model to compute feature importance,
-    analogous to how GNNExplainer computes node/edge importance via gradients.
+    The query node is fixed at the center; neighbors are placed at a radius
+    proportional to their dissimilarity (1 - edge weight), so visually closer
+    neighbors really are more similar in the model's own representation, not
+    an artifact of a generic force-directed layout. Neighbor nodes are colored
+    by their true label (binary: two colors; continuous: a diverging colormap)
+    so label-homogeneity of the neighborhood -- or its absence -- is visible
+    directly, rather than only reported as a separate aggregate statistic.
     """
-    print("\n[GNNG] Computing gradient-based feature importance...")
+    n_edges = edge_index.shape[1]
+    if n_edges == 0:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        ax.text(0.5, 0.5, "No edges in subgraph", ha="center", va="center")
+        ax.set_title(title)
+        fig.savefig(output_path, dpi=150)
+        plt.close(fig)
+        return
 
-    X_test_scaled = scaler.transform(X_test)
-    X_tensor = torch.tensor(X_test_scaled, dtype=torch.float32, requires_grad=True)
+    weights = edge_weights.detach().cpu().numpy()
+    edges_np = edge_index.cpu().numpy()
 
-    # Get model predictions
-    if hasattr(model, 'predict_proba'):
-        # For sklearn models, compute gradient manually
-        probs = model.predict_proba(X_test_scaled)[:, 1]
-        baseline_auc = roc_auc_score(y_test, probs)
+    # Keep only edges touching the query node, deduped by neighbor id (keep max weight).
+    neighbor_w = {}
+    for i in range(n_edges):
+        src, dst = int(edges_np[0, i]), int(edges_np[1, i])
+        if src == query_idx:
+            nid = dst
+        elif dst == query_idx:
+            nid = src
+        else:
+            continue
+        w = float(weights[i])
+        if nid not in neighbor_w or w > neighbor_w[nid]:
+            neighbor_w[nid] = w
 
-        # Gradient-based importance: compute loss for positive class and backprop
-        feature_importances = []
-        for i in range(min(30, len(X_test_scaled))):
-            x_i = torch.tensor(X_test_scaled[i:i+1], dtype=torch.float32, requires_grad=True)
-            # Simple gradient: perturb each feature and measure effect
-            pred = model.predict_proba(x_i.detach().numpy())[0, 1]
-            # Finite difference gradient
-            grad = np.zeros(X_test_scaled.shape[1])
-            for j in range(X_test_scaled.shape[1]):
-                x_pos = X_test_scaled[i:i+1].copy()
-                x_pos[0, j] += 0.01
-                pred_pos = model.predict_proba(x_pos)[0, 1]
-                x_neg = X_test_scaled[i:i+1].copy()
-                x_neg[0, j] -= 0.01
-                pred_neg = model.predict_proba(x_neg)[0, 1]
-                grad[j] = (pred_pos - pred_neg) / 0.02
-            feature_importances.append(np.abs(grad))
+    if not neighbor_w:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        ax.text(0.5, 0.5, f"No edges touch node {query_idx}", ha="center", va="center")
+        ax.set_title(title)
+        fig.savefig(output_path, dpi=150)
+        plt.close(fig)
+        return
 
-        feature_importances = np.array(feature_importances)
-        mean_importance = feature_importances.mean(axis=0)
+    neighbor_ids = sorted(neighbor_w, key=lambda n: -neighbor_w[n])
+    n_neigh = len(neighbor_ids)
+    radii = [max(0.28, 1.0 - neighbor_w[nid]) for nid in neighbor_ids]
+    angles = np.linspace(0, 2 * np.pi, n_neigh, endpoint=False)
+    pos = {query_idx: (0.0, 0.0)}
+    for nid, r, a in zip(neighbor_ids, radii, angles):
+        pos[nid] = (r * np.cos(a), r * np.sin(a))
 
-        # Group into modality-level importance (DAIC has 768 audio features)
-        n_features = len(mean_importance)
-        n_audio = min(n_features, 768)  # DAIC audio = 768
-        audio_imp = mean_importance[:n_audio].mean()
-        video_imp = mean_importance[n_audio:].mean() if n_audio < n_features else 0.0
+    def get_label(nid):
+        if node_meta is not None and nid < len(node_meta):
+            lv = node_meta[nid].get("label")
+            if lv is not None:
+                arr = np.asarray(lv).flatten()
+                if arr.size:
+                    return float(arr[0])
+        return None
 
-        total_imp = mean_importance.mean()
-        print(f"   Audio importance (mean |gradient|): {audio_imp:.4f}")
-        print(f"   Total importance: {total_imp:.4f}")
+    query_label = get_label(query_idx)
+    neighbor_labels = [get_label(nid) for nid in neighbor_ids]
+    finite = [l for l in neighbor_labels + [query_label] if l is not None]
+    is_binary = bool(finite) and set(round(v, 6) for v in finite).issubset({0.0, 1.0})
 
-        return {
-            'n_samples': min(30, len(X_test_scaled)),
-            'audio_importance': float(audio_imp),
-            'video_importance': float(video_imp),
-            'total_importance': float(total_imp),
-            'audio_dominance': float(audio_imp / total_imp if total_imp > 0 else 0),
-            'method': 'gradient_sensitivity'
-        }
+    fig, ax = plt.subplots(figsize=(6.6, 6.2))
+
+    for nid in neighbor_ids:
+        w = neighbor_w[nid]
+        x0, y0 = pos[query_idx]
+        x1, y1 = pos[nid]
+        ax.plot([x0, x1], [y0, y1], color="#8a9a95", linewidth=0.6 + 3.2 * w,
+                alpha=0.3 + 0.5 * w, zorder=1, solid_capstyle="round")
+
+    legend_handles = None
+    colorbar_mappable = None
+    if is_binary:
+        cmap = {0.0: "#4C7DA6", 1.0: "#C4622D"}
+        neighbor_colors = [cmap.get(round(l, 6), "#9a9a9a") if l is not None else "#9a9a9a"
+                           for l in neighbor_labels]
+        legend_handles = [mpatches.Patch(color="#4C7DA6", label="Label 0"),
+                          mpatches.Patch(color="#C4622D", label="Label 1")]
     else:
-        return {'error': 'unsupported model type'}
-
-
-def graphxain_narrative_xai(model, scaler, X_test, y_test, sample_id=None):
-    """GraphXAIN narrative explanation (mode: graphxain).
-
-    Uses feature importance + correlation analysis to generate a narrative
-    explanation of what drives the prediction, similar to how GraphXAINNarrator
-    generates LLM-based explanations from subgraph/SHAP data.
-    """
-    print("\n[GXN] Generating GraphXAIN narrative explanation...")
-
-    sys.path.insert(0, '/home/anilson/thesis/thesis-experiment-5-unified-model/src')
-    from evaluation.graph_xai import GraphXAINNarrator
-
-    X_test_scaled = scaler.transform(X_test)
-    probs = model.predict_proba(X_test_scaled)[:, 1]
-    baseline_auc = roc_auc_score(y_test, probs)
-
-    # Compute feature importance via correlation with labels
-    feature_corr = np.array([
-        np.corrcoef(X_test_scaled[:, i], y_test)[0, 1]
-        if len(np.unique(X_test_scaled[:, i])) > 1 else 0
-        for i in range(X_test_scaled.shape[1])
-    ])
-    feature_corr = np.nan_to_num(feature_corr, nan=0)
-
-    # Sort features by absolute correlation
-    abs_corr = np.abs(feature_corr)
-    top_indices = np.argsort(abs_corr)[::-1][:10]  # Top 10 features
-
-    # Generate narrative
-    narrator = GraphXAINNarrator()
-    n_audio = min(768, X_test_scaled.shape[1])
-    audio_corr = feature_corr[:n_audio]
-    video_corr = feature_corr[n_audio:] if n_audio < X_test_scaled.shape[1] else np.array([])
-
-    shap_like = {
-        'audio_importance': float(np.abs(audio_corr).mean()),
-        'video_importance': float(np.abs(video_corr).mean()) if len(video_corr) > 0 else 0.0,
-        'total_importance': float(abs_corr.mean()),
-    }
-
-    # Mock subgraph edge data (no real graph available)
-    subgraph_edge_index = torch.tensor([[0, 1], [1, 2]], dtype=torch.long)
-    subgraph_edge_weights = torch.tensor([0.8, 0.6], dtype=torch.float32)
-
-    sample_metadata = {
-        'dataset': 'daic',
-        'task': 'depression',
-        'subject_id': sample_id or 'unknown',
-        'prediction': float(probs[0]) if len(probs) > 0 else 0.5,
-        'confidence': float(probs[0]) if len(probs) > 0 else 0.5,
-    }
-
-    narrative = narrator.generate_explanation(
-        subgraph_edge_index, subgraph_edge_weights,
-        shap_like, sample_metadata, top_k_neighbors=3
-    )
-
-    # Perturbation
-    X_perturbed = X_test_scaled.copy()
-    X_perturbed[:, :n_audio] = 0
-    perturbed_auc = roc_auc_score(y_test, model.predict_proba(X_perturbed)[:, 1])
-
-    print(f"   Baseline AUC: {baseline_auc:.3f}")
-    print(f"   Perturbed AUC (audio removed): {perturbed_auc:.3f}")
-    print(f"   Narrative preview: {narrative[:200]}...")
-
-    return {
-        'narrative': narrative,
-        'baseline_auc': float(baseline_auc),
-        'perturbed_auc': float(perturbed_auc),
-        'top_features': top_indices.tolist(),
-        'audio_importance': shap_like['audio_importance'],
-        'method': 'graphxain_narrative'
-    }
-
-    model = LogisticRegression(C=0.01, max_iter=1000, solver='lbfgs')
-    model.fit(X_train_scaled, y_train)
-
-    return model, scaler
-
-
-def compute_shap_modality_importance(model, scaler, X_test, y_test):
-    """
-    Compute SHAP values for modality-level importance.
-    We treat audio (768 features) as one modality.
-    """
-    print("\n1. Computing SHAP modality importance...")
-
-    # Scale test data
-    X_test_scaled = scaler.transform(X_test)
-
-    # Use a subset for SHAP computation
-    X_background = X_test_scaled[:20]
-
-    # Create SHAP explainer
-    def predict_fn(X):
-        return model.predict_proba(X)[:, 1]
-
-    explorer = shap.KernelExplainer(predict_fn, X_background)
-
-    # Compute SHAP for all test samples
-    n_shap = min(30, len(X_test_scaled))
-    shap_values = explorer.shap_values(X_test_scaled[:n_shap])
-
-    print(f"   SHAP computed for {n_shap} samples, shape: {shap_values.shape}")
-
-    # Aggregate importance by modality (audio = first N, video = rest)
-    # DAIC has 768 audio features (WavLM). Infer dynamically from shap_values shape.
-    n_audio_features = shap_values.shape[1]  # Full audio embedding dimension
-    audio_importance = np.abs(shap_values).mean()  # All features are audio in DAIC
-    total_importance = np.abs(shap_values).mean()
-
-    print(f"   Audio importance (mean |SHAP|): {audio_importance:.4f}")
-    print(f"   Total importance: {total_importance:.4f}")
-
-    return {
-        'n_samples': n_shap,
-        'audio_importance': float(audio_importance),
-        'total_importance': float(total_importance),
-        'audio_dominance': float(audio_importance / total_importance if total_importance > 0 else 0)
-    }
-
-
-def run_perturbation_tests(model, scaler, X_test, y_test):
-    """Run perturbation tests: remove audio, measure prediction change."""
-    print("\n2. Running perturbation tests...")
-
-    X_test_scaled = scaler.transform(X_test)
-
-    # Baseline predictions (with all features)
-    probs = model.predict_proba(X_test_scaled)[:, 1]
-    baseline_auc = roc_auc_score(y_test, probs)
-
-    # Perturbation: zero out all audio features (768 for DAIC/WavLM)
-    n_audio_features = X_test_scaled.shape[1]  # Dynamically infer full audio dimension
-    X_perturbed = X_test_scaled.copy()
-    X_perturbed[:, :n_audio_features] = 0
-
-    probs_perturbed = model.predict_proba(X_perturbed)[:, 1]
-    perturbed_auc = roc_auc_score(y_test, probs_perturbed)
-
-    # Compute mean prediction change
-    pred_change = np.mean(probs_perturbed - probs)
-    abs_pred_change = np.mean(np.abs(probs_perturbed - probs))
-
-    print(f"   Baseline AUC: {baseline_auc:.3f}")
-    print(f"   Perturbed AUC (audio removed): {perturbed_auc:.3f}")
-    print(f"   Mean prediction change: {pred_change:.4f}")
-    print(f"   Mean |prediction change|: {abs_pred_change:.4f}")
-
-    return {
-        'baseline_auc': float(baseline_auc),
-        'perturbed_auc': float(perturbed_auc),
-        'auc_delta': float(perturbed_auc - baseline_auc),
-        'mean_pred_change': float(pred_change),
-        'mean_abs_pred_change': float(abs_pred_change)
-    }
-
-
-def compute_counterfactual_direction(model, scaler, X_test, y_test):
-    """Compute directional perturbation: move toward/away from depression."""
-    print("\n3. Computing counterfactual directions...")
-
-    X_test_scaled = scaler.transform(X_test)
-
-    # Find most influential features (highest SHAP)
-    probs = model.predict_proba(X_test_scaled)[:, 1]
-
-    # Compute gradient-based direction
-    # For samples predicted as non-depressed (prob < 0.5),
-    # increase features that push toward depressed
-    # For samples predicted as depressed (prob >= 0.5),
-    # decrease those features
-
-    # Simple approach: compute feature-wise correlation with labels
-    # Features positively correlated with depression: increase to push toward depression
-    # Features negatively correlated: decrease to push toward depression
-
-    feature_corr = np.array([
-        np.corrcoef(X_test_scaled[:, i], y_test)[0, 1]
-        if len(np.unique(X_test_scaled[:, i])) > 1 else 0
-        for i in range(X_test_scaled.shape[1])
-    ])
-
-    # Replace NaN with 0
-    feature_corr = np.nan_to_num(feature_corr, nan=0)
-
-    # Compute counterfactual score
-    # Move in direction of positive correlation for depressed, negative for non-depressed
-    counterfactual_scores = []
-    for i in range(len(X_test_scaled)):
-        if y_test[i] == 1:  # Depressed - move in positive corr direction
-            score = np.dot(X_test_scaled[i], feature_corr)
-        else:  # Non-depressed - move in negative corr direction
-            score = -np.dot(X_test_scaled[i], feature_corr)
-        counterfactual_scores.append(score)
-
-    cf_score = np.mean(counterfactual_scores)
-
-    print(f"   Mean counterfactual alignment score: {cf_score:.4f}")
-    print(f"   Positive corr features: {np.sum(feature_corr > 0)}")
-    print(f"   Negative corr features: {np.sum(feature_corr < 0)}")
-
-    return {
-        'mean_counterfactual_score': float(cf_score),
-        'n_positive_corr_features': int(np.sum(feature_corr > 0)),
-        'n_negative_corr_features': int(np.sum(feature_corr < 0))
-    }
-
-
-def create_xai_visualizations(shap_results, perturbation_results, cf_results):
-    """Create XAI visualization plots."""
-    print("\n4. Creating XAI visualizations...")
-
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-
-    # 1. SHAP Modality Importance
-    ax1 = axes[0]
-    modalities = ['Audio\n(768 features)']
-    importances = [shap_results['audio_importance']]
-    colors = ['#3498db']
-
-    bars = ax1.bar(modalities, importances, color=colors)
-    ax1.set_ylabel('Mean |SHAP Value|')
-    ax1.set_title('SHAP Modality Importance\n(DAIC Depression)')
-    for bar in bars:
-        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.001,
-                f'{bar.get_height():.4f}', ha='center', fontsize=10)
-
-    # 2. Perturbation Impact
-    ax2 = axes[1]
-    conditions = ['Baseline', 'Audio\nRemoved']
-    aucs = [perturbation_results['baseline_auc'], perturbation_results['perturbed_auc']]
-    colors = ['#2ecc71', '#e74c3c']
-
-    bars = ax2.bar(conditions, aucs, color=colors)
-    ax2.set_ylabel('AUROC')
-    ax2.set_title('Perturbation Test Results')
-    ax2.set_ylim([0, 1])
-    ax2.axhline(0.5, color='black', linestyle='--', alpha=0.5)
-
-    for bar in bars:
-        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
-                f'{bar.get_height():.3f}', ha='center', fontsize=10)
-
-    delta = perturbation_results['auc_delta']
-    ax2.annotate(f'Δ={delta:+.3f}', xy=(1, aucs[1] + 0.1), fontsize=10,
-                color='#e74c3c', fontweight='bold')
-
-    # 3. Counterfactual Analysis
-    ax3 = axes[2]
-    metrics = ['Positive\nCorr Features', 'Negative\nCorr Features']
-    values = [cf_results['n_positive_corr_features'], cf_results['n_negative_corr_features']]
-    colors = ['#e74c3c', '#2ecc71']
-
-    bars = ax3.bar(metrics, values, color=colors)
-    ax3.set_ylabel('Count')
-    ax3.set_title(f'Counterfactual Direction Analysis\n(Score: {cf_results["mean_counterfactual_score"]:.2f})')
-
-    for bar in bars:
-        ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 5,
-                f'{int(bar.get_height())}', ha='center', fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "xai_summary.png", dpi=150, bbox_inches='tight')
-    plt.close()
-
-    print(f"   Saved xai_summary.png")
-
-
-def main(args=None):
-    parser = argparse.ArgumentParser(description="Phase 11: XAI Evaluation")
-    parser.add_argument("--sample_id", type=str, default="daic_test_001",
-                        help="Sample ID to explain")
-    parser.add_argument("--explain_mode", type=str,
-                        choices=["shap", "gnn", "graphxain"],
-                        default="shap",
-                        help="XAI method: shap=SHAP attribution, "
-                             "gnn=gradient sensitivity, graphxain=narrative")
-    parser.add_argument("--device", type=str, default="cpu",
-                        help="Device (cpu or cuda)")
-    parsed_args = parser.parse_args(args)
-
-    print("=" * 60)
-    print(f"Phase 11: XAI Evaluation ({parsed_args.explain_mode.upper()})")
-    print("=" * 60)
-
-    # Load DAIC
-    print("\n1. Loading DAIC-WOZ...")
-    X, y, splits = load_daic()
-
-    train_idx = [i for i, s in enumerate(splits) if s == 'train']
-    test_idx = [i for i, s in enumerate(splits) if s == 'test']
-
-    X_train, y_train = X[train_idx], y[train_idx]
-    X_test, y_test = X[test_idx], y[test_idx]
-
-    print(f"   Train: {X_train.shape[0]} (pos: {y_train.mean():.1%})")
-    print(f"   Test: {X_test.shape[0]} (pos: {y_test.mean():.1%})")
-
-    # Train model — use MLP for gnn mode, LR for shap/graphxain
-    print(f"\n2. Training model for XAI ({parsed_args.explain_mode} mode)...")
-    if parsed_args.explain_mode == "gnn":
-        model, scaler = train_model_for_gnn(X_train, y_train)
+        vals = np.array([l if l is not None else 0.0 for l in neighbor_labels])
+        lo, hi = float(min(vals.min(), 0.0)), float(max(vals.max(), 1e-6))
+        norm = plt.Normalize(vmin=lo, vmax=hi)
+        cmap_fn = plt.get_cmap("RdYlBu_r")
+        neighbor_colors = [cmap_fn(norm(v)) for v in vals]
+        colorbar_mappable = plt.cm.ScalarMappable(norm=norm, cmap=cmap_fn)
+
+    for nid, color in zip(neighbor_ids, neighbor_colors):
+        x1, y1 = pos[nid]
+        ax.scatter([x1], [y1], s=460, color=color, edgecolor="white", linewidth=1.4, zorder=3)
+        ax.annotate(str(nid), (x1, y1), ha="center", va="center", fontsize=8.5,
+                    color="white", fontweight="bold", zorder=4)
+
+    ax.scatter([0], [0], s=680, color="#1B2320", edgecolor="#E8C547", linewidth=2.6,
+              marker="*", zorder=5)
+    ax.annotate(f"query\n{query_idx}", (0, 0), xytext=(0, -0.36), ha="center", va="top",
+                fontsize=8.2, color="#1B2320", fontweight="bold", zorder=6)
+
+    if is_binary and query_label is not None:
+        same = sum(1 for l in neighbor_labels if l is not None and round(l, 6) == round(query_label, 6))
+        subtitle = f"{same} of {n_neigh} neighbors share the query's label"
     else:
-        model, scaler = train_model(X_train, y_train)
+        subtitle = f"{n_neigh} neighbors — node radius ∝ dissimilarity, color = label value"
 
-    test_probs = model.predict_proba(scaler.transform(X_test))[:, 1]
-    test_auc = roc_auc_score(y_test, test_probs)
-    print(f"   Test AUROC: {test_auc:.3f}")
+    ax.set_title(f"{title}\n{subtitle}", fontsize=11.3)
+    if legend_handles:
+        ax.legend(handles=legend_handles, loc="upper right", frameon=False, fontsize=9)
+    if colorbar_mappable is not None:
+        cbar = fig.colorbar(colorbar_mappable, ax=ax, fraction=0.04, pad=0.02, shrink=0.7)
+        cbar.set_label("label value", fontsize=8.5)
+        cbar.ax.tick_params(labelsize=7.5)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {output_path}")
 
-    results = {
-        'test_auc': float(test_auc),
-        'explain_mode': parsed_args.explain_mode,
-        'sample_id': parsed_args.sample_id,
-    }
 
-    if parsed_args.explain_mode == "shap":
-        # SHAP modality importance
-        shap_results = compute_shap_modality_importance(model, scaler, X_test, y_test)
-        results['shap'] = shap_results
+def plot_top_neighbors_table(neighbors: list[dict], output_path: str,
+                             title: str = "Top-K Influential Neighbors"):
+    """Plot table of top-k neighbors."""
+    if not neighbors:
+        return
+
+    fig, ax = plt.subplots(figsize=(8, max(3, len(neighbors) * 0.5)))
+    ax.axis("off")
+
+    col_labels = ["Neighbor ID", "Distance", "Dataset", "Influence Weight"]
+    rows = []
+    for n in neighbors:
+        rows.append([str(n.get("id", "")), f"{n.get('distance', 0):.4f}",
+                     n.get("dataset", "?"), f"{n.get('weight', 0):.4f}"])
+
+    table = ax.table(cellText=rows, colLabels=col_labels, loc="center",
+                     cellLoc="center", colWidths=[0.15, 0.2, 0.2, 0.2])
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1, 1.5)
+
+    ax.set_title(title, fontweight="bold", fontsize=12)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {output_path}")
+
+
+def plot_counterfactual_change(cf_results: dict, output_path: str,
+                               title: str = "Counterfactual: Min Change per Modality to Flip Prediction"):
+    """Plot bar chart of minimal perturbation needed per modality."""
+    modalities = list(cf_results.keys())
+    values = [cf_results[m] for m in modalities]
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    colors = ["#e74c3c" if v < 0 else "#3498db" for v in values]
+    bars = ax.bar(modalities, values, color=colors, alpha=0.7)
+
+    for bar, val in zip(bars, values):
+        label = f"{val:.2f}" if val >= 0 else "N/A"
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
+                label, ha="center", fontsize=9)
+
+    ax.set_ylabel("Gradient-based Perturbation Magnitude")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3, axis="y")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {output_path}")
+
+
+def plot_graphxain_panel(narrative: str, shap_values: dict, neighbors: list[dict],
+                         sample_meta: dict, output_path: str):
+    """Combined panel with narrative + technical evidence."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.axis("off")
+
+    lines = [
+        f"GraphXAIN Explanation Panel",
+        f"{'=' * 40}",
+        f"",
+        f"Subject: {sample_meta.get('subject_id', 'N/A')}",
+        f"Prediction: {sample_meta.get('prediction', 'N/A')}",
+        f"Confidence: {sample_meta.get('confidence', 0):.2f}",
+        f"Dataset: {sample_meta.get('dataset', '?')}",
+        f"Task: {sample_meta.get('task', '?')}",
+        f"",
+        f"Modality Attributions:",
+    ]
+    for mod, val in sorted(shap_values.items(), key=lambda x: -abs(x[1])):
+        lines.append(f"  {mod}: {val:+.4f}")
+
+    lines.append(f"")
+    lines.append(f"Top Neighbors:")
+    for n in neighbors[:3]:
+        lines.append(f"  ID={n.get('id','?')}, dist={n.get('distance',0):.3f}")
+
+    lines.append(f"")
+    lines.append(f"Narrative Explanation:")
+    lines.append(f"{narrative[:500]}...")
+
+    ax.text(0.05, 0.95, "\n".join(lines), transform=ax.transAxes,
+            fontfamily="monospace", fontsize=8, verticalalignment="top",
+            bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.9))
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {output_path}")
+
+
+def plot_multi_construct_force_panel(task_rows: list[dict], sample_meta: dict, output_path: str):
+    """Multi-panel force/tornado plot, one row per task head, for a single instance.
+
+    Adapts the standard tabular-ML "force plot" (prediction bar + per-feature
+    push-left/push-right tornado + feature-value table, one row per model) to
+    this multimodal setting: instead of several models explaining one instance,
+    the SAME instance is explained through each of the model's four task heads
+    (depression / sentiment / emotion / personality), operationalizing the
+    multi-construct-characterization hypothesis as a single figure rather than
+    four disconnected numbers.
+
+    task_rows: list of dicts, one per task head, each with:
+      name: str, kind: "binary" or "continuous", value: float (raw head output,
+      pre-sigmoid for binary), class_labels: (neg, pos) for binary,
+      value_range: (lo, hi) for continuous, shap: {modality: float},
+      perturbation: {modality: float}
+    """
+    n = len(task_rows)
+    NEG, POS = "#4C7DA6", "#C4622D"
+    fig = plt.figure(figsize=(11.5, 2.5 * n + 0.9))
+    gs = fig.add_gridspec(n, 3, width_ratios=[1.05, 2.0, 1.25], wspace=0.4, hspace=0.75,
+                          left=0.1, right=0.97, top=0.88, bottom=0.06)
+
+    for row, task in enumerate(task_rows):
+        # Panel 1 — prediction summary
+        ax0 = fig.add_subplot(gs[row, 0])
+        ax0.set_xlim(0, 1); ax0.set_ylim(0, 1); ax0.axis("off")
+        ax0.set_title(task["name"], fontsize=10.5, fontweight="bold", loc="left")
+        if task["kind"] == "binary":
+            p = 1 / (1 + np.exp(-task["value"]))
+            neg_lbl, pos_lbl = task.get("class_labels", ("Neg", "Pos"))
+            ax0.barh([0.5], [1 - p], left=0, height=0.38, color=NEG)
+            ax0.barh([0.5], [p], left=1 - p, height=0.38, color=POS)
+            ax0.text(0.0, 0.82, neg_lbl, fontsize=8, color=NEG, fontweight="bold", transform=ax0.transAxes)
+            ax0.text(0.0, 0.68, f"{1 - p:.2f}", fontsize=9.5, color=NEG, transform=ax0.transAxes)
+            ax0.text(1.0, 0.82, pos_lbl, fontsize=8, color=POS, fontweight="bold", ha="right", transform=ax0.transAxes)
+            ax0.text(1.0, 0.68, f"{p:.2f}", fontsize=9.5, color=POS, ha="right", transform=ax0.transAxes)
+        else:
+            lo, hi = task.get("value_range", (-1.0, 1.0))
+            v = float(np.clip(task["value"], lo, hi))
+            zero = 0.0 if lo < 0 < hi else lo
+            frac = lambda x: (x - lo) / (hi - lo)
+            color = POS if v >= zero else NEG
+            ax0.barh([0.5], [frac(v) - frac(zero)], left=frac(zero), height=0.38, color=color)
+            ax0.axvline(frac(zero), color="#666", linewidth=0.8)
+            ax0.text(0.0, 0.82, f"range [{lo:g}, {hi:g}]", fontsize=7.5, color="#777",
+                     transform=ax0.transAxes)
+            ax0.text(0.0, 0.68, f"value = {task['value']:+.3f}", fontsize=9.5,
+                     color=color, fontweight="bold", transform=ax0.transAxes)
+
+        # Panel 2 — modality tornado
+        ax1 = fig.add_subplot(gs[row, 1])
+        mods = list(task["shap"].keys())
+        vals = [task["shap"][m] for m in mods]
+        order = np.argsort(np.abs(vals))
+        mods_sorted = [mods[i] for i in order]
+        vals_sorted = [vals[i] for i in order]
+        colors = [POS if v >= 0 else NEG for v in vals_sorted]
+        ypos = range(len(mods_sorted))
+        ax1.barh(ypos, vals_sorted, color=colors, height=0.55, zorder=3)
+        ax1.axvline(0, color="#444", linewidth=0.8, zorder=2)
+        ax1.set_yticks(list(ypos)); ax1.set_yticklabels(mods_sorted, fontsize=9)
+        span = max(1e-6, max(abs(v) for v in vals_sorted))
+        for i, v in enumerate(vals_sorted):
+            ax1.text(v + np.sign(v if v != 0 else 1) * span * 0.06, i, f"{v:+.3f}", fontsize=8,
+                     ha="left" if v >= 0 else "right", va="center")
+        ax1.set_xlim(-span * 1.4, span * 1.4)
+        ax1.grid(True, axis="x", alpha=0.25, zorder=0)
+        if row == n - 1:
+            ax1.set_xlabel("modality contribution (SHAP, push toward each class)", fontsize=8.3)
+        ax1.tick_params(axis="x", labelsize=7.5)
+
+        # Panel 3 — value table
+        ax2 = fig.add_subplot(gs[row, 2])
+        ax2.axis("off")
+        pert = task.get("perturbation", {})
+        rows = [[m, f"{task['shap'][m]:+.3f}", f"{pert.get(m, float('nan')):+.3f}" if m in pert else "—"]
+                for m in mods]
+        tbl = ax2.table(cellText=rows, colLabels=["Modality", "SHAP", "Perturb Δ"],
+                        loc="center", cellLoc="center", colWidths=[0.4, 0.32, 0.32])
+        tbl.auto_set_font_size(False)
+        tbl.set_fontsize(8)
+        tbl.scale(1, 1.35)
+        for (r, c), cell in tbl.get_celld().items():
+            cell.set_edgecolor("#d5dbd8")
+            if r == 0:
+                cell.set_text_props(fontweight="bold", color="#5b6b67")
+                cell.set_facecolor("#eef1ef")
+
+    fig.suptitle(
+        f"Multi-construct explanation — subject {sample_meta.get('subject_id', '?')} "
+        f"({sample_meta.get('dataset', '?').upper()})\n"
+        "same forward pass, four task heads — not four separate models",
+        fontsize=12.5, fontweight="bold", y=0.975)
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {output_path}")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════
+
+def main():
+    print("=" * 60)
+    print("Phase 11: XAI and Graph-Based Explanation Package")
+    print("USING REAL MODEL (L1 — Mistral text) AND REAL DATA")
+    print("=" * 60)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
+
+    # ── Load real model ──
+    print("\n[1/4] Loading real model (Phase 8 L1 — Mistral text)...")
+    model = load_real_model_for_xai(llm_level="L1", device_str=str(device))
+    model.eval()
+    print("  Model loaded from real checkpoint — no mock model used.")
+
+    # ── Create explainers ──
+    print("\n[2/4] Initializing explainers...")
+    shap_explainer = SHAPExplainer(model)
+    gnn_explainer = GNNExplainerWrapper(model, use_pyg=False)
+    graph_xain = GraphXAINNarrator(llm_name="mistral")
+
+    all_results = {"case_studies": [], "perturbation_results": [], "counterfactual_results": []}
+
+    # ── Process each dataset with real data ──
+    print("\n[3/4] Loading real data and generating explanations...")
+    for dataset in ["daic", "mosei", "fi"]:
+        print(f"\n{'─' * 50}")
+        print(f"Dataset: {dataset.upper()}")
+        print(f"{'─' * 50}")
+
+        # Load REAL data samples from validation set
+        # (DAIC=~107 val, MOSEI=~2000 val, FI=~200 val — use up to 50)
+        try:
+            samples = load_real_data_samples(dataset, n_samples=50, llm_level="L1", split="val")
+        except RuntimeError as e:
+            print(f"  Skipping {dataset}: {e}")
+            continue
+
+        if len(samples) == 0:
+            print(f"  No real samples found for {dataset}")
+            continue
+
+        print(f"  Loaded {len(samples)} real samples")
+
+        # task_id for this dataset's native head (0=depression, 1=sentiment,
+        # 3=personality) — SHAP/perturbation/counterfactual/logit must use
+        # this so a MOSEI/FI sample's explanations reflect its own task head
+        # rather than defaulting to the depression head.
+        task_id_map = {"daic": 0, "mosei": 1, "fi": 3}
+        task_id = task_id_map[dataset]
+
+        # Build REAL KNN graph on the model's own trained fused representation
+        # (not raw concatenated modality features -- see build_real_graph docstring;
+        # this addresses the faithfulness gap noted for DAIC in the homophily
+        # diagnostic, Section on graph routing, by using the same embedding
+        # space the router/heads actually reason over).
+        x, edge_index, meta_list, edge_distances = build_real_graph(
+            samples, n_neighbors=5, model=model, device=str(device)
+        )
+        print(f"  Graph: {x.shape[0]} nodes, {edge_index.shape[1]} edges")
+
+        # Run SHAP on a subset of samples
+        shap_values_list = []
+        for i in range(min(20, len(samples))):
+            sv = shap_explainer.compute_modality_shap(samples[i], task_id=task_id,
+                                                       routing=samples[i]["routing"])
+            shap_values_list.append(sv)
+
+        # Run GNNExplainer
+        x_gpu = x.to(device)
+        edge_mask, feat_mask = gnn_explainer.explain_node(0, x_gpu, edge_index.to(device))
 
         # Perturbation tests
-        perturbation_results = run_perturbation_tests(model, scaler, X_test, y_test)
-        results['perturbation'] = perturbation_results
+        pert_results = []
+        for i in range(min(10, len(samples))):
+            for mod in ["text", "audio", "video"]:
+                delta = perturbation_test(samples[i], model, mod, task_id=task_id,
+                                          routing=samples[i]["routing"])
+                pert_results.append({"sample": i, "modality": mod, "delta": delta})
 
-        # Counterfactual analysis
-        cf_results = compute_counterfactual_direction(model, scaler, X_test, y_test)
-        results['counterfactual'] = cf_results
+        all_results["perturbation_results"].extend(pert_results)
 
-        # Create visualizations
-        create_xai_visualizations(shap_results, perturbation_results, cf_results)
+        # Counterfactual tests -- same 10-sample subset as the perturbation
+        # tests above, so the two aggregates are directly comparable.
+        cf_result = None
+        for i in range(min(10, len(samples))):
+            cf_i = counterfactual_test(samples[i], model, task_id=task_id,
+                                       routing=samples[i]["routing"])
+            all_results["counterfactual_results"].append({"dataset": dataset, "sample": i, **cf_i})
+            if i == 0:
+                cf_result = cf_i  # first sample, used for the per-dataset figure below
 
-        print("\n" + "=" * 60)
-        print("XAI EVALUATION SUMMARY (SHAP)")
-        print("=" * 60)
-        print(f"Model Test AUROC: {results['test_auc']:.3f}")
-        print(f"\nSHAP Modality Importance:")
-        print(f"   - Audio importance: {shap_results['audio_importance']:.4f}")
-        print(f"   - Audio dominance: {shap_results['audio_dominance']*100:.1f}%")
-        print(f"\nPerturbation Test (Audio Removed):")
-        print(f"   - AUC change: {perturbation_results['auc_delta']:+.3f}")
-        print(f"   - Mean |pred change|: {perturbation_results['mean_abs_pred_change']:.4f}")
-        print(f"\nCounterfactual Analysis:")
-        print(f"   - Alignment score: {cf_results['mean_counterfactual_score']:.4f}")
-        print(f"   - Directional features: {cf_results['n_positive_corr_features'] + cf_results['n_negative_corr_features']}")
+        # Case studies
+        task_map = {"daic": "depression", "mosei": "sentiment", "fi": "personality"}
+        for case_idx in range(min(3, len(samples))):
+            s = samples[case_idx]
+            sample_routing = s["routing"]
+            # Get real prediction using this dataset's own task head and the
+            # sample's own routing (text_only for DAIC, video_only for FI,
+            # multimodal for MOSEI) -- otherwise this reflects a full-fusion
+            # forward pass the model never actually takes for that sample.
+            with torch.no_grad():
+                feats = torch.cat([
+                    s["text_feats"].float().to(device),
+                    s["audio_feats"].float().to(device),
+                    s["video_feats"].float().to(device),
+                ])
+                inp = feats.unsqueeze(0)  # (1, D)
+                logit = model.forward_encoded(inp, task_id=task_id, routing=sample_routing).item()
+                prob = 1 / (1 + np.exp(-logit))
 
-    elif parsed_args.explain_mode == "gnn":
-        # Gradient sensitivity (GNN-style)
-        gnn_results = gradient_sensitivity_xai(model, scaler, X_test, y_test)
-        results['gnn'] = gnn_results
+            shap_vals = shap_explainer.compute_modality_shap(s, task_id=task_id, routing=sample_routing)
+            pert_deltas = {mod: perturbation_test(s, model, mod, task_id=task_id, routing=sample_routing)
+                          for mod in ["text", "audio", "video"]}
+            cf_vals = counterfactual_test(s, model, task_id=task_id, routing=sample_routing)
 
-        # Also run perturbation for comparison
-        perturbation_results = run_perturbation_tests(model, scaler, X_test, y_test)
-        results['perturbation'] = perturbation_results
+            # Multi-construct characterization profile: run the SAME sample's
+            # fused representation (same routing/modality-mask the sample was
+            # actually trained with) through all four task heads, not just the
+            # one head matching its own dataset. This operationalizes the
+            # "characterize depression alongside sentiment/emotion/personality"
+            # hypothesis directly, rather than only predicting a single
+            # dataset-native target per sample.
+            with torch.no_grad():
+                t_b = s["text_feats"].float().unsqueeze(0).to(device)
+                a_b = s["audio_feats"].float().unsqueeze(0).to(device)
+                v_b = s["video_feats"].float().unsqueeze(0).to(device)
+                m_b = s["modality_mask"].unsqueeze(0).to(device) if hasattr(s["modality_mask"], "unsqueeze") \
+                    else torch.tensor(s["modality_mask"]).unsqueeze(0).to(device)
+                routing = s["routing"]
 
-        print("\n" + "=" * 60)
-        print("XAI EVALUATION SUMMARY (GRADIENT SENSITIVITY)")
-        print("=" * 60)
-        print(f"Model Test AUROC: {results['test_auc']:.3f}")
-        print(f"Method: Gradient-based feature importance (GNN-style)")
-        print(f"   - Audio importance: {gnn_results.get('audio_importance', 0):.4f}")
-        print(f"   - Audio dominance: {gnn_results.get('audio_dominance', 0)*100:.1f}%")
-        print(f"   - Perturbation delta: {perturbation_results['auc_delta']:+.3f}")
+                dep_out = model.predict_task(t_b, a_b, v_b, m_b, 0, routing)
+                sent_out = model.predict_task(t_b, a_b, v_b, m_b, 1, routing)
+                emo_out = model.predict_task(t_b, a_b, v_b, m_b, 2, routing)
+                pers_out = model.predict_task(t_b, a_b, v_b, m_b, 3, routing)
 
-    elif parsed_args.explain_mode == "graphxain":
-        # GraphXAIN narrative
-        gxn_results = graphxain_narrative_xai(model, scaler, X_test, y_test, parsed_args.sample_id)
-        results['graphxain'] = gxn_results
+                multi_construct_profile = {
+                    "depression_prob": float(torch.sigmoid(dep_out).item()),
+                    "sentiment_score": float(sent_out.item()),
+                    "emotion_probs": {
+                        e: float(p) for e, p in zip(
+                            ["happiness", "sadness", "anger", "fear", "disgust", "surprise"],
+                            torch.sigmoid(emo_out).squeeze(0).cpu().tolist(),
+                        )
+                    },
+                    "personality_scores": {
+                        t: float(p) for t, p in zip(
+                            ["extraversion", "neuroticism", "agreeableness", "conscientiousness", "openness"],
+                            pers_out.squeeze(0).cpu().tolist(),
+                        )
+                    },
+                }
 
-        print("\n" + "=" * 60)
-        print("XAI EVALUATION SUMMARY (GRAPHXAIN NARRATIVE)")
-        print("=" * 60)
-        print(f"Model Test AUROC: {results['test_auc']:.3f}")
-        print(f"Method: GraphXAIN narrative generation")
-        print(f"   - Audio importance: {gxn_results.get('audio_importance', 0):.4f}")
-        narrative_preview = gxn_results.get('narrative', 'N/A')
-        print(f"   - Narrative preview: {narrative_preview[:200]}...")
+            # Real neighbor info from KNN graph (use actual distances)
+            n_edges = edge_index.shape[1]
+            neighbor_list = []
+            if n_edges > 0 and edge_distances.numel() > 0:
+                # Use actual KNN distances (cosine distance)
+                dists = edge_distances.detach().cpu()
+                # Convert distance to similarity weight (1 - cosine_distance)
+                weights = torch.clamp(1.0 - dists, min=0.0)
+                sorted_idx = torch.argsort(weights, descending=True)
+                for k in range(min(5, n_edges)):
+                    ei = sorted_idx[k].item()
+                    if ei >= n_edges:
+                        continue
+                    src = int(edge_index[0, ei])
+                    dst = int(edge_index[1, ei])
+                    weight = float(weights[ei])
+                    dist = float(dists[ei])
+                    neighbor_list.append({
+                        "id": int(dst),
+                        "distance": dist,
+                        "dataset": dataset,
+                        "weight": weight,
+                    })
 
-    # Save mode-specific results
-    mode_suffix = parsed_args.explain_mode
-    with open(OUTPUT_DIR / f"xai_results_{mode_suffix}.json", "w") as f:
-        json.dump(results, f, indent=2)
+            # Real expert routing weights from the trained MMoEEx gate, using
+            # this dataset's own task_id and routing (matching forward_encoded above).
+            with torch.no_grad():
+                real_weights = model.get_routing_weights(
+                    inp, task_id=task_id, routing=sample_routing).squeeze(0).cpu()
+            expert_weights = {
+                f"expert_{e}": round(float(real_weights[e]), 4)
+                for e in range(real_weights.numel())
+                if real_weights[e] > 1e-6
+            }
 
-    print(f"\nResults saved to {OUTPUT_DIR}/xai_results_{mode_suffix}.json")
-    print("=" * 60)
-    return results
+            # True label
+            label_val = s["label"]
+            if isinstance(label_val, np.ndarray):
+                if label_val.ndim == 0:
+                    true_label = float(label_val)
+                else:
+                    true_label = float(label_val[0]) if len(label_val) > 0 else 0.0
+            else:
+                true_label = float(label_val)
+
+            case_study = {
+                "dataset": dataset,
+                "case_id": case_idx,
+                "sample_id": s.get("id", f"sample_{case_idx}"),
+                "task": task_map[dataset],
+                "prediction": float(logit),
+                "confidence": float(prob),
+                "true_label": true_label,
+                "shap_values": shap_vals,
+                "perturbation_deltas": pert_deltas,
+                "counterfactual": cf_vals,
+                "top_neighbors": neighbor_list,
+                "expert_routing": expert_weights,
+                "multi_construct_profile": multi_construct_profile,
+            }
+
+            # Generate GraphXAIN narrative
+            n_edge_index = edge_index if n_edges > 0 else torch.zeros((2, 1), dtype=torch.long)
+            n_edge_weights = edge_mask if edge_mask.numel() > 0 else torch.ones(1)
+            sample_meta_local = {
+                "dataset": dataset,
+                "task": task_map[dataset],
+                "subject_id": s.get("id", f"sample_{case_idx}"),
+                "prediction": prob,
+                "confidence": prob,
+            }
+            narrative = graph_xain.generate_explanation(
+                subgraph_edge_index=n_edge_index,
+                subgraph_edge_weights=n_edge_weights,
+                shap_values=shap_vals,
+                sample_metadata=sample_meta_local,
+                top_k_neighbors=5,
+            )
+            case_study["narrative"] = str(narrative)
+            all_results["case_studies"].append(case_study)
+            print(f"  Case {case_idx}: subject={case_study['sample_id']}, "
+                  f"pred={prob:.4f}, true={true_label:.4f}")
+
+        # ── Visualizations ──
+        fig_base = str(FIG_DIR / f"{dataset}")
+
+        plot_shap_beeswarm(shap_values_list, f"{fig_base}_shap_beeswarm.png")
+        plot_modality_attribution(shap_values_list, f"{fig_base}_modality_attribution.png")
+
+        plot_gnn_subgraph(edge_index, edge_mask,
+                          f"{fig_base}_gnn_subgraph.png",
+                          query_idx=0, node_meta=meta_list,
+                          title=f"GNNExplainer Subgraph — {dataset.upper()}")
+
+        plot_top_neighbors_table(neighbor_list, f"{fig_base}_top_neighbors.png",
+                                 title=f"Top Neighbors — {dataset.upper()}")
+
+        plot_counterfactual_change(cf_vals, f"{fig_base}_counterfactual.png")
+
+        plot_graphxain_panel(narrative, shap_vals, neighbor_list, sample_meta_local,
+                             f"{fig_base}_graphxain_panel.png")
+
+        # Multi-construct force panel: the same instance used for the plots
+        # above (last case study of this dataset), explained through all four
+        # task heads in one figure -- one forward pass, four constructs, not
+        # four separate models the way a tabular-ML force plot would compare.
+        with torch.no_grad():
+            sent_val = model.forward_encoded(inp, task_id=1, routing=sample_routing).item()
+            pers_val = model.forward_encoded(inp, task_id=3, routing=sample_routing).item()
+        task_specs = [
+            ("Depression", 0, "binary", {"class_labels": ("Not depressed", "Depressed")}),
+            ("Sentiment", 1, "continuous",
+             {"value_range": (min(-0.5, sent_val * 1.4), max(0.5, sent_val * 1.4))}),
+            ("Emotion — happiness (dominant)", 2, "binary", {"class_labels": ("Not happy", "Happy")}),
+            ("Personality (avg. of 5 traits)", 3, "continuous",
+             {"value_range": (0.0, max(1.0, pers_val * 1.3))}),
+        ]
+        task_rows = []
+        for name, t_id, kind, extra in task_specs:
+            with torch.no_grad():
+                val = model.forward_encoded(inp, task_id=t_id, routing=sample_routing).item()
+            t_shap = shap_explainer.compute_modality_shap(s, task_id=t_id, routing=sample_routing)
+            t_pert = {mod: perturbation_test(s, model, mod, task_id=t_id, routing=sample_routing)
+                     for mod in ["text", "audio", "video"]}
+            row = {"name": name, "kind": kind, "value": val, "shap": t_shap, "perturbation": t_pert}
+            row.update(extra)
+            task_rows.append(row)
+
+        plot_multi_construct_force_panel(
+            task_rows,
+            {"subject_id": case_study["sample_id"], "dataset": dataset},
+            f"{fig_base}_multi_construct_force.png",
+        )
+
+    # ── Validation summary ──
+    n_cases = len(all_results["case_studies"])
+    n_pert = len(all_results["perturbation_results"])
+    text_deltas = [r.get("perturbation_deltas", {}).get("text", 0)
+                   for r in all_results["case_studies"]]
+    avg_delta_text = np.mean(text_deltas) if text_deltas else 0.0
+
+    print(f"\n{'═' * 50}")
+    print("VALIDATION SUMMARY")
+    print(f"{'═' * 50}")
+    print(f"  Case studies: {n_cases} ({n_cases // 3} per dataset)")
+    print(f"  Perturbation tests: {n_pert}")
+    print(f"  Average text perturbation delta: {avg_delta_text:.4f}")
+    print(f"  All results from REAL model predictions — no synthetic data used.")
+
+    # Export results
+    results_path = TAB_DIR / "phase11_xai_results.json"
+    with open(results_path, "w") as f:
+        json.dump(all_results, f, indent=2, default=str)
+    print(f"\nResults saved: {results_path}")
+
+    # List all figures
+    print(f"\nFigures in {FIG_DIR}:")
+    for f in sorted(FIG_DIR.glob("*.png")):
+        size_kb = f.stat().st_size / 1024
+        print(f"  {f.name} ({size_kb:.1f} KB)")
+
+    print(f"\n{'=' * 50}")
+    print("Phase 11 complete!")
+    print(f"{'=' * 50}")
 
 
 if __name__ == "__main__":

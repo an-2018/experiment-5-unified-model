@@ -158,6 +158,7 @@ class JointTrainingPipeline(nn.Module):
         num_tasks: int = 4,
         router: str = "graphsage",
         graph_weight: float = 0.5,
+        graph_weight_mode: str = "fixed",
         freeze_epochs: int = 20,
         device: str = "cuda",
     ):
@@ -169,7 +170,16 @@ class JointTrainingPipeline(nn.Module):
         self.unfrozen = False
         self.router = router
         self.graph_weight = graph_weight
+        self.graph_weight_mode = graph_weight_mode
         self.device = torch.device(device)
+
+        if graph_weight_mode == "learned":
+            # Per-task learnable graph-routing weight, replacing the fixed
+            # scalar lambda=0.5. Initialized at logit=0 -> sigmoid=0.5, the
+            # same starting point as the fixed default, so training can move
+            # it up/down per task rather than trusting the graph router
+            # uniformly everywhere (see context/graph_routing_improvement_review.md).
+            self.graph_weight_logit = nn.Parameter(torch.zeros(num_tasks))
 
         # GatedLateFusion for multimodal samples
         self.fusion = GatedLateFusion(text_dim, audio_dim, video_dim, hidden_dim)
@@ -301,14 +311,18 @@ class JointTrainingPipeline(nn.Module):
             gate_probs = torch.softmax(gate_logits, dim=-1)
 
             # Graph router combines with MMoE gates
+            if self.graph_weight_mode == "learned":
+                lam = torch.sigmoid(self.graph_weight_logit[task_id])
+            else:
+                lam = self.graph_weight
             routing_weights = gate_probs
             if gr_type == "graphsage" and self.mmoe.graphsage_router is not None:
                 graph_probs = self.mmoe.graphsage_router(h, edge_index)
-                combined_log_probs = torch.log(gate_probs + 1e-8) + self.graph_weight * torch.log(graph_probs + 1e-8)
+                combined_log_probs = torch.log(gate_probs + 1e-8) + lam * torch.log(graph_probs + 1e-8)
                 routing_weights = F.softmax(combined_log_probs, dim=-1)
             elif gr_type == "gat" and self.mmoe.gat_router is not None:
                 graph_probs = self.mmoe.gat_router(h, edge_index)
-                combined_log_probs = torch.log(gate_probs + 1e-8) + self.graph_weight * torch.log(graph_probs + 1e-8)
+                combined_log_probs = torch.log(gate_probs + 1e-8) + lam * torch.log(graph_probs + 1e-8)
                 routing_weights = F.softmax(combined_log_probs, dim=-1)
 
             # Weighted expert mixture (NO task head - caller applies)
@@ -644,15 +658,20 @@ def construct_graphs(global_embeddings: np.ndarray, dataset_ids: list,
             global_embeddings, dataset_ids, k=k, cross_dataset_edges=True
         )
 
-        train_mask = split_ids == 0
-        val_mask = split_ids == 1
-        test_mask = split_ids == 2
-
         dst_nodes = edge_index[1]
 
-        train_edges = (dst_nodes >= 0) & (dst_nodes < train_mask.sum())
-        val_edges = (dst_nodes >= train_mask.sum()) & (dst_nodes < train_mask.sum() + val_mask.sum())
-        test_edges = dst_nodes >= train_mask.sum() + val_mask.sum()
+        # FIX (2026-07-16): split membership must be looked up per-node via
+        # split_ids[dst_nodes], not inferred from cumulative index-count
+        # thresholds (dst_nodes < train_mask.sum() etc). The global array is
+        # ordered dataset-major (all DAIC train/val/test, then all MOSEI
+        # train/val/test, then all FI train/val/test), NOT split-major (all
+        # train, then all val, then all test), so the threshold form silently
+        # misclassified most edges' split membership. See
+        # context/graph_routing_improvement_review.md.
+        dst_split = split_ids[dst_nodes]
+        train_edges = dst_split == 0
+        val_edges = dst_split == 1
+        test_edges = dst_split == 2
 
         train_idx = edge_index[:, train_edges]
         train_w = edge_weights[train_edges]
@@ -1346,7 +1365,9 @@ def main():
                         default="split-local", help="Graph construction type")
     parser.add_argument("--k", type=int, default=10, help="Number of nearest neighbors")
     parser.add_argument("--graph_weight", type=float, default=GRAPH_WEIGHT,
-                        help="Weight for combining MMoE gates with graph router")
+                        help="Weight for combining MMoE gates with graph router (used when --graph_weight_mode=fixed)")
+    parser.add_argument("--graph_weight_mode", choices=["fixed", "learned"], default="fixed",
+                        help="fixed: single scalar lambda for all tasks. learned: per-task learnable lambda (sigmoid-parameterized, init 0.5)")
     parser.add_argument("--freeze_epochs", type=int, default=FREEZE_EPOCHS,
                         help="Number of epochs to keep projectors frozen")
     parser.add_argument("--quick_test", action="store_true",
@@ -1374,7 +1395,7 @@ def main():
     print(f"Router: {args.router}")
     print(f"Graph type: {args.graph_type}")
     print(f"k (KNN): {args.k}")
-    print(f"Graph weight: {args.graph_weight}")
+    print(f"Graph weight: {args.graph_weight} (mode={args.graph_weight_mode})")
     print(f"Freeze epochs: {args.freeze_epochs}")
     print(f"Temperature: {args.temperature}")
 
@@ -1487,6 +1508,7 @@ def main():
         num_tasks=NUM_HEADS,
         router=args.router,
         graph_weight=args.graph_weight,
+        graph_weight_mode=args.graph_weight_mode,
         freeze_epochs=args.freeze_epochs,
         device=args.device,
     ).to(device)

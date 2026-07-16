@@ -352,19 +352,61 @@ class LowQualityDetector:
     def check_video_quality(self, video_path: str, sample_id: str, dataset: str) -> bool:
         """Check if video has > 50% black/near-black frames.
 
+        Samples up to 30 frames evenly across the video and flags it if more
+        than half have mean grayscale brightness below a near-black threshold.
+
         Returns True if quality is OK, False if flagged.
         """
         try:
-            # Simple approach: read video and check mean brightness
-            # Using librosa for audio video isn't available, so we check the audio track
-            # for video files, we'd ideally use cv2 but may not be available
+            import cv2
+        except ImportError:
+            self.flag_sample(sample_id, dataset, "video_check_unavailable",
+                             {"reason": "cv2 not installed"})
+            return True
 
-            # For now, check if audio has issues (proxy for video issues)
-            # A more robust implementation would use cv2 or ffmpeg
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                self.flag_sample(sample_id, dataset, "video_error",
+                                 {"error": "could not open video file"})
+                return False
 
-            # Since OpenFace extracts AUs, dark video would show no face detected
-            # We'll flag based on the extracted features being all zeros or near-zero
-            return True  # Placeholder - actual implementation needs cv2
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if total_frames <= 0:
+                cap.release()
+                self.flag_sample(sample_id, dataset, "video_error",
+                                 {"error": "zero frames reported"})
+                return False
+
+            n_samples = min(30, total_frames)
+            sample_indices = np.linspace(0, total_frames - 1, n_samples, dtype=int)
+
+            near_black_count = 0
+            read_count = 0
+            for idx in sample_indices:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
+                ret, frame = cap.read()
+                if not ret:
+                    continue
+                read_count += 1
+                mean_brightness = frame.mean()
+                if mean_brightness < 10.0:  # near-black threshold, 0-255 scale
+                    near_black_count += 1
+            cap.release()
+
+            if read_count == 0:
+                self.flag_sample(sample_id, dataset, "video_error",
+                                 {"error": "no frames could be read"})
+                return False
+
+            black_fraction = near_black_count / read_count
+            if black_fraction > 0.5:
+                self.flag_sample(sample_id, dataset, "video_black_frames",
+                                 {"black_fraction": float(black_fraction),
+                                  "frames_sampled": read_count})
+                return False
+
+            return True
 
         except Exception as e:
             self.flag_sample(sample_id, dataset, "video_error",

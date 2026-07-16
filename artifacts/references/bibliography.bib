@@ -547,3 +547,74 @@
   note      = {Used for: CORAL domain adaptation method, Phase 9 DA experiments}
 }
 
+% ---------------------------------------------------------------------------
+% Added 2026-07-16: candidate methods to diagnose/improve graph-routing
+% ablation, following the real V0-V4 re-run showing no benefit over the
+% non-graph MMoEEx baseline (see context/graph_routing_improvement_review.md).
+% ---------------------------------------------------------------------------
+
+@article{platonov2022characterizing,
+  title     = {Characterizing Graph Datasets for Node Classification: Homophily-Heterophily Dichotomy and Beyond},
+  author    = {Platonov, Oleg and Kuznedelev, Denis and Babenko, Artem and Prokhorenkova, Liudmila},
+  journal   = {arXiv preprint arXiv:2209.06177},
+  year      = {2022},
+  note      = {Used for: label-informativeness/homophily diagnostic proposed to check whether the KNN routing graph carries task-relevant signal}
+}
+
+@article{attali2026graphrewiring,
+  title     = {Graph Rewiring in GNNs to Mitigate Over-Squashing and Over-Smoothing: A Survey},
+  author    = {Attali, Hugo and Pernelle, Nathalie and Buscaldi, Davide and Malliaros, Fragkiskos D.},
+  journal   = {arXiv preprint arXiv:2605.00951},
+  year      = {2026},
+  note      = {Used for: graph rewiring / structure-learning alternatives to a static KNN graph, proposed as a fix if homophily is found to be low}
+}
+
+@inproceedings{li2023boosting,
+  title     = {Boosting Multitask Learning on Graphs through Higher-Order Task Affinities},
+  author    = {Li, Dongyue and Ju, Haotian and Sharma, Aneesh and Zhang, Hongyang R.},
+  booktitle = {Proceedings of the 29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD)},
+  year      = {2023},
+  doi       = {10.1145/3580305.3599265},
+  note      = {Used for: task-affinity-aware grouping, proposed to explain/fix why FI personality specifically degrades under shared graph routing with DAIC/MOSEI}
+}
+
+@article{zhou2022mixture,
+  title     = {Mixture-of-Experts with Expert Choice Routing},
+  author    = {Zhou, Yanqi and Lei, Tao and Liu, Hanxiao and Du, Nan and Huang, Yanping and Zhao, Vincent and Dai, Andrew and Chen, Zhifeng and Le, Quoc and Laudon, James},
+  journal   = {Advances in Neural Information Processing Systems (NeurIPS) 35},
+  year      = {2022},
+  note      = {Used for: expert-choice routing as an alternative to token/sample-choice softmax gating, proposed to reduce expert collapse and improve load balancing}
+}
+
+@inproceedings{wang2023graphmoe,
+  title     = {Graph Mixture of Experts: Learning on Large-Scale Graphs with Explicit Diversity Modeling},
+  author    = {Wang, Haotao and Jiang, Ziyu and You, Yuning and Han, Yan and Liu, Gaowen and Srinivasa, Jayanth and Kompella, Ramana Rao and Wang, Zhangyang},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS) 36},
+  year      = {2023},
+  note      = {Used for: precedent for GNN-based experts with explicit diversity modeling, related architecture for graph-conditioned MoE}
+}
+
+@article{patil2025cognitivemental,
+  title     = {Cognitive-Mental-LLM: Evaluating Reasoning in Large Language Models for Mental Health Prediction via Online Text},
+  author    = {Patil, Avinash and Gedhu, Amardeep Kour},
+  journal   = {arXiv preprint arXiv:2503.10095},
+  year      = {2025},
+  note      = {Used for: Chain-of-Thought / Self-Consistency / Tree-of-Thought reasoning improving mental-health text classification, motivating LLM-based narrative explanation}
+}
+
+@article{wu2025cotfails,
+  title     = {Why Chain of Thought Fails in Clinical Text Understanding},
+  author    = {Wu, Jiageng and Xie, Kevin and Gu, Bowen and Kr{\"u}ger, Nils and Lin, Kueiyu Joshua and Yang, Jie},
+  journal   = {arXiv preprint arXiv:2509.21933},
+  year      = {2025},
+  note      = {Used for: cautionary evidence that CoT explanations can be unfaithful/harm reliability in clinical text tasks, motivating our perturbation-based faithfulness validation of GraphXAIN narratives}
+}
+
+@article{vyalla2026psygat,
+  title     = {Psychologically-Grounded Graph Modeling for Interpretable Depression Detection},
+  author    = {Vyalla, Rishitej Reddy and Prasad, Kritarth and Anand, Avinash and Cambria, Erik and Ji, Shaoxiong and Alamri, Faten S. and Wang, Zhengkui},
+  journal   = {arXiv preprint arXiv:2604.24126},
+  year      = {2026},
+  note      = {Used for: directly relevant precedent distinguishing personality trait context from acute depression symptoms via psychologically-grounded, interpretable graph modeling}
+}
+

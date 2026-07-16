@@ -258,7 +258,8 @@ def compare_methods(predictions: dict, level_a: str, level_b: str,
         probs_b = data_b["probs"]
 
         # DeLong test
-        z_stat, p_val = delong_auroc_test(labels, probs_a, probs_b)
+        delong_result = delong_auroc_test(labels, probs_a, probs_b)
+        z_stat, p_val = delong_result["z_statistic"], delong_result["p_value"]
         results["delong"] = {"z": float(z_stat), "p_value": float(p_val)}
 
         # Paired permutation test for AUROC
@@ -270,6 +271,7 @@ def compare_methods(predictions: dict, level_a: str, level_b: str,
         results["permutation_test"] = {
             "observed_diff": float(obs_diff),
             "p_value": float(perm_p),
+            "null_distribution": null_dist.tolist(),
         }
 
         # Effect size
@@ -296,7 +298,7 @@ def compare_methods(predictions: dict, level_a: str, level_b: str,
         pred_a = data_a["pred"]
         pred_b = data_b["pred"]
 
-        obs_diff, p_val, _ = paired_permutation_test(
+        obs_diff, p_val, null_dist = paired_permutation_test(
             lambda y, p: compute_ccc(y, p),
             labels, pred_a, pred_b,
         )
@@ -304,6 +306,7 @@ def compare_methods(predictions: dict, level_a: str, level_b: str,
             "metric": "CCC",
             "observed_diff": float(obs_diff),
             "p_value": float(p_val),
+            "null_distribution": null_dist.tolist(),
         }
 
     return results
@@ -677,28 +680,35 @@ def generate_visualizations(predictions: dict, all_results: dict):
     fig, ax = plt.subplots(figsize=(8, 5))
 
     comp = compare_methods(predictions, "L1", "L0", task="daic")
-    null_dist = comp.get("permutation_test", {}).get("null_distribution", np.random.randn(2000))
-    obs_diff = comp.get("permutation_test", {}).get("observed_diff", 0)
-    p_val = comp.get("permutation_test", {}).get("p_value", 1.0)
+    null_dist = comp.get("permutation_test", {}).get("null_distribution")
 
-    ax.hist(null_dist, bins=40, alpha=0.6, color="steelblue", density=True,
-            label="Null distribution")
-    ax.axvline(obs_diff, color="red", linewidth=2,
-               label=f"Observed Δ = {obs_diff:.4f} (p={p_val:.4f})")
-    percentile_95 = np.percentile(np.abs(null_dist), 95)
-    ax.axvline(percentile_95, color="gray", linestyle="--",
-               label=f"95% threshold = {percentile_95:.4f}")
-    ax.axvline(-percentile_95, color="gray", linestyle="--")
+    if null_dist is None:
+        print(f"  [SKIP] permutation_null_distribution.png: no null_distribution in "
+              f"compare_methods() output ({comp.get('error', 'unknown reason')}) — "
+              f"not plotting a fabricated fallback.")
+        plt.close(fig)
+    else:
+        obs_diff = comp["permutation_test"]["observed_diff"]
+        p_val = comp["permutation_test"]["p_value"]
 
-    ax.set_xlabel("AUROC Difference (L1 − L0)", fontsize=11)
-    ax.set_ylabel("Density", fontsize=11)
-    ax.set_title("Permutation Test — L1 vs L0 (DAIC Depression)",
-                 fontsize=12, fontweight="bold")
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(str(fig_dir / "permutation_null_distribution.png"), dpi=150)
-    plt.close(fig)
+        ax.hist(null_dist, bins=40, alpha=0.6, color="steelblue", density=True,
+                label="Null distribution")
+        ax.axvline(obs_diff, color="red", linewidth=2,
+                   label=f"Observed Δ = {obs_diff:.4f} (p={p_val:.4f})")
+        percentile_95 = np.percentile(np.abs(null_dist), 95)
+        ax.axvline(percentile_95, color="gray", linestyle="--",
+                   label=f"95% threshold = {percentile_95:.4f}")
+        ax.axvline(-percentile_95, color="gray", linestyle="--")
+
+        ax.set_xlabel("AUROC Difference (L1 − L0)", fontsize=11)
+        ax.set_ylabel("Density", fontsize=11)
+        ax.set_title("Permutation Test — L1 vs L0 (DAIC Depression)",
+                     fontsize=12, fontweight="bold")
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(str(fig_dir / "permutation_null_distribution.png"), dpi=150)
+        plt.close(fig)
     print(f"  Saved: {fig_dir / 'permutation_null_distribution.png'}")
 
     print(f"\n✅ All visualizations saved to {fig_dir}")
@@ -873,8 +883,11 @@ def main():
         clean = {}
         for k, v in comp_data.items():
             if isinstance(v, dict):
-                clean[k] = {sk: sv for sk, sv in v.items()
-                           if isinstance(sv, (float, int, str, bool)) or sv is None}
+                clean[k] = {
+                    sk: (sv.tolist() if hasattr(sv, "tolist") else sv)
+                    for sk, sv in v.items()
+                    if isinstance(sv, (float, int, str, bool, list)) or sv is None or hasattr(sv, "tolist")
+                }
             else:
                 clean[k] = v
         serializable["comparisons"][comp_name] = clean

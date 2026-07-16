@@ -40,7 +40,7 @@
 \maketitle
 
 \begin{abstract}
-We propose a unified multimodal architecture for mental health assessment that jointly learns from depression, sentiment, emotion, and personality across three public benchmarks: DAIC-WOZ (clinical interviews, $n=189$), CMU-MOSEI (YouTube videos, $n=22{,}777$), and ChaLearn First Impressions (video clips, $n=10{,}000$). The model combines modality-specific encoders (RoBERTa for text, WavLM for audio, ViT for video), gated late fusion, a Mixture-of-Experts layer, and a KNN-graph-based GraphSAGE router that selects experts using neighborhood information. Our central finding is that graph routing consistently improves over non-graph baselines: variant V0 achieves MOSEI sentiment CCC=0.6803 (+0.18 over MMoEEx) and variant V3 achieves DAIC depression AUROC=0.8967 (+0.40 over MMoEEx). Cross-attention fusion does not reproduce a reported gain over gated fusion under our evaluation protocol. LLM encoders (Mistral-7B, CLAP, LLaVA) improve over classical encoders but do not surpass graph routing. We release a leakage-safe graph construction protocol, a full ablation ladder, and graph-based explanations for clinical interpretability.
+We propose a unified multimodal architecture for mental health assessment that jointly learns from depression, sentiment, emotion, and personality across three public benchmarks: DAIC-WOZ (clinical interviews, $n=189$), CMU-MOSEI (YouTube videos, $n=22{,}777$), and ChaLearn First Impressions (video clips, $n=10{,}000$). The model combines modality-specific encoders (RoBERTa for text, WavLM for audio, ViT for video), gated late fusion, a Mixture-of-Experts layer, and a KNN-graph-based GraphSAGE router that selects experts using neighborhood information. Graph-based routing does \emph{not} improve over a non-graph MMoEEx baseline in this setting: across five leakage-safe graph configurations, DAIC depression AUROC (0.489--0.551), MOSEI sentiment CCC (0.510--0.517), and MOSEI emotion AUROC (0.712--0.734) are statistically indistinguishable from the non-graph baseline (0.493, 0.493, 0.734 respectively), and FI personality CCC is consistently \emph{worse} with graph routing (0.540--0.553 vs.\ 0.578 without). A graph-homophily diagnostic shows the routing graph carries no more DAIC-label signal than random pairing, while it carries substantial signal for MOSEI and FI that the router nonetheless fails to convert into a performance gain; a learned per-task routing weight and a $K\in\{5,10,15,20\}$ sensitivity sweep both fail to recover a benefit. We report this as a rigorously investigated negative result. Separately, cross-attention fusion does not reproduce a reported gain over gated fusion under our evaluation protocol, and LLM-based encoders (Mistral-7B, CLAP, LLaVA) substantially outperform both classical encoders and graph routing on every task. We release a leakage-safe graph construction protocol, a full ablation ladder, and graph-based explanations for clinical interpretability.
 \end{abstract}
 
 \section{Introduction}
@@ -48,13 +48,22 @@ We propose a unified multimodal architecture for mental health assessment that j
 
 Mental health assessment from multimodal signals is a cornerstone challenge in affective computing and clinical informatics. Depression, the primary focus of this work, affects over 280 million people worldwide \citep{who2023depression} and is routinely assessed through clinical interviews that combine speech, facial expressions, and verbal content. Meanwhile, related affective signals---sentiment, emotion, and apparent personality---provide complementary supervision signals that can enrich mental health models through multitask learning \citep{dupont2020multitask,kendall2018multitask}.
 
-Our main claim is that a single multimodal architecture can learn both shared and task-specific representations for depression, affect, and personality, and that graph-based routing improves prediction and makes model behavior easier to explain. We do not claim that apparent personality and clinical depression measure the same construct. The proposed system is intended as a decision-support tool and should not replace clinical diagnosis; all results require prospective validation before clinical deployment.
+Our central hypothesis has two parts, which we evaluate separately rather than conflating. First, we hypothesize that mental health assessment can be made more \emph{transparent} by characterizing a person's affective and psychological profile — sentiment, emotion, and apparent personality — jointly with a depression assessment, rather than reporting a single opaque depression score in isolation: the auxiliary constructs give a clinician additional, more legible context (e.g., is a low mood reading accompanied by high negative sentiment and low extraversion, or is it isolated?) for interpreting the primary prediction. Second, we hypothesize that a graph over similar individuals can provide both a \emph{visual} (subgraph diagrams, per-modality attribution plots) and a \emph{machine-readable} (structured case records: SHAP values, neighbor identities and distances, routing weights) account of which factors and which comparable cases informed a given prediction, complementing the auxiliary-construct characterization with instance-level explanation. This is a claim about transparency, evaluated separately from the further hypothesis that graph-based \emph{routing} improves raw predictive performance (Section~\ref{sec:results}) — a model can be well-explained without being more accurate, and our results show these are empirically distinct questions in this setting: the performance hypothesis is not supported, while the transparency mechanisms (multi-construct characterization, graph-based visual and machine-readable explanation) are implemented and evaluated for faithfulness in Section~\ref{sec:xai}. We do not claim that apparent personality and clinical depression measure the same construct — personality is auxiliary context, not a depression proxy. The proposed system is intended as a decision-support tool and should not replace clinical diagnosis; all results require prospective validation before clinical deployment.
+
+Figure~\ref{fig:process_flow} gives an overview of the full experimental pipeline, from data and feature extraction through the baseline ladder, the graph-routing investigation (Section~\ref{sec:results}), and the downstream LLM, calibration, domain-adaptation, and explainability analyses.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{paper/figures/process_flow.pdf}
+\caption{Experimental pipeline overview. The graph-routing investigation (dashed box) is the central empirical question of this paper: five ablation variants are compared against non-graph baselines, and a homophily diagnostic together with two targeted fixes (K-sweep, learned $\lambda$) explains the resulting negative finding.}
+\label{fig:process_flow}
+\end{figure*}
 
 This work makes three contributions:
 \begin{enumerate}
-    \item \textbf{Graph-gated MoE routing}: Combining KNN graph construction with GraphSAGE-based expert selection, demonstrating that topology-aware expert routing consistently improves over non-graph baselines across three affective computing benchmarks.
+    \item \textbf{A rigorously investigated negative result for graph-gated MoE routing}: across five leakage-safe graph configurations, a $K$-sensitivity sweep, and a learned-routing-weight variant, graph-based expert routing does not improve over a non-graph MMoEEx baseline, and degrades FI personality prediction specifically. We support this with a graph-homophily diagnostic that localizes \emph{why} (Section~\ref{sec:results}), rather than reporting a single negative number without investigation.
     \item \textbf{Leakage-safe graph construction protocol}: Three graph construction modes (inductive, split-local, transductive) under strict subject-independent splits, with formal validation that prevents test-label leakage through graph edges.
-    \item \textbf{Comprehensive empirical analysis}: A systematic ablation ladder spanning unimodal baselines, three fusion strategies, MoE variants, five graph configurations, and LLM encoder replacements.
+    \item \textbf{Comprehensive empirical analysis}: A systematic ablation ladder spanning unimodal baselines, three fusion strategies, MoE variants, five graph configurations, and LLM encoder replacements, including a comparison showing LLM-based encoders outperform both classical encoders and graph routing on every task.
 \end{enumerate}
 
 \section{Related Work}
@@ -64,9 +73,11 @@ This work makes three contributions:
 
 \paragraph{Mixture of Experts.} The sparsely-gated MoE layer \citep{shazeer2017moe} routes each input to a subset of experts. Multitask MoE (MMoE) extends this with task-specific gates \citep{ma2018model}, and MMoEEx adds expert exclusivity and orthogonality regularization \citep{jacobs2024mmoe}. We build on MMoEEx but add graph-based routing.
 
-\paragraph{Graph Neural Networks for Routing.} GraphSAGE \citep{graphsage2017inductive} performs inductive representation learning on graphs. We use GraphSAGE as a router: aggregating features from K nearest neighbors to produce a graph context vector that modulates expert weights.
+\paragraph{Graph Neural Networks for Routing.} GraphSAGE \citep{graphsage2017inductive} performs inductive representation learning on graphs. We use GraphSAGE as a router: aggregating features from K nearest neighbors to produce a graph context vector that modulates expert weights. Wang et al.\ \citep{wang2023graphmoe} similarly combine GNN-based experts with explicit diversity modeling, though as GNN experts rather than a graph-conditioned router over standard MLP experts as here. Whether a KNN routing graph is useful depends on its label homophily/informativeness \citep{platonov2022characterizing}; when it is not, graph rewiring or learned graph structure \citep{attali2026graphrewiring} are natural remedies we discuss in Section~\ref{sec:discussion}. Task-affinity-aware grouping \citep{li2023boosting} and expert-choice routing \citep{zhou2022mixture} are two further candidate fixes we did not yet implement.
 
 \paragraph{LLM-Enhanced Encoders.} Large language models have been applied to depression detection via instruction-tuned text encoders \citep{zhao2025multimodalllm} and audio-language models \citep{alam2025wav2vec}. We evaluate LLM-enhanced encoders in our ablation track (levels L1--L5).
+
+\paragraph{Multi-Construct Characterization and Graph-Based Interpretability.} Interpretability for mental health assessment has been pursued by jointly modeling depression alongside related affective constructs, and by grounding graph structure in psychologically meaningful units: Vyalla et al.\ \citep{vyalla2026psygat} explicitly distinguish personality trait context from acute depression symptoms via a psychologically-grounded, interpretable graph model, closely related to our multi-task characterization hypothesis (Section~\ref{sec:introduction}). For explaining LLM-based reasoning specifically, chain-of-thought and related structured-reasoning techniques have been shown to improve mental-health text classification \citep{patil2025cognitivemental}, but can also be unfaithful or reduce reliability when reasoning is inserted into the clinical prediction pipeline itself \citep{wu2025cotfails} — a distinction we return to in Section~\ref{sec:xai}, where LLM narratives are used purely as \emph{post-hoc} explanation of an independently-computed prediction, not as part of the prediction process.
 
 \paragraph{Depression Detection on DAIC-WOZ.} The DAIC-WOZ corpus \citep{gratch2014distress} contains 189 clinical interviews with PHQ-8 labels. State-of-the-art methods include: Burdisso et al. GCN (F1=0.85) \citep{burdisso2024gcndp}; Zhang et al. MIL (AUROC=0.78) \citep{zhang2025mil}; Niu et al. multimodal fusion (F1=0.92) \citep{niu2021multimodal}; Dai et al. full fusion (F1=0.96) \citep{dai2021fullfusion}. Direct metric comparison is limited: most papers report F1 while we report AUROC.
 
@@ -105,6 +116,15 @@ $r_i$ & Graph routing vector \\
 \label{tab:notation}
 \end{table}
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{paper/figures/architecture.pdf}
+\caption{Unified multimodal graph-gated MoE architecture. Modality-specific encoders (RoBERTa/WavLM/ViT) project to a common $d=256$ space; gated late fusion combines them into $h_i^{\text{fused}}$; the MMoEEx expert bank and a KNN-graph GraphSAGE router jointly determine expert routing weights in log-space; task heads predict depression, sentiment, emotion, and personality.}
+\label{fig:architecture}
+\end{figure*}
+
+Figure~\ref{fig:architecture} gives an overview of the full pipeline.
+
 \paragraph{Modality Encoders.} Each modality $m \in \{\text{text, audio, video}\}$ is encoded by a pretrained encoder $f_m$, producing embedding $h_i^m$. A projection layer $P_m$ maps to a common $d=256$-dimensional space:
 \begin{equation}
     h_i^{m,\text{proj}} = P_m(f_m(x_i^m)) \in \mathbb{R}^{256}
@@ -118,7 +138,9 @@ $r_i$ & Graph routing vector \\
     h_i^{\text{fused}} = \sum_{m} \frac{\alpha_i \odot m_i}{\|\alpha_i \odot m_i\|_1 + \epsilon}[m] \cdot h_i^{m,\text{proj}}
 \end{equation}
 
-\paragraph{MMoEEx Expert Bank.} We instantiate $M=8$ experts $\{E_1, \ldots, E_8\}$, each an MLP with hidden dimension 256. Two experts are shared, six are task-exclusive. Expert diversity is encouraged via orthogonality regularization. Task-specific gates $g_t: \mathbb{R}^{256} \to \mathbb{R}^M$ produce expert weights.
+Each dataset is evaluated under a fixed, dataset-native routing policy chosen from our fusion ablation (Section~\ref{sec:results}): DAIC uses text-only routing ($h_i^{\text{fused}} = h_i^{\text{text}}$), FI uses video-only routing, and MOSEI uses the full gated fusion above. This is a deliberate architectural choice, not a missing-data fallback: text alone is DAIC's strongest single modality and video alone is FI's, so routing each dataset through its best-performing modality avoids diluting the fused representation with weaker signal on datasets too small to learn a reliable gate over all three. A direct consequence, verified in Section~\ref{sec:xai}, is that a modality outside a dataset's native routing contributes \emph{exactly} zero to that dataset's predictions and to any attribution computed on them (audio and video for DAIC; text and audio for FI) — not merely a small or negligible contribution.
+
+\paragraph{MMoEEx Expert Bank.} We instantiate $M=8$ expert MLPs $\{E_1, \ldots, E_8\}$ with residual connections. Two expert configurations are used across our experiments. In the non-graph MMoEEx baseline (Section~\ref{sec:results}, ``MMoEEx vs.\ Baselines''), experts have hidden dimension 256 and are hard-isolated per task group: depression uses $\{E_1,E_2\}$, MOSEI sentiment and emotion share $\{E_3,E_4\}$, and personality uses $\{E_5,E_6\}$; $E_7,E_8$ are allocated but unused under this isolation mask. In the graph-routed variants (V0--V4, our primary reported configuration), we disable hard isolation and use expert hidden dimension 128: task-specific gates $g_t: \mathbb{R}^{256} \to \mathbb{R}^8$ produce a full softmax over all 8 experts, and expert diversity is encouraged via orthogonality regularization rather than hard masking.
 
 \paragraph{KNN Graph Construction.} We construct an undirected KNN graph $G = (V, E)$ over all training samples using cosine similarity. Three construction modes are tested:
 \begin{itemize}
@@ -139,6 +161,7 @@ The final expert weights combine task gate and graph router in log-space:
 \begin{equation}
     \tilde{w}_{t,i} = \text{softmax}(\log g_t(h_i) + \lambda \cdot \log r_i)
 \end{equation}
+$\lambda$ is fixed to 0.5 (not tuned) in all reported graph-routed experiments.
 
 \paragraph{Task Heads.} Depression: binary classifier (BCE). Sentiment: regressor (NLL). Emotion: multi-label classifier (BCE). Personality: five regression heads (NLL).
 
@@ -152,58 +175,202 @@ Training uses AdamW (lr=$1e-3$), cosine annealing, early stopping (patience=10).
 
 Metrics: DAIC (AUROC, F1), MOSEI sentiment (CCC), MOSEI emotion (macro-AUROC), FI (mean CCC). All results report 95\% bootstrap CIs (1,000 iterations).
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_07_joint_training/training_curves.png}
+\caption{Joint training loss per task (V0 graph model, 105 epochs). MOSEI sentiment and emotion converge smoothly; DAIC depression and FI personality are noisier and show validation loss increasing after roughly epoch 20--30, consistent with their much smaller training sets.}
+\label{fig:training_curves}
+\end{figure}
+
+Figure~\ref{fig:training_curves} shows representative per-task training curves for the V0 configuration: the two large-sample tasks (MOSEI sentiment, MOSEI emotion) converge smoothly, while DAIC depression and FI personality — the two small-sample tasks — are visibly noisier and begin to overfit after roughly epoch 20--30, motivating the early-stopping and uncertainty-weighting choices above.
+
 \section{Results}
 \label{sec:results}
 
-\paragraph{Unimodal Baselines.} Text is the strongest modality for DAIC (AUROC=0.5346) and MOSEI (CCC=0.5123). Video is strongest for FI (Avg CCC=0.4578). All three datasets beat trivial baselines.
+\paragraph{Unimodal Baselines.} Text is the strongest modality for DAIC (AUROC=0.5346) and MOSEI (CCC=0.5123). Video is strongest for FI (Avg CCC=0.4578). All three datasets beat trivial baselines (Figure~\ref{fig:unimodal_results}).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_03_unimodal_baselines/baseline_metrics_bar.png}
+\caption{Unimodal baseline metrics with 95\% bootstrap CIs across all (dataset, modality) pairs. Overlapping CIs on DAIC reflect the small test set ($n=47$).}
+\label{fig:unimodal_results}
+\end{figure}
 
 \paragraph{Fusion Ablation.} Cross-attention does not outperform gated fusion on any dataset. On DAIC, CrossAttn (AUROC=0.3117) is 0.2229 below text baseline. On MOSEI, Gated (CCC=0.6229) outperforms CrossAttn (CCC=0.5397). A likely explanation for cross-attention underperformance is overparameterization (65K--2.8M parameters vs 57K--827K for gated).
 
-\paragraph{MMoEEx vs Baselines.} MMoEEx improves FI personality (+0.12 Avg CCC) but degrades DAIC and MOSEI sentiment, likely due to the small DAIC training set (n=107) being insufficient for joint MoE optimization.
+\paragraph{MMoEEx vs Baselines.} MMoEEx (hard expert isolation, Section~\ref{sec:architecture}) improves FI personality (+0.12 Avg CCC) but degrades DAIC and MOSEI sentiment relative to their unimodal/gated-fusion baselines, likely because the small DAIC training set ($n=107$) is insufficient for stable joint MoE optimization under hard isolation. Figure~\ref{fig:expert_routing} shows the resulting routing distribution: each task concentrates weight on a small subset of its assigned experts rather than routing uniformly, indicating the gates do learn task-differentiated behavior even where the aggregate metric declines.
 
-\paragraph{Graph Routing Ablation.} Five graph variants (V0--V4) are compared in Table~\ref{tab:graph_results}.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_05_mmoe_ex/expert_routing.png}
+\caption{Mean MMoEEx routing weight per expert and task. Each task concentrates weight on 1--2 experts within its assigned isolation group rather than routing uniformly across all 8.}
+\label{fig:expert_routing}
+\end{figure}
+
+\paragraph{Graph Routing Ablation.} Five graph variants (V0--V4) are compared against the non-graph MMoEEx baseline in Table~\ref{tab:graph_results} and Figure~\ref{fig:graph_ablation}.
 
 \begin{table}[htbp]
 \centering
-\caption{Graph routing ablation across five variants (V0--V4). Best per-column in \textbf{bold}.}
+\caption{Graph routing ablation across five variants (V0--V4), real labels and real evaluation. Best per-column in \textbf{bold}; the non-graph baseline row is the reference point, not part of the ablation.}
 \small
 \begin{tabular}{lcccc}
 \toprule
 Variant & DAIC AUROC & MOSEI CCC & MOSEI AUC & FI Avg CCC \\
 \midrule
-V0 (inductive-k10) & 0.7124 & \textbf{0.6803} & 0.7562 & 0.4395 \\
-V1 (split-local-k10) & 0.6345 & 0.5436 & 0.5467 & 0.2962 \\
-V2 (transductive-k10) & 0.8505 & 0.3419 & 0.7606 & 0.3442 \\
-V3 (inductive-k15) & \textbf{0.8967} & 0.5198 & 0.5985 & 0.2309 \\
-V4 (split-local-k15) & 0.8351 & 0.5539 & 0.5872 & \textbf{0.5032} \\
+\emph{Non-graph MMoEEx} & \emph{0.4928} & \emph{0.4925} & \emph{\textbf{0.7344}} & \emph{\textbf{0.5775}} \\
+\midrule
+V0 (inductive-k10) & 0.5145 & \textbf{0.5166} & 0.7190 & 0.5415 \\
+V1 (split-local-k10) & \textbf{0.5507} & 0.5137 & 0.7120 & 0.5416 \\
+V2 (transductive-k10) & 0.5072 & 0.5151 & 0.7199 & 0.5525 \\
+V3 (inductive-k15) & 0.5254 & 0.5098 & 0.7340 & 0.5438 \\
+V4 (split-local-k15) & 0.5399 & 0.5105 & 0.7315 & 0.5397 \\
 \bottomrule
 \end{tabular}
 \label{tab:graph_results}
 \end{table}
 
-V0 achieves the best MOSEI sentiment (CCC=0.6803, +0.18 over MMoEEx). V3 achieves the best DAIC AUROC (0.8967, +0.40 over MMoEEx). No single variant dominates all tasks; we recommend V0 as default and V3 when DAIC is primary.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_06_graph/08_ablation_comparison.png}
+\caption{Graph routing ablation vs.\ the non-graph MMoEEx baseline (red dashed line), all five variants. Graph routing gives a small, inconsistent edge on DAIC and ties on MOSEI, but is consistently \emph{below} the baseline on FI personality.}
+\label{fig:graph_ablation}
+\end{figure}
 
-\paragraph{LLM Ablations.} LLM encoders (Mistral-7B, CLAP, LLaVA) improve over classical encoders across all tasks. L3 (Mistral + CLAP) achieves the best LLM-level DAIC AUROC (0.7210). However, no LLM level surpasses the V0 graph router, confirming that graph routing and LLM encoders provide complementary benefits.
+Every graph-routed variant is within bootstrap-CI-width of the non-graph baseline on DAIC and MOSEI sentiment/emotion, and every variant underperforms the baseline on FI personality (0.540--0.553 vs.\ 0.578). No variant dominates; the best DAIC AUROC (V1, 0.5507) is only +0.058 over the baseline, an order of magnitude smaller than the effect a graph-routing benefit would need to be clinically meaningful. This is not an isolated finding: a KNN-voting baseline (task label smoothing over the same graph neighborhoods, no learned router) reaches DAIC AUROC=0.6304 — \emph{higher} than every learned graph-routed variant — showing that the learned GraphSAGE router does not even recover the value of the simplest possible neighborhood heuristic on this task.
 
-\paragraph{Domain Adaptation.} Unsupervised domain adaptation (CORAL, MMD, DANN) produces negative transfer on clinical interview data, with plain multitask learning outperforming all DA methods.
+\paragraph{Why does graph routing not help? A homophily diagnostic.} A natural question is whether the KNN routing graph carries task-relevant signal at all. For each real graph (val split, four leakage-safe variants), we measured same-dataset edge label agreement (DAIC, binary) or label correlation (MOSEI, FI, continuous) against a random-pairing baseline (Figure~\ref{fig:homophily}).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_06_graph/09_graph_homophily_diagnostic.png}
+\caption{Real graph neighbors vs.\ random pairing, averaged over V0/V1/V3/V4. DAIC shows no signal beyond chance; MOSEI and FI both show substantial signal the router fails to exploit.}
+\label{fig:homophily}
+\end{figure}
+
+DAIC neighbors are statistically indistinguishable from random pairs (0.568 vs.\ 0.555 label agreement) — the embedding space used to build the graph (a linear projection that is not the jointly-trained model's own representation) simply does not cluster DAIC samples by depression label, so no router could extract a benefit there regardless of architecture. MOSEI and FI, by contrast, show real signal well above chance (correlation 0.25 and 0.28 vs.\ $\approx$0.00 random), yet training does not convert this into a performance gain, and actively converts it into a \emph{loss} for FI. This localizes the failure differently per task: DAIC needs a better embedding space for graph construction; MOSEI and FI need a better router or combination mechanism, since the raw material is already there.
+
+\paragraph{Two targeted fix attempts.} We tried two changes motivated by this diagnostic, neither of which recovered a meaningful benefit. First, a $K \in \{5,10,15,20\}$ sensitivity sweep (inductive graph) shows no monotonic relationship between neighborhood size and any metric (Figure~\ref{fig:k_sensitivity}); $K{=}20$ lands DAIC AUROC exactly at chance (0.500).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_06_graph/11_k_sensitivity.png}
+\caption{No monotonic trend with $K$ (inductive graph). Ruling out $K$-tuning as an explanation.}
+\label{fig:k_sensitivity}
+\end{figure}
+
+Second, motivated by the hypothesis that a single fixed $\lambda$ might be suboptimal per task (Section~\ref{sec:architecture}), we replaced it with a learned, per-task, sigmoid-parameterized weight (initialized at 0.5, the fixed default) on the V0 configuration. Training moved FI's weight down to 0.479 and MOSEI-emotion's to 0.489 — the correct \emph{direction} given the diagnostic above — while DAIC and MOSEI-sentiment moved slightly up (0.508, 0.574; Figure~\ref{fig:learned_lambda}). The movement is small (all within $\pm0.07$ of 0.5) and the resulting metrics (DAIC AUROC 0.544, FI CCC 0.541) remain within the same range as the fixed-$\lambda$ runs — an improvement on DAIC, no meaningful change on FI. We view this as suggestive but inconclusive: a soft mixing weight alone is not sufficient to recover the unused MOSEI/FI graph signal.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_06_graph/10_learned_lambda.png}
+\caption{Learned per-task $\lambda$ (V0 config) moves in the direction the homophily diagnostic predicts (down for FI/MOSEI-emotion, up for MOSEI-sentiment) but only slightly.}
+\label{fig:learned_lambda}
+\end{figure}
+
+\subsection{LLM-Enhanced Encoders (L0--L5)}
+\label{sec:llm_ablation}
+
+We replace classical encoders with LLM-based encoders at each modality: \textbf{L0} classical baseline (RoBERTa+WavLM+OpenFace); \textbf{L1} Mistral-7B-Instruct-v0.3 frozen text encoder; \textbf{L2} L1 with a LoRA ($r{=}16$, $\alpha{=}32$) trainable adapter; \textbf{L3} L1 + CLAP audio encoder; \textbf{L4} L1 + LLaVA-1.5-7B video encoder; \textbf{L5} the full LLM stack (text+audio+video replaced).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_08_llm_ablations/llm_delta_bar.png}
+\caption{LLM modality ablation: DAIC AUROC per level (L0--L5) against the classical (L0) and Phase-5 text-only baselines. L3 (Mistral+CLAP) gives the largest gain.}
+\label{fig:llm_ablation_delta}
+\end{figure}
+
+Every LLM level improves over the classical baseline (L0) on all three headline metrics. L3 (Mistral+CLAP) gives the best DAIC AUROC (0.7210, +0.174 over L0); L1 (Mistral frozen text) gives the best MOSEI emotion AUROC (0.7702, +0.147); L5 (full LLM stack) gives the best MOSEI sentiment CCC (0.6284, +0.089); L2 (Mistral+LoRA) gives the best FI personality CCC (0.5732, +0.115). L4 (Mistral+LLaVA) shows a validation/test gap (0.6812 training-time validation AUROC vs.\ 0.3587 at final evaluation), traced to an audio feature-dimension mismatch between the L4 training checkpoint (768-dim WavLM) and the inference dataset (512-dim); we report this as a known limitation rather than a representative L4 result. Every LLM level substantially outperforms every graph-routed variant on every headline metric (e.g.\ L3 DAIC AUROC 0.7210 vs.\ the best graph variant's 0.5507; Section~\ref{sec:results}) — the largest single driver of performance in this study is encoder quality, not routing architecture.
+
+\subsection{Domain Adaptation}
+\label{sec:domain_adaptation}
+
+We tested unsupervised domain adaptation (CORAL, MMD, DANN, and a combined CORAL+MMD loss) for transferring FI and MOSEI representations to DAIC depression detection, against a no-adaptation baseline, across three transfer scenarios (FI$\to$DAIC, MOSEI$\to$DAIC, multisource). All four DA methods underperform the no-adaptation baseline in 10 of 12 evaluated conditions. The no-adaptation baseline achieves its best result on MOSEI$\to$DAIC (AUROC=0.6942); the best DA result anywhere (combined CORAL+MMD, FI$\to$DAIC) reaches only 0.6901. CORAL is the most consistently harmful (worst case MOSEI$\to$DAIC AUROC=0.6198, $-$0.0744 vs.\ baseline); MMD is the only method that marginally improves its own no-adaptation baseline (FI$\to$DAIC: 0.6860 vs.\ 0.6818, +0.0041), but this is within bootstrap CI and still below the best no-adaptation scenario. We attribute this negative transfer to three factors: the DAIC training set ($n=107$) is too small to train a stable domain discriminator; the clinical-interview vs.\ unconstrained-video domain gap is large relative to what shallow alignment can correct; and the shared multitask heads already provide implicit alignment. We do not merge domain adaptation into the main model; plain multitask learning is used throughout.
+
+\subsection{Generalization: MPDD Cross-Track and Cross-Dataset Transfer}
+\label{sec:mpdd}
+
+To probe whether our findings generalize beyond DAIC/MOSEI/FI, we ran a supplementary benchmark on MPDD (Multimodal Depression Detector), which provides pre-extracted Wav2Vec2 (512-dim) and OpenFace (709-dim) features for two age tracks, Young ($n=184$ train) and Elderly ($n=236$ train).
+
+\input{tables/chapter8_mpdd_results.tex}
+
+On MPDD-Young, logistic regression with L2 regularization (C=0.01) reaches test AUROC=0.674, outperforming both GGMoE with and without graph routing (0.545/0.559) and a simple MLP (0.512) — the small sample size favors a strongly-regularized linear model over any of our neural architectures, including the graph router. SHAP analysis (Figure~\ref{fig:mpdd_shap}) attributes roughly balanced importance to audio (51\%) and video (49\%) features, with \texttt{audio\_44} the single most important feature.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/xai_analysis/feature_importance.png}
+\caption{Top-30 SHAP feature importances for MPDD-Young depression detection. \texttt{audio\_44} is the single most important feature, though the top-30 set is video-dominated (17 of 30).}
+\label{fig:mpdd_shap}
+\end{figure}
+
+\input{tables/chapter8_cross_track_results.tex}
+
+We then tested zero-shot transfer from Young to Elderly (Figure~\ref{fig:mpdd_crosstrack}): the Young-trained classifier collapses to near-constant, high-confidence ``depressed'' predictions on Elderly data regardless of true label, yielding cross-track AUROC=0.395 — below chance, and worse than training within Elderly alone (AUROC=0.277). Video features shift $17{,}554\times$ more than audio features between the two tracks, and \texttt{audio\_44} is not predictive in Elderly (AUC=0.468), confirming it is a Young-specific rather than universal depression correlate. Feature standardization does not fix this: raw features give cross-track AUC=0.500 (random) while StandardScaler gives 0.395 (negative transfer), suggesting raw feature magnitude carries transferable signal that normalization removes. In contrast, cross-\emph{dataset} transfer (MPDD$\to$DAIC, sharing a Wav2Vec2-family audio encoder) transfers positively: an MPDD-trained classifier reaches DAIC test AUROC=0.551, above the within-DAIC baseline of 0.344. Taken together, these results suggest that encoder family match matters more than domain similarity for transfer, and that age-group-specific biomarkers — not universal depression markers — may explain the cross-track failure.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/cross_track_validation/cross_track_comparison.png}
+\caption{Left: AUROC within Young, cross-track Young$\to$Elderly, and within Elderly. Right: predicted-probability histogram on Elderly — the Young-trained model collapses to near-1.0 confidence regardless of true label, explaining the below-chance cross-track AUROC.}
+\label{fig:mpdd_crosstrack}
+\end{figure}
+
+\section{Calibration and Statistical Validation}
+\label{sec:calibration}
+
+We applied three post-hoc calibration methods (temperature scaling, Platt scaling, isotonic regression) to the DAIC depression classifier across all six LLM levels (L0--L5). Uncalibrated logits show moderate calibration error (ECE=0.26--0.35). Isotonic regression reduces ECE most on held-out validation data, followed by Platt and temperature scaling; Brier score improves from 0.21--0.24 (uncalibrated) to 0.05--0.16 (calibrated). All three methods are monotonic transforms of the score, so ranking-based metrics (AUROC) are unchanged by temperature/Platt scaling and only marginally affected by isotonic regression's tie-breaking; calibration therefore improves probabilistic reliability without altering discrimination.
+
+We report every headline metric with BCa bootstrap confidence intervals (2,000 resamples, bias-corrected and accelerated), use the DeLong test for AUROC comparisons, paired permutation tests (10,000 sign-flips) for F1/CCC/MAE comparisons, and Cohen's $d$ effect sizes for ablation comparisons. Across all LLM ablation pairs (L1--L5 vs.\ L0), no comparison reaches significance at $\alpha=0.05$, reflecting limited statistical power from the small DAIC validation set ($n=50$); the largest effect sizes are L4 vs.\ L0 ($d=0.170$) and L1 vs.\ L0 ($d=0.152$). We recommend larger-sample replication before drawing clinical conclusions from any single LLM-level comparison.
+
+\section{Explainability}
+\label{sec:xai}
+
+This section evaluates both transparency hypotheses from Section~\ref{sec:introduction}. For the first (characterizing depression jointly with sentiment, emotion, and personality), each case study reports a \emph{multi-construct profile}: the same sample's shared representation is passed through all four task heads — not only the head matching its own source dataset — yielding a depression probability, a sentiment score, six emotion probabilities, and five personality-trait scores for the same person in the same forward pass. On a representative positive-sentiment MOSEI case, for example, the profile is internally coherent (happiness probability 0.89, sentiment score $+0.62$, sadness/anger/fear all below 0.09), showing that the joint representation produces a plausible cross-construct characterization rather than four unrelated numbers.
+
+For the second hypothesis (graph-based visual and machine-readable explanation), we generate for each of 9 case studies (3 per dataset): (i) a \emph{visual} record — a SHAP per-modality beeswarm plot, a GNNExplainer subgraph diagram, and a natural-language narrative panel; and (ii) a \emph{machine-readable} record — a structured case file (\texttt{phase11\_xai\_results.json}) containing SHAP values, the identities and cosine distances of the top-$k$ graph neighbors, expert routing weights, the multi-construct profile above, and counterfactual/perturbation deltas, so that a clinical or engineering downstream system could consume the explanation programmatically rather than only visually. The neighbor graph is built on the model's own trained fused representation (Section~\ref{sec:architecture}) rather than raw concatenated modality features, so that reported neighbors are the ones the router and task heads actually operate on, rather than an incidental artifact of a separate untrained embedding; we test in the paragraph below whether this also improves label homophily, and find that it does not. The natural-language narratives follow the GraphXAIN approach \citep{cedro2024graphxain}: an LLM (Mistral-7B) is prompted with the SHAP values, subgraph structure, and sample metadata to produce a narrative explanation, used here purely as \emph{post-hoc} explanation of an independently-computed prediction rather than as reasoning inserted into the prediction pipeline itself — a distinction that matters because chain-of-thought-style reasoning embedded \emph{in} clinical prediction has been shown to reduce reliability even as it appears to improve interpretability \citep{wu2025cotfails}.
+
+\paragraph{Faithfulness, not just plausibility.} A natural-language explanation is only useful if it reflects genuine model behavior rather than a plausible-sounding but disconnected story \citep{wu2025cotfails}. We test this directly with counterfactual and perturbation experiments (below). The strongest evidence is mechanistic rather than a ranking match: modalities outside a dataset's native routing (Section~\ref{sec:architecture}) show \emph{exactly} zero SHAP, perturbation, and counterfactual sensitivity, every time, with no exceptions across 90 perturbation tests and 30 counterfactual searches — which is what a faithful pipeline must produce and what a decorative one would not reliably reproduce. Within the modalities each dataset actually uses, the two methods agree only partially: perturbation ranks text as most influential (mean $|\Delta|=0.200$) ahead of video ($0.082$), while counterfactual search finds video easier to flip (mean L2$=1.30$) than text ($4.10$); we read this as the two methods answering related but distinct questions (ablation impact vs.\ gradient-direction sensitivity, the latter also confounded by each modality's raw feature-space scale) rather than claiming an aggregate ranking match we no longer observe once routing is correctly accounted for.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_11_xai/daic_shap_beeswarm.png}
+\caption{Per-modality SHAP values across 20 DAIC validation samples. Audio and video collapse to exactly zero for every sample: DAIC is evaluated under text-only routing (Section~\ref{sec:architecture}), so its fused representation structurally excludes them, and SHAP attribution correctly reports zero rather than a small residual. Only text shows any spread.}
+\label{fig:xai_shap_beeswarm}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_11_xai/daic_gnn_subgraph.png}
+\caption{Ego-centered subgraph for a DAIC query sample (star, center): neighbors are placed at a radius proportional to their dissimilarity in the model's trained fused representation and colored by their true depression label, so label agreement is visible directly rather than only reported as an aggregate statistic — here, 2 of 5 neighbors share the query's label, consistent with the below-random homophily finding.}
+\label{fig:xai_gnn_subgraph}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{artifacts/figures/phase_11_xai/daic_multi_construct_force.png}
+\caption{Multi-construct force plot for one DAIC subject: the same forward pass explained through all four task heads (depression, sentiment, emotion, personality), each with its own prediction bar, per-modality SHAP tornado, and value table. Audio and video are exactly zero in every row, directly visualizing that DAIC's text-only routing (Section~\ref{sec:architecture}) excludes them structurally rather than merely weighting them low.}
+\label{fig:xai_force_panel}
+\end{figure}
+
+Both the counterfactual and perturbation tests must respect each dataset's own native modality routing (Section~\ref{sec:architecture}): DAIC is evaluated text-only, FI video-only, and only MOSEI genuinely fuses all three, so a modality outside a dataset's native routing contributes \emph{exactly} zero to that dataset's predictions, not merely "less." Counterfactual tests measure the L2 perturbation needed to change the prediction by $\Delta=0.1$, over 30 samples (10 per dataset): text (reachable for DAIC and MOSEI, 20/30 samples) needs mean L2$=4.10$; audio (reachable only for MOSEI, 7/30) needs mean $2.35$; video (reachable for MOSEI and FI, 20/30) needs the smallest push, mean $1.30$ — video is the modality the model is most sensitive to where it is used at all. A complementary ablation (90 perturbation tests: 10 samples $\times$ 3 modalities $\times$ 3 datasets) removes one modality at a time and measures the resulting prediction change; only 47 of 90 deltas are non-zero, exactly the ones matching each sample's native routing (text $|\Delta|=0.200$ mean, video $0.082$, audio $0.012$ — audio's near-zero mean reflects that it is native to only one of the three datasets). This is a stronger validation than a bare consistency check: the exact zeros are not noise but a direct, mechanistic confirmation that the SHAP/counterfactual/perturbation pipeline faithfully reflects each dataset's real routing rather than an incidental full-fusion computation (range across all 90 deltas: $-0.75$ to $+0.87$).
+
+\paragraph{A limit on what the graph-based explanations can claim.} Our homophily diagnostic (Section~\ref{sec:results}) found that the KNN graph used for the routing ablation carries no more depression-label signal than random pairing for DAIC, while carrying real signal for MOSEI and FI. We tested whether building the explanation graph from the model's own trained representation (rather than the routing ablation's shallow projection) resolves this for DAIC: it does not. On the same 35 DAIC validation samples, label agreement is 0.577 for raw concatenated features, 0.537 for random pairing, and \emph{0.463} — below the random baseline — for the trained fused representation. Task-supervised training optimizes the representation for the final decision boundary, not for preserving neighborhood structure, and here it does not yield a more label-homophilous space than the untrained alternative. We therefore read DAIC subgraph explanations (``this prediction was influenced by these neighbors'') as showing which samples the model's fused representation geometrically treats as similar — which \emph{is} faithful to what the model internally computes, addressing the concern that the explanation graph was previously built from a representation unrelated to the model's own reasoning — without a validated claim that those neighbors are similar in a depression-relevant sense; that second, stronger claim remains unsupported for DAIC under either embedding we tested. The SHAP and counterfactual components of the explanation, which do not depend on graph quality, are unaffected by this limitation. For MOSEI and FI, where the routing-graph diagnostic found real label signal, the neighbor-based component of the explanation rests on firmer footing.
 
 \section{Discussion}
 \label{sec:discussion}
 
-\paragraph{What Worked.} Graph routing consistently improves over non-graph baselines, with V0 (inductive, K=10) providing the best MOSEI sentiment and V3 (inductive, K=15) the best DAIC depression detection. The KNN voting baseline confirms that GraphSAGE learned aggregation adds substantial value beyond simple neighborhood smoothing (DAIC +0.082, MOSEI +0.237). Gated late fusion provides the best fusion results on MOSEI. MMoEEx alone benefits FI personality (+0.12 CCC).
+\paragraph{What Worked.} Gated late fusion provides the best fusion results on MOSEI (CCC=0.6229, only 159K parameters) and is far more parameter-efficient than cross-attention. MMoEEx alone (non-graph, hard isolation) benefits FI personality (+0.12 CCC over the video-only baseline). LLM-enhanced encoders improve every task over classical encoders (largest DAIC gain: L3, +0.174 AUROC) and, as discussed above, are the single biggest performance driver in the whole study — far larger than any effect we observed from routing architecture.
 
-\paragraph{What Did Not.} Cross-attention fusion underperforms gated fusion on all three datasets, and we do not observe the reported +0.041 AUROC gain. MMoEEx degrades DAIC and MOSEI sentiment, likely due to insufficient training data. Domain adaptation methods produce negative transfer. Cross-demographic transfer (young to elderly) produces below-random performance, suggesting age-specific biomarkers.
+\paragraph{What Did Not.} Graph-based expert routing does not improve over the non-graph MMoEEx baseline on any task, and consistently degrades FI personality (Section~\ref{sec:results}); a homophily diagnostic shows this is because the routing graph carries no DAIC-label signal at all, and — more surprisingly — because the router fails to exploit signal that \emph{is} present for MOSEI and FI. Neither a $K$-sensitivity sweep nor a learned per-task routing weight recovered a meaningful benefit. Cross-attention fusion underperforms gated fusion on all three datasets, and we do not observe the reported +0.041 AUROC gain; a likely mechanism is overparameterization (65K--2.8M params for cross-attention vs.\ 57K--827K for gated) relative to DAIC's 107 training sessions. MMoEEx with hard expert isolation degrades DAIC and MOSEI sentiment relative to the unimodal/gated baselines, consistent with MoE literature showing degraded performance on small datasets. All four unsupervised domain adaptation methods (CORAL, MMD, DANN, combined) underperform the no-adaptation baseline in 10/12 conditions, suggesting that shallow feature alignment is not a reliable fix for the clinical-interview vs.\ web-video domain gap at this data scale.
 
-\paragraph{Limitations.} DAIC's small sample size (n=107 training) limits statistical power. MOSEI audio/video features were not fully extracted. LLM ablation L6--L9 remain pending. All results are retrospective and require prospective clinical validation.
+\paragraph{Limitations.} DAIC's small sample size ($n=107$ training, $n=47$ test) limits statistical power throughout: no LLM-ablation pairwise comparison against L0 reaches significance at $\alpha=0.05$ despite consistent point-estimate gains, and the graph-routing differences from baseline (Section~\ref{sec:results}) are similarly too small to be conclusively distinguished from noise with this sample size — though the consistent direction of the FI degradation across all five variants, and the homophily diagnostic's independent explanation, make us confident the null result is genuine rather than an artifact of underpowering alone. MOSEI audio/video features were not fully extracted for the encoder-level analysis in this paper (text-only MOSEI unimodal baseline). The L4 (Mistral+LLaVA) configuration has a known audio feature-dimension mismatch between training and evaluation that depresses its reported AUROC; L3 is the more reliable LLM configuration for clinical deployment. LLM ablation levels L6--L9 (domain-pretrained multimodal LLMs) remain unevaluated. Our two fix attempts for graph routing (learned $\lambda$, $K$-sweep) do not exhaust the candidate remedies suggested by the diagnostic (Section~\ref{sec:discussion}); building the graph from a better embedding space and task-affinity-aware grouping \citep{li2023boosting} remain untried. All results are retrospective on public benchmarks and require prospective clinical validation before deployment.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented a unified multimodal architecture with graph-gated MoE routing for mental health assessment. Graph routing consistently improves over non-graph baselines, with V0 achieving MOSEI CCC=0.6803 and V3 achieving DAIC AUROC=0.8967. Cross-attention fusion does not replicate a reported gain in our setting. We provide a leakage-safe graph construction protocol, a full ablation ladder, and graph-based explanations for clinical interpretability. Code and artifacts are released for reproducibility.
+We presented a unified multimodal architecture with graph-gated MoE routing for mental health assessment, and a systematic investigation of whether graph-based expert routing helps. It does not: across five leakage-safe graph configurations, a $K$-sensitivity sweep, and a learned-routing-weight variant, graph routing fails to improve over a non-graph MMoEEx baseline, and consistently degrades FI personality prediction. A homophily diagnostic localizes why — the routing graph carries no DAIC-label signal, and unused MOSEI/FI signal that two targeted fixes did not recover — providing a concrete starting point for future work rather than an unexplained null result. Separately, cross-attention fusion does not replicate a reported gain in our setting, and LLM-based encoders are the largest single performance driver we observed, substantially outperforming both classical encoders and graph routing. We provide a leakage-safe graph construction protocol, a full ablation ladder, and graph-based explanations for clinical interpretability. Code and artifacts are released for reproducibility.
 
 \paragraph{Ethics Statement.} This system is intended as a decision-support tool only and should not replace clinical diagnosis. All results require prospective validation before clinical deployment. Apparent personality and clinical depression are distinct constructs and should not be conflated.
 
 \bibliographystyle{unsrtnat}
-\bibliography{references/bibliography}
+\bibliography{../artifacts/references/bibliography}
 
 \end{document}

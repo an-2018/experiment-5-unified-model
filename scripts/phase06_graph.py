@@ -1233,114 +1233,98 @@ def plot_expert_routing_heatmap(routing_weights_history: list, task_ids: np.ndar
 
 
 def plot_ablation_comparison(output_dir: Path, out_dir: Path):
-    """Plot graph ablation comparison.
+    """Plot graph ablation comparison across the five real variants (V0-V4).
 
-    Bar chart: no-graph vs GraphSAGE vs GAT.
-    Separate subplots per dataset and metric. Error bars = 95% CI.
+    Bar chart per metric: V0 (inductive-k10), V1 (split-local-k10),
+    V2 (transductive-k10), V3 (inductive-k15), V4 (split-local-k15).
+    No error bars are drawn: ggmoe_results.csv reports single-run point
+    estimates, not per-run bootstrap CIs, so fabricated error bars would
+    misrepresent precision.
     """
     csv_path = output_dir / "artifacts" / "tables" / "ggmoe_results.csv"
 
-    # Check if CSV exists with real data
-    if csv_path.exists():
-        import csv as csv_lib
-        with open(csv_path, 'r') as f:
-            reader = csv_lib.DictReader(f)
-            rows = list(reader)
+    if not csv_path.exists():
+        print(f"  [SKIP] {csv_path} not found — cannot plot ablation comparison")
+        return
 
-        if len(rows) >= 3:
-            # Real data available
-            variants = [r['variant'] for r in rows]
-            daic_auroc = [float(r['daic_auroc']) for r in rows]
-            mosei_sent = [float(r['mosei_sentiment_ccc']) for r in rows]
-            mosei_emo = [float(r['mosei_emotion_auc']) for r in rows]
-            fi_ccc = [float(r['fi_avg_ccc']) for r in rows]
+    import csv as csv_lib
+    with open(csv_path, 'r') as f:
+        reader = csv_lib.DictReader(f)
+        rows = list(reader)
 
-            labels = ['No Graph\n(V0)', 'GraphSAGE\n(V1)', 'GAT\n(V2)']
-            use_mock = False
-        else:
-            use_mock = True
-    else:
-        use_mock = True
+    # ggmoe_results.csv may contain the 5 variants repeated across multiple
+    # runs (e.g. appended by repeated pipeline invocations); keep the first
+    # occurrence of each variant in file order.
+    by_variant = {}
+    for r in rows:
+        v = r['variant']
+        if v not in by_variant:
+            by_variant[v] = r
 
-    if use_mock:
-        # Synthetic data for quick testing (properly labeled)
-        print("  Note: Full ablation requires 5×150 epochs — using mock data for demonstration")
-        labels = ['No Graph\n(V0)', 'GraphSAGE\n(V1)', 'GAT\n(V2)']
-        daic_auroc = [0.72, 0.76, 0.78]
-        mosei_sent = [0.45, 0.52, 0.55]
-        mosei_emo = [0.62, 0.68, 0.71]
-        fi_ccc = [0.35, 0.42, 0.44]
+    variant_order = [v for v in ['V0', 'V1', 'V2', 'V3', 'V4'] if v in by_variant]
+    if len(variant_order) < 2:
+        print(f"  [SKIP] Expected >=2 variants in {csv_path}, found {list(by_variant)}")
+        return
 
-        # Error bars (simulated 95% CI)
-        daic_err = [0.05, 0.04, 0.03]
-        mosei_sent_err = [0.08, 0.07, 0.06]
-        mosei_emo_err = [0.06, 0.05, 0.05]
-        fi_err = [0.07, 0.06, 0.05]
-    else:
-        daic_err = [0.04, 0.03, 0.03]
-        mosei_sent_err = [0.07, 0.06, 0.05]
-        mosei_emo_err = [0.05, 0.04, 0.04]
-        fi_err = [0.06, 0.05, 0.05]
+    variant_labels = {
+        'V0': 'V0\ninductive-k10',
+        'V1': 'V1\nsplit-local-k10',
+        'V2': 'V2\ntransductive-k10',
+        'V3': 'V3\ninductive-k15',
+        'V4': 'V4\nsplit-local-k15',
+    }
+    labels = [variant_labels.get(v, v) for v in variant_order]
+    daic_auroc = [float(by_variant[v]['daic_auroc']) for v in variant_order]
+    mosei_sent = [float(by_variant[v]['mosei_sentiment_ccc']) for v in variant_order]
+    mosei_emo = [float(by_variant[v]['mosei_emotion_auc']) for v in variant_order]
+    fi_ccc = [float(by_variant[v]['fi_avg_ccc']) for v in variant_order]
+
+    n = len(variant_order)
+    colors = plt.cm.tab10(np.linspace(0, 1, n))
+    x = np.arange(n)
+
+    # Non-graph MMoEEx baseline, for direct comparison (the central question this
+    # figure answers: does graph routing beat the simpler non-graph baseline?).
+    baseline_path = ROOT / "artifacts" / "tables" / "mmoe_ex_results.csv"
+    baseline = {}
+    if baseline_path.exists():
+        import csv as csv_lib2
+        with open(baseline_path) as f:
+            for row in csv_lib2.DictReader(f):
+                baseline[row["metric"]] = float(row["value"])
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
-    # DAIC AUROC
-    ax = axes[0, 0]
-    x = np.arange(3)
-    ax.bar(x, daic_auroc, yerr=daic_err, capsize=5, color=['#d62728', '#1f77b4', '#2ca02c'],
-           alpha=0.8, edgecolor='black', linewidth=1)
-    ax.set_ylabel("AUROC", fontsize=11)
-    ax.set_title("DAIC Depression Detection (AUROC)", fontsize=12, fontweight='bold')
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylim([0.5, 0.9])
-    ax.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5, label="Random")
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.legend(fontsize=8)
+    def _bar(ax, values, ylabel, title, ylim, baseline_key=None, chance=None):
+        ax.bar(x, values, color=colors, alpha=0.85, edgecolor='black', linewidth=1)
+        for xi, v in zip(x, values):
+            ax.text(xi, v + 0.01 * (ylim[1] - ylim[0]), f"{v:.3f}", ha='center', fontsize=8)
+        ax.set_ylabel(ylabel, fontsize=11)
+        ax.set_title(title, fontsize=12, fontweight='bold')
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=8)
+        ax.set_ylim(ylim)
+        if chance is not None:
+            ax.axhline(y=chance, color='gray', linestyle=':', alpha=0.6, label="Chance")
+        if baseline_key is not None and baseline_key in baseline:
+            ax.axhline(y=baseline[baseline_key], color='crimson', linestyle='--', linewidth=1.5,
+                       label=f"Non-graph MMoEEx baseline ({baseline[baseline_key]:.3f})")
+        if chance is not None or baseline_key in baseline:
+            ax.legend(fontsize=7, loc='best')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
 
-    # MOSEI Sentiment CCC
-    ax = axes[0, 1]
-    ax.bar(x, mosei_sent, yerr=mosei_sent_err, capsize=5, color=['#d62728', '#1f77b4', '#2ca02c'],
-           alpha=0.8, edgecolor='black', linewidth=1)
-    ax.set_ylabel("CCC", fontsize=11)
-    ax.set_title("MOSEI Sentiment (CCC)", fontsize=12, fontweight='bold')
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylim([0.2, 0.7])
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    _bar(axes[0, 0], daic_auroc, "AUROC", "DAIC Depression Detection (AUROC)", [0.4, 0.65],
+         baseline_key="daic_auroc", chance=0.5)
+    _bar(axes[0, 1], mosei_sent, "CCC", "MOSEI Sentiment (CCC)", [0.0, 0.6],
+         baseline_key="mosei_sentiment_ccc")
+    _bar(axes[1, 0], mosei_emo, "AUC", "MOSEI Emotion Recognition (AUC)", [0.65, 0.78],
+         baseline_key="mosei_emotion_auc")
+    _bar(axes[1, 1], fi_ccc, "CCC", "FI Personality (Avg CCC)", [0.4, 0.62],
+         baseline_key="fi_avg_ccc")
 
-    # MOSEI Emotion AUC
-    ax = axes[1, 0]
-    ax.bar(x, mosei_emo, yerr=mosei_emo_err, capsize=5, color=['#d62728', '#1f77b4', '#2ca02c'],
-           alpha=0.8, edgecolor='black', linewidth=1)
-    ax.set_ylabel("AUC", fontsize=11)
-    ax.set_title("MOSEI Emotion Recognition (AUC)", fontsize=12, fontweight='bold')
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylim([0.4, 0.85])
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    # FI Avg CCC
-    ax = axes[1, 1]
-    ax.bar(x, fi_ccc, yerr=fi_err, capsize=5, color=['#d62728', '#1f77b4', '#2ca02c'],
-           alpha=0.8, edgecolor='black', linewidth=1)
-    ax.set_ylabel("CCC", fontsize=11)
-    ax.set_title("FI Personality (Avg CCC)", fontsize=12, fontweight='bold')
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylim([0.1, 0.6])
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    # Add note about mock data
-    if use_mock:
-        fig.text(0.5, 0.01, "Note: Mock data shown. Full ablation requires 5×150 epochs training.",
-                ha='center', fontsize=9, style='italic', color='gray')
-
-    plt.tight_layout(rect=[0, 0.03, 1, 1])
+    fig.suptitle("Graph Routing Ablation vs. Non-Graph Baseline: Five Variants (V0-V4)", fontsize=13, fontweight='bold')
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(out_dir / "08_ablation_comparison.png", dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  Saved: {out_dir / '08_ablation_comparison.png'}")
@@ -1348,6 +1332,24 @@ def plot_ablation_comparison(output_dir: Path, out_dir: Path):
 
 # =============================================================================
 # ABLATION MATRIX TRAINING
+# =============================================================================
+#
+# *** DO NOT USE — DOES NOT PRODUCE REAL RESULTS ***
+# GraphMoETrainer.forward_step trains against a fake sinusoidal target
+# (`torch.sin(x.sum(dim=-1) * 0.5)`), not real depression/sentiment/emotion/
+# personality labels — this script never loads real per-sample labels at all
+# (only categorical task-IDs 0-3). run_ablation_variant's "final_results" are
+# literally np.random.uniform() draws, not evaluated model performance.
+# artifacts/tables/ggmoe_results.csv (written by run_full_ablation, below) is
+# therefore fabricated data, despite being cited as the results source for the
+# V0-V4 graph-routing ablation in chapter_8.tex and paper/journal_paper.tex.
+#
+# The real, working graph-gated MoE training + evaluation (real labels via
+# load_all_labels(), real per-task losses, real evaluate() with sklearn
+# AUROC / CCC) lives in scripts/phase07_joint_training.py, which already
+# supports --graph_type {inductive,split-local,transductive} and --k to
+# reproduce the V0-V4 variants. Use that script, not this one, to regenerate
+# ggmoe_results.csv.
 # =============================================================================
 
 def run_ablation_variant(global_embeddings: np.ndarray, global_task_ids: np.ndarray,

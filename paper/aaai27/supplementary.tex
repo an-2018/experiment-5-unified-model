@@ -36,37 +36,28 @@ Anonymous Authors
 
 \maketitle
 
+\section{Experimental Pipeline Overview}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{../figures/process_flow.png}
+\caption{Experimental pipeline overview. The graph-routing investigation (dashed box) is the central empirical question of the main paper: five ablation variants are compared against non-graph baselines, and a homophily diagnostic together with two targeted fixes (K-sweep, learned $\lambda$) explains the resulting negative finding.}
+\label{fig:process_flow}
+\end{figure*}
+
 \section{Leakage Protocol Details}
 
 \subsection{Graph Construction per Split}
 
-For each dataset, we construct separate KNN graphs for training, validation, and test splits:
+For each dataset, we construct KNN graphs using one of three leakage-safe modes (see Section 3, ``Method,'' of the main paper):
 
 \begin{itemize}
-    \item \textbf{DAIC-WOZ}: The graph is built on participant-level session embeddings. Training participants (129 sessions) form a 10-NN graph. Validation (30 sessions) and test (30 sessions) graphs are built using only the nodes in each respective split. Edges never cross split boundaries.
-    \item \textbf{CMU-MOSEI}: Utterance-level graphs with $K=20$. Speakers whose utterances appear in multiple splits are assigned entirely to the training set; no speaker appears in more than one split.
-    \item \textbf{ChaLearn FI}: Clip-level graphs with $K=10$. The same subject-exclusive split policy applies.
+    \item \textbf{Inductive}: the graph is built on training-split embeddings only. Validation and test nodes connect exclusively to their $K$ nearest \emph{training} neighbours; they never connect to each other.
+    \item \textbf{Split-local}: separate graphs are built independently for train, validation, and test. No edge crosses a split boundary.
+    \item \textbf{Transductive} (ablation only, not leakage-safe): a single graph is built over all splits jointly, so validation/test nodes may connect to each other. Retained only to quantify how much a naive (non-leakage-safe) protocol would inflate results.
 \end{itemize}
 
-\subsection{Impact of Naive Graph Construction}
-
-Table~\ref{tab:leakage} demonstrates the inflation caused by constructing a single graph over all splits before partitioning.
-
-\begin{table}[t]
-\centering
-\caption{Impact of leakage-safe vs. naive graph construction on DAIC-WOZ.}
-\label{tab:leakage}
-\small
-\begin{tabular}{lccc}
-\toprule
-Graph Protocol & AUROC & RMSE & MAE \\
-\midrule
-No graph (baseline) & 0.76 & 8.42 & 6.81 \\
-Leakage-safe (ours) & 0.78 & 8.21 & 6.63 \\
-Naive (global graph) & 0.87 & 7.15 & 5.92 \\
-\bottomrule
-\end{tabular}
-\end{table}
+DAIC-WOZ: 189 sessions (107 train / 35 val / 47 test), subject-independent — no participant ID appears in more than one split. CMU-MOSEI and ChaLearn FI use their official utterance-/clip-level splits (see Section 3, ``Method,'' of the main paper). All splits are validated by an automated leakage audit (9/9 checks passing: inductive train/test, split-local val/test, transductive cross-split-edges-expected, bug-injection detection, and LLM-feature independence).
 
 \section{Hyperparameters}
 
@@ -80,21 +71,23 @@ Naive (global graph) & 0.87 & 7.15 & 5.92 \\
 Parameter & Value \\
 \midrule
 Common dimension $d$ & 256 \\
-MMoEEx experts $K$ & 4 \\
-Expert hidden size & 128 \\
+MMoEEx experts $M$ & 8 \\
+Expert hidden size (graph-routed) & 128 \\
+Expert hidden size (MMoEEx baseline) & 256 \\
 GraphSAGE layers & 2 \\
-GraphSAGE hidden size & 64 \\
+GraphSAGE hidden size & 126 \\
 GraphSAGE aggregation & Mean \\
-KNN neighbours $K_{\text{graph}}$ & 10 (DAIC/ChaLearn), 20 (MOSEI) \\
+GAT heads / head dim (ablation) & 3 / 42 \\
+KNN neighbours $K$ & 10 or 15 (per variant) \\
 Edge similarity metric & Cosine \\
+Graph routing weight $\lambda$ & 0.5 (fixed, not tuned) \\
 Learning rate & $1 \times 10^{-3}$ \\
-Optimizer & Adam ($\beta_1=0.9,\ \beta_2=0.999$) \\
-Batch size & 64 \\
-Epochs (max) & 100 \\
+Optimizer & AdamW \\
+Batch size & 32 \\
+Epochs (max) & 150 \\
 Early stopping patience & 10 \\
-Gradient clipping & 1.0 \\
-Task weights $\lambda_t$ & Tuned per validation \\
-Temperature balance $\tau$ & 2.0 \\
+Projector freeze epochs & 20 \\
+Temperature balance $T$ & 2.0 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -103,56 +96,102 @@ Temperature balance $\tau$ & 2.0 \\
 
 \begin{table*}[t]
 \centering
-\caption{Full ablation ladder across all datasets and metrics.}
+\caption{Full ablation ladder, real labels and real evaluation throughout. Each row adds one component cumulatively. Source: \texttt{artifacts/tables/ggmoe\_results.csv}, \texttt{mmoe\_ex\_results.csv}, \texttt{unimodal\_baselines.csv}, \texttt{knn\_voting\_results.csv}.}
 \label{tab:full_ablation}
 \small
-\begin{tabular}{lcccccc}
+\begin{tabular}{llcccc}
 \toprule
-Model & DAIC AUROC & DAIC RMSE & MOSEI Sent. $F_1$ & MOSEI Emo. $F_1$ & ChaLearn CCC & ChaLearn MAE \\
+ & & DAIC AUROC & MOSEI Sent. CCC & MOSEI Emotion AUROC & FI Avg CCC \\
 \midrule
-Unimodal (text) & 0.71 & 9.12 & 0.82 & 0.52 & 0.32 & 0.71 \\
-Unimodal (audio) & 0.65 & 9.84 & 0.76 & 0.47 & 0.28 & 0.78 \\
-Unimodal (video) & 0.63 & 10.01 & 0.74 & 0.45 & 0.25 & 0.82 \\
-\midrule
-Early fusion & 0.73 & 8.74 & 0.83 & 0.55 & 0.34 & 0.68 \\
-Late fusion & 0.74 & 8.63 & 0.83 & 0.56 & 0.35 & 0.67 \\
-Tensor fusion & 0.75 & 8.51 & 0.84 & 0.56 & 0.35 & 0.66 \\
-LMF & 0.75 & 8.48 & 0.84 & 0.57 & 0.36 & 0.65 \\
-\midrule
-MMoE (no graph) & 0.76 & 8.35 & 0.85 & 0.58 & 0.36 & 0.64 \\
-Ours (mean routing) & 0.77 & 8.28 & 0.85 & 0.58 & 0.37 & 0.63 \\
-Ours (attention routing) & 0.77 & 8.25 & 0.85 & 0.59 & 0.37 & 0.63 \\
-Ours (graph routing) & \textbf{0.78} & \textbf{8.21} & \textbf{0.86} & \textbf{0.60} & \textbf{0.38} & \textbf{0.62} \\
+0 & Trivial (majority class) & 0.500 & 0.000 & 0.500 & 0.000 \\
+1 & + Unimodal (best modality) & 0.535 & 0.512 & 0.771 & 0.458 \\
+2 & + Gated late fusion & 0.496 & 0.623 & 0.771 & 0.000 \\
+3 & + MMoEEx (no graph) & 0.493 & 0.493 & 0.722 & \textbf{0.578} \\
+4 & + KNN voting (no learned router) & \textbf{0.630} & 0.443 & 0.676 & 0.390 \\
+5 & + Graph router (V0, inductive $K{=}10$) & 0.515 & \textbf{0.517} & 0.719 & 0.542 \\
+6 & + Graph router (V3, inductive $K{=}15$) & 0.525 & 0.510 & \textbf{0.734} & 0.544 \\
 \bottomrule
 \end{tabular}
 \end{table*}
+
+Row 4 (simple KNN label voting, no learned GraphSAGE router at all) reaches the best DAIC AUROC in the entire ladder. The learned router (rows 5--6) does not improve on this — the clearest single illustration that the learned component underperforms even the simplest graph-based heuristic on the primary clinical task.
+
+\section{Graph-Sensitivity Sweep}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{../figures/k_sensitivity.png}
+\caption{No monotonic trend with $K \in \{5,10,15,20\}$ (inductive graph). $K{=}20$ lands DAIC AUROC exactly at chance (0.500).}
+\label{fig:k_sensitivity}
+\end{figure}
+
+\section{Learned Routing Weight}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{../figures/learned_lambda.png}
+\caption{Learned per-task $\lambda$ (V0 configuration) vs.\ the fixed default (0.5). Moves down for FI/MOSEI-emotion and up for MOSEI-sentiment/DAIC, consistent with the homophily diagnostic (main paper, Table~2), but only slightly.}
+\label{fig:learned_lambda}
+\end{figure}
 
 \section{Additional Figures}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\columnwidth]{../figures/graph_ablation.pdf}
-\caption{Graph routing ablation: AUROC vs. number of KNN neighbours on DAIC-WOZ.}
-\label{fig:graph_ablation}
+\includegraphics[width=0.9\columnwidth]{../figures/graph_ablation.png}
+\caption{Graph routing ablation vs.\ non-graph MMoEEx baseline (red dashed line), all five variants across all four tasks.}
+\label{fig:graph_ablation_supp}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\columnwidth]{../figures/calibration.pdf}
-\caption{Reliability diagrams for depression classification across routing variants.}
+\includegraphics[width=0.9\columnwidth]{../figures/calibration.png}
+\caption{Calibration reliability diagrams (temperature/Platt/isotonic scaling vs.\ raw) for the L1 (Mistral text) DAIC depression classifier, held-out split. Monotonic recalibration changes reliability (ECE/Brier) but not ranking-based discrimination (AUROC), since AUROC is invariant to monotonic transforms of the score.}
 \label{fig:calibration}
 \end{figure}
 
-\section{Expertise Distribution Analysis}
+\section{Expert Routing Analysis}
 
-Figure~\ref{fig:expert_distribution} shows the distribution of expert assignment frequencies across tasks. The graph-guided router produces more balanced expert utilization compared to the standard MMoE gating, which collapses to 1--2 active experts on DAIC.
+Figure~\ref{fig:expert_distribution} shows the real MMoEEx routing-weight distribution (non-graph baseline): each task concentrates weight on a small subset of its assigned experts rather than routing uniformly, indicating the gates learn task-differentiated behaviour even where the aggregate metric for that task declines relative to a unimodal baseline (see main paper).
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\columnwidth]{../figures/expert_distribution.pdf}
-\caption{Expert assignment frequency per task. Graph routing encourages more uniform utilization.}
+\includegraphics[width=0.9\columnwidth]{../figures/expert_distribution.png}
+\caption{Mean MMoEEx routing weight per expert and task (non-graph baseline). Rows/legend are tasks; columns are the 8 experts.}
 \label{fig:expert_distribution}
 \end{figure}
 
-\bibliography{../references/bibliography}
+\section{Explainability Case Studies}
+\label{sec:xai_supp}
+
+Beyond the routing-performance question, the main paper's Introduction motivates two further, separately-evaluated hypotheses: that mental health assessment can be made more transparent by characterizing depression jointly with sentiment, emotion, and personality rather than in isolation, and that a graph over similar individuals can give both a visual and a machine-readable account of what informed a prediction. This section reports both.
+
+\subsection{Multi-Construct Characterization}
+
+For 9 case studies (3 per dataset), we pass the same sample's shared representation through all four task heads — not only the head matching its own source dataset — producing a depression probability, sentiment score, six emotion probabilities, and five personality-trait scores for the same person in one forward pass. On a representative positive-sentiment MOSEI case, the profile is internally coherent: happiness probability 0.89, sentiment score $+0.62$, with sadness/anger/fear all below 0.09 — a plausible joint characterization rather than four unrelated numbers. Related work explicitly separating personality-trait context from acute depression symptoms in an interpretable graph model \citep{vyalla2026psygat} supports this direction; each profile is stored as a \texttt{multi\_construct\_profile} field in \texttt{artifacts/tables/phase11\_xai\_results.json}.
+
+\subsection{Graph-Based Explanation}
+
+For each case study we generate a visual record (SHAP per-modality beeswarm plot, GNNExplainer subgraph diagram, and a GraphXAIN-style \citep{cedro2024graphxain} natural-language narrative panel, Figure~\ref{fig:graphxain_supp}) and a machine-readable record (SHAP values, top-$k$ neighbour identities and cosine distances, expert routing weights, the multi-construct profile, and counterfactual/perturbation deltas). The narrative is generated by prompting an LLM (Mistral-7B) with the SHAP values, subgraph structure, and sample metadata, used purely as \emph{post-hoc} explanation of an independently-computed prediction — not as reasoning inserted into the prediction pipeline itself. This distinction matters: chain-of-thought-style reasoning improves mental-health text classification when used to produce the prediction \citep{patil2025cognitivemental}, but can be unfaithful or reduce reliability when embedded in the clinical decision itself \citep{wu2025cotfails}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{../../artifacts/figures/phase_11_xai/mosei_graphxain_panel.png}
+\caption{GraphXAIN-style narrative panel for a representative MOSEI case, combining SHAP attribution, subgraph structure, and sample metadata into a post-hoc natural-language explanation.}
+\label{fig:graphxain_supp}
+\end{figure}
+
+Every SHAP, perturbation, and counterfactual value must be computed under each sample's own dataset-native routing (main paper, Section 3): DAIC is evaluated text-only and FI video-only, so a modality outside a dataset's native routing shows \emph{exactly} zero attribution, not a small residual. Across 90 perturbation tests, only 47 are non-zero, exactly matching each sample's routing; the remaining 43 are exactly zero rather than merely small. This is a stronger faithfulness check than a ranking comparison: it directly confirms the explanation pipeline reflects each dataset's real computation.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{../../artifacts/figures/phase_11_xai/daic_multi_construct_force.png}
+\caption{Multi-construct force plot: one DAIC subject explained through all four task heads in a single figure. Audio and video read exactly zero on every row, visualizing DAIC's text-only routing directly rather than leaving it implicit.}
+\label{fig:force_panel_supp}
+\end{figure}
+
+The explanation graph is built on the model's own trained fused representation rather than raw concatenated features, so reported neighbours are the ones the router and task heads actually operate on. This does not, however, improve DAIC label homophily: on the same 35 DAIC validation samples used for the main paper's homophily diagnostic, label agreement is 0.577 for raw features, 0.537 for random pairing, and 0.463 (below random) for the trained representation, since task-supervised training optimizes for the final decision boundary rather than for preserving neighbourhood structure. DAIC subgraph explanations should be read as faithful to the model's own computation, without a validated claim that the shown neighbours are similar in a depression-relevant sense; MOSEI and FI do not share this limitation, consistent with the main paper's homophily diagnostic finding real label signal for those tasks.
+
+\bibliographystyle{unsrtnat}
+\bibliography{../../artifacts/references/bibliography}
 \end{document}

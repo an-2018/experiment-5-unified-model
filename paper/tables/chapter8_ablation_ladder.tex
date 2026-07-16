@@ -1,6 +1,6 @@
 \begin{table}[htbp]
 \centering
-\caption{Cumulative Ablation Ladder: Architectural Components. Each row adds one component cumulatively. Delta shows change from previous row. The final V3 graph model achieves DAIC AUROC=0.8967, +0.40 over MMoEEx without graph. Source: \texttt{artifacts/tables/ggmoe\_results.csv}, \texttt{artifacts/tables/mmoe\_ex\_results.csv}, \texttt{artifacts/tables/unimodal\_baselines.csv}.}
+\caption{Cumulative Ablation Ladder: Architectural Components (real labels, real evaluation throughout). Each row adds one component cumulatively. Rows 5--6 (learned GraphSAGE router) do \emph{not} improve over row 4 (simple KNN label-voting, no learned router) on DAIC, and neither graph variant beats row 3 (non-graph MMoEEx) on FI. Source: \texttt{artifacts/tables/ggmoe\_results.csv}, \texttt{artifacts/tables/mmoe\_ex\_results.csv}, \texttt{artifacts/tables/unimodal\_baselines.csv}, \texttt{artifacts/tables/knn\_voting\_results.csv}.}
 \label{tab:ablation_ladder}
 \begin{tabular}{llcccc}
 \toprule
@@ -9,10 +9,10 @@
 0 & Trivial (majority class) & 0.500 & 0.000 & 0.500 & 0.000 \\
 1 & + Unimodal (best modality) & 0.5346 & 0.5123 & 0.7709 & 0.4578 \\
 2 & + GatedLateFusion & 0.4957 & 0.6229 & 0.7709 & 0.0000 \\
-3 & + MMoEEx (no graph) & 0.4928 & 0.4979 & 0.7222 & 0.5793 \\
-4 & + KNN Voting (no GNN) & 0.6304 & 0.4433 & 0.6764 & 0.3904 \\
-5 & + Graph (V0, inductive K=10) & 0.7124 & \textbf{0.6803} & 0.7562 & 0.4395 \\
-6 & + Graph (V3, inductive K=15) & \textbf{0.8967} & 0.5198 & 0.5985 & 0.2309 \\
+3 & + MMoEEx (no graph) & 0.4928 & 0.4979 & 0.7222 & \textbf{0.5793} \\
+4 & + KNN Voting (no GNN) & \textbf{0.6304} & 0.4433 & 0.6764 & 0.3904 \\
+5 & + Graph (V0, inductive K=10) & 0.5145 & \textbf{0.5166} & 0.7190 & 0.5415 \\
+6 & + Graph (V3, inductive K=15) & 0.5254 & 0.5098 & \textbf{0.7340} & 0.5438 \\
 \midrule
  & Best SoA (Zhang 2025, MMoLRE 2025, DeepPersonality 2024) & 0.7800 & 0.7970 & --- & 0.6000 \\
 \bottomrule

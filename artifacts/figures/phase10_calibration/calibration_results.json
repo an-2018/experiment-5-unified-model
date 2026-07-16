@@ -27,9 +27,9 @@
     }
   },
   "bootstrap_ci": {
-    "val_auc_mean": 0.5428222488134051,
-    "val_auc_ci_lower": 0.5384885842573558,
-    "val_auc_ci_upper": 0.547242635098251
+    "val_auc_mean": 0.543711592111926,
+    "val_auc_ci_lower": 0.5391416865279658,
+    "val_auc_ci_upper": 0.5479862739668997
   },
   "delong_test": {
     "z_statistic": 0.0,
