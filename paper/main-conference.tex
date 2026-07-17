@@ -160,9 +160,98 @@ Every graph-routed variant is within bootstrap-CI-width of the non-graph baselin
     \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/09_graph_homophily_diagnostic.png}
+    \caption{Real graph neighbours vs.\ random pairing, averaged over V0/V1/V3/V4. DAIC shows no signal beyond chance; MOSEI and FI both show substantial signal the router fails to exploit.}
+    \label{fig:homophily}
+\end{figure}
+
 Two targeted fixes did not recover a benefit: a $K\in\{5,10,15,20\}$ sweep shows no monotonic trend (Appendix, supplementary material), and a learned per-task routing weight (replacing the fixed $\lambda{=}0.5$) moved in the direction the diagnostic predicts (down for FI/MOSEI-emotion, up for MOSEI-sentiment) but only slightly ($\pm0.07$), with DAIC AUROC improving to 0.544 and FI CCC unchanged at 0.541.
 
-On fusion, cross-attention underperforms gated fusion on all three datasets and does not reproduce a previously reported +0.041 AUROC gain \cite{kim2024crossmodal}, likely due to overparameterization (65K--2.8M params vs.\ 57K--827K for gated) relative to DAIC's 107 training sessions. LLM-based encoders (Mistral-7B text, CLAP audio, LLaVA video) substantially outperform both classical encoders and every graph-routed variant on every task — the largest single performance driver in this study.
+On fusion, cross-attention underperforms gated fusion on all three datasets and does not reproduce a previously reported +0.041 AUROC gain \cite{kim2024crossmodal}, likely due to overparameterization (65K--2.8M params vs.\ 57K--827K for gated) relative to DAIC's 107 training sessions.
+
+\subsection{LLM-Enhanced Encoders (L0--L5)}
+\label{sec:llm_ablation}
+
+We replace classical encoders with LLM-based encoders at each modality: \textbf{L0} classical baseline (RoBERTa+WavLM+OpenFace); \textbf{L1} Mistral-7B-Instruct-v0.3 frozen text encoder; \textbf{L2} L1 with a LoRA ($r{=}16$, $\alpha{=}32$) trainable adapter; \textbf{L3} L1 + CLAP audio encoder; \textbf{L4} L1 + LLaVA-1.5-7B video encoder; \textbf{L5} the full LLM stack (text+audio+video replaced).
+
+\begin{table}[t]
+    \centering
+    \caption{Best LLM-ablation level per headline metric vs.\ classical (L0) baseline. Every level improves over L0 on every metric; shown is each metric's best level.}
+    \label{tab:llm_ablation}
+    \small
+    \begin{tabular}{lccc}
+        \toprule
+        Metric                & Best level & Value  & $\Delta$ vs.\ L0 \\
+        \midrule
+        DAIC AUROC             & L3 (Mistral+CLAP) & 0.7210 & $+$0.174 \\
+        MOSEI emotion AUROC    & L1 (Mistral text) & 0.7702 & $+$0.147 \\
+        MOSEI sentiment CCC    & L5 (full stack)   & 0.6284 & $+$0.089 \\
+        FI personality CCC     & L2 (Mistral+LoRA) & 0.5732 & $+$0.115 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/llm_delta_bar.png}
+    \caption{LLM modality ablation: DAIC AUROC per level (L0--L5) against the classical (L0) and Phase-5 text-only baselines. L3 (Mistral+CLAP) gives the largest gain.}
+    \label{fig:llm_ablation_delta}
+\end{figure}
+
+Every LLM level improves over the classical baseline on all three headline metrics, and every LLM level substantially outperforms every graph-routed variant on every metric (e.g.\ L3 DAIC AUROC 0.7210 vs.\ the best graph variant's 0.5507) — the largest single performance driver in this study is encoder quality, not routing architecture. L4 (Mistral+LLaVA) shows a validation/test gap traced to an audio feature-dimension mismatch between its training checkpoint and the inference dataset; we report this as a known limitation rather than a representative L4 result (supplementary material).
+
+\subsection{Domain Adaptation}
+\label{sec:domain_adaptation}
+
+We tested unsupervised domain adaptation (CORAL, MMD, DANN, and a combined CORAL+MMD loss) for transferring FI and MOSEI representations to DAIC depression detection, against a no-adaptation baseline, across three transfer scenarios (FI$\to$DAIC, MOSEI$\to$DAIC, multisource). All four methods underperform the no-adaptation baseline in 10 of 12 evaluated conditions: the no-adaptation baseline's best result (MOSEI$\to$DAIC, AUROC=0.6942) beats the best DA result anywhere (combined CORAL+MMD, FI$\to$DAIC, AUROC=0.6901); CORAL is the most consistently harmful ($-$0.0744 vs.\ baseline at worst), and only MMD marginally improves its own no-adaptation baseline (+0.0041, within bootstrap CI). We attribute this to DAIC's training set ($n{=}107$) being too small to train a stable domain discriminator, and to shared multitask heads already providing implicit alignment; we do not merge domain adaptation into the main model.
+
+\subsection{Generalization: Cross-Dataset Transfer (MPDD)}
+\label{sec:mpdd}
+
+To probe whether our findings generalize beyond DAIC/MOSEI/FI, we ran a supplementary benchmark on MPDD (Multimodal Depression Detector: Wav2Vec2 + OpenFace features, two age tracks). On MPDD-Young, a strongly-regularized logistic regression (AUROC=0.674) outperforms both GGMoE with and without graph routing (0.545/0.559) — the small sample size favors a linear model over any neural architecture we tested, including the graph router.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/feature_importance.png}
+    \caption{Top-30 SHAP feature importances for MPDD-Young depression detection. \texttt{audio\_44} is the single most important feature, though the top-30 set is video-dominated (17 of 30).}
+    \label{fig:mpdd_shap_main}
+\end{figure}
+
+Zero-shot transfer from Young to Elderly collapses to near-constant predictions (cross-track AUROC=0.395, below chance), while cross-\emph{dataset} transfer sharing a Wav2Vec2-family audio encoder (MPDD$\to$DAIC) transfers positively (AUROC=0.551, above the within-DAIC baseline of 0.344) — encoder-family match appears to matter more than domain similarity for transfer, and age-group-specific rather than universal biomarkers likely explain the cross-track failure.
+
+\section{Calibration and Statistical Validation}
+\label{sec:calibration}
+
+We applied three post-hoc calibration methods (temperature scaling, Platt scaling, isotonic regression) to the DAIC depression classifier across all six LLM levels (L0--L5).
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/calibration.png}
+    \caption{Calibration reliability diagrams (temperature/Platt/isotonic scaling vs.\ raw) for the L1 (Mistral text) DAIC classifier, held-out split. Monotonic recalibration changes reliability but not ranking-based discrimination.}
+    \label{fig:calibration_main}
+\end{figure}
+
+Uncalibrated logits show moderate calibration error (ECE=0.26--0.35). Isotonic regression reduces ECE the most on held-out validation data, followed by Platt and temperature scaling; Brier score improves from 0.21--0.24 (uncalibrated) to 0.05--0.16 (calibrated). All three methods are monotonic transforms of the score, so AUROC is unchanged by temperature/Platt scaling and only marginally affected by isotonic regression's tie-breaking — calibration improves probabilistic reliability without altering discrimination, which matters if predicted probabilities (not just rankings) inform a clinical threshold.
+
+We report every headline metric with BCa bootstrap confidence intervals (2,000 resamples), the DeLong test for AUROC comparisons, paired permutation tests (10,000 sign-flips) for F1/CCC/MAE comparisons, and Cohen's $d$ effect sizes. Across all LLM ablation pairs (L1--L5 vs.\ L0), no comparison reaches significance at $\alpha=0.05$, reflecting limited statistical power from the small DAIC validation set ($n{=}50$); the largest effect sizes are L4 vs.\ L0 ($d=0.170$) and L1 vs.\ L0 ($d=0.152$). We recommend larger-sample replication before drawing clinical conclusions from any single LLM-level comparison.
+
+\section{Explainability}
+\label{sec:xai}
+
+Section~\ref{sec:method} motivated two transparency mechanisms alongside the routing-performance question above: characterizing depression jointly with sentiment, emotion, and personality rather than as an isolated score, and using the routing graph as a source of visual and machine-readable explanation. We evaluate both directly on real validation instances rather than only asserting they are implemented.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/daic_multi_construct_force.png}
+    \caption{Multi-construct explanation for one DAIC subject: the same forward pass, explained through all four task heads. Audio and video read exactly zero on every row, directly visualizing DAIC's text-only routing (Section~\ref{sec:method}) rather than leaving it implicit.}
+    \label{fig:multi_construct_main}
+\end{figure}
+
+For the first mechanism, we pass each sample's shared representation through all four task heads in one forward pass, not only the head matching its own source dataset. On a representative MOSEI case this profile is sharply coherent (happiness probability 0.89, sentiment $+0.62$, sadness/anger/fear all below 0.09); on DAIC, Figure~\ref{fig:multi_construct_main} shows every head's SHAP attribution is exactly zero for audio and video and driven entirely by text, which is the correct, faithful behaviour given DAIC's text-only routing rather than an artefact — a modality outside a dataset's native routing contributes nothing to any task head evaluated on it, and the profile should be read accordingly.
+
+For the second mechanism, each case study pairs a visual record (SHAP attribution, GNNExplainer subgraph, GraphXAIN natural-language narrative) with a machine-readable one (structured SHAP values, neighbour identities and distances, routing weights). This is faithful to what the model computes but not unconditionally informative: rebuilding the explanation graph from the model's own trained representation does not improve DAIC label homophily (0.463 trained vs.\ 0.537 random vs.\ 0.577 raw features, on the 35 DAIC validation samples), so DAIC subgraph explanations should be read as showing which samples the model geometrically treats as similar, without a validated claim that those neighbours are similar in a depression-relevant sense. MOSEI and FI do not share this limitation (Table~\ref{tab:homophily}). We also find that LLM-generated narratives invent specific clinical detail (e.g.\ a quoted patient response) not present anywhere in their prompt, which contains only SHAP scalars, neighbour indices, and a dataset label — a concrete, reproducible instance of the risk that post-hoc clinical narratives can be fluent without being grounded \cite{wu2025cotfails}, reported here as an honest limitation of the explanation pipeline rather than a resolved property of it (supplementary material).
 
 \section{Discussion}
 
