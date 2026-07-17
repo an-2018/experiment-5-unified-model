@@ -187,8 +187,8 @@ Figure~\ref{fig:training_curves} shows representative per-task training curves f
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\columnwidth]{figures/training_pipeline.png}
-    \caption{Implementation detail of joint multitask training: DataLoader tensor shapes, initialization, the epoch loop (forward pass, loss, optimizer step), and the negative-transfer monitor and progressive-unfreezing mechanisms. The graph router (bottom right) applies only to the graph-routed V0--V4 variants; the non-graph MMoEEx baseline (Phase 5) uses the task gate alone.}
+    \includegraphics[width=\columnwidth]{figures/pipeline-flow.png}
+    \caption{Implementation detail of joint multitask training: DataLoader tensor shapes, initialization, the epoch loop (forward pass, loss, optimizer step), and the negative-transfer monitor and progressive-unfreezing mechanisms. The non-graph MMoEEx baseline (Phase 5) and graph-routed training (Phase 7) share this same implementation, differing only in whether the graph router contributes to expert routing.}
     \label{fig:training_pipeline}
 \end{figure}
 
