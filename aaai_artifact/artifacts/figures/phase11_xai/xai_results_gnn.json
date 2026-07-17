@@ -1,0 +1,20 @@
+{
+  "test_auc": 0.33116883116883117,
+  "explain_mode": "gnn",
+  "sample_id": "daic_test_001",
+  "gnn": {
+    "n_samples": 30,
+    "audio_importance": 0.0037728839125456284,
+    "video_importance": 0.0,
+    "total_importance": 0.0037728839125456284,
+    "audio_dominance": 1.0,
+    "method": "gradient_sensitivity"
+  },
+  "perturbation": {
+    "baseline_auc": 0.33116883116883117,
+    "perturbed_auc": 0.5,
+    "auc_delta": 0.16883116883116883,
+    "mean_pred_change": 0.19606645041965967,
+    "mean_abs_pred_change": 0.299266668057657
+  }
+}

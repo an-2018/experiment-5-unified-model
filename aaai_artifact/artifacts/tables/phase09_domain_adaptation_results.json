@@ -1,0 +1,131 @@
+{
+  "none": {
+    "fi_daic": {
+      "method": "none",
+      "transfer": "fi_daic",
+      "best_auroc": 0.6818181818181818,
+      "final_auroc": 0.6818181818181818,
+      "best_da_loss": 0.0
+    },
+    "mosei_daic": {
+      "method": "none",
+      "transfer": "mosei_daic",
+      "best_auroc": 0.6942148760330579,
+      "final_auroc": 0.6859504132231405,
+      "best_da_loss": 0.0
+    },
+    "multisource": {
+      "method": "none",
+      "transfer": "multisource",
+      "best_auroc": 0.6900826446280992,
+      "final_auroc": 0.6818181818181818,
+      "best_da_loss": 0.0
+    }
+  },
+  "coral": {
+    "fi_daic": {
+      "method": "coral",
+      "transfer": "fi_daic",
+      "best_auroc": 0.640495867768595,
+      "final_auroc": 0.6198347107438016,
+      "best_da_loss": 0.0004979782388545573
+    },
+    "mosei_daic": {
+      "method": "coral",
+      "transfer": "mosei_daic",
+      "best_auroc": 0.6198347107438017,
+      "final_auroc": 0.5909090909090909,
+      "best_da_loss": 0.001364996423944831
+    },
+    "multisource": {
+      "method": "coral",
+      "transfer": "multisource",
+      "best_auroc": 0.6611570247933883,
+      "final_auroc": 0.6570247933884298,
+      "best_da_loss": 0.0009408762562088668
+    }
+  },
+  "mmd": {
+    "fi_daic": {
+      "method": "mmd",
+      "transfer": "fi_daic",
+      "best_auroc": 0.6859504132231405,
+      "final_auroc": 0.6859504132231405,
+      "best_da_loss": 0.1357818990945816
+    },
+    "mosei_daic": {
+      "method": "mmd",
+      "transfer": "mosei_daic",
+      "best_auroc": 0.6115702479338843,
+      "final_auroc": 0.5909090909090908,
+      "best_da_loss": 0.013178753666579723
+    },
+    "multisource": {
+      "method": "mmd",
+      "transfer": "multisource",
+      "best_auroc": 0.6487603305785123,
+      "final_auroc": 0.6446280991735538,
+      "best_da_loss": 0.022395504638552666
+    }
+  },
+  "dann": {
+    "fi_daic": {
+      "method": "dann",
+      "transfer": "fi_daic",
+      "best_auroc": 0.6528925619834711,
+      "final_auroc": 0.628099173553719,
+      "best_da_loss": 0.04707691818475723
+    },
+    "mosei_daic": {
+      "method": "dann",
+      "transfer": "mosei_daic",
+      "best_auroc": 0.6157024793388429,
+      "final_auroc": 0.5702479338842975,
+      "best_da_loss": 0.04865337908267975
+    },
+    "multisource": {
+      "method": "dann",
+      "transfer": "multisource",
+      "best_auroc": 0.6487603305785123,
+      "final_auroc": 0.640495867768595,
+      "best_da_loss": 0.047700829803943634
+    }
+  },
+  "combined": {
+    "fi_daic": {
+      "method": "combined",
+      "transfer": "fi_daic",
+      "best_auroc": 0.6900826446280992,
+      "final_auroc": 0.6900826446280992,
+      "best_da_loss": 0.18618135154247284
+    },
+    "mosei_daic": {
+      "method": "combined",
+      "transfer": "mosei_daic",
+      "best_auroc": 0.6115702479338844,
+      "final_auroc": 0.5826446280991736,
+      "best_da_loss": 0.07364527881145477
+    },
+    "multisource": {
+      "method": "combined",
+      "transfer": "multisource",
+      "best_auroc": 0.6611570247933884,
+      "final_auroc": 0.6570247933884298,
+      "best_da_loss": 0.07895916700363159
+    }
+  },
+  "negative_transfer_detected": true,
+  "negative_transfer_details": [
+    "coral/fi_daic: 0.6405 vs baseline 0.6818",
+    "coral/mosei_daic: 0.6198 vs baseline 0.6942",
+    "coral/multisource: 0.6612 vs baseline 0.6901",
+    "mmd/mosei_daic: 0.6116 vs baseline 0.6942",
+    "mmd/multisource: 0.6488 vs baseline 0.6901",
+    "dann/fi_daic: 0.6529 vs baseline 0.6818",
+    "dann/mosei_daic: 0.6157 vs baseline 0.6942",
+    "dann/multisource: 0.6488 vs baseline 0.6901",
+    "combined/mosei_daic: 0.6116 vs baseline 0.6942",
+    "combined/multisource: 0.6612 vs baseline 0.6901"
+  ],
+  "adaptation_policy": "Domain adaptation is NOT merged into the main model unless ablations show clear benefit. See results below: if DA methods do not consistently outperform 'none' baseline, only the plain multitask loss is used in subsequent phases."
+}

@@ -1,0 +1,9 @@
+{
+  "level": "L5",
+  "daic_auroc": 0.6920289855072463,
+  "mosei_sentiment_ccc": 0.6283641200750776,
+  "mosei_emotion_auc": 0.7127072948144075,
+  "fi_avg_ccc": 0.5257740427422826,
+  "gpu_hours": 0.3194309202829997,
+  "note": "Trained 30 epochs with LLM projector (level L5)"
+}

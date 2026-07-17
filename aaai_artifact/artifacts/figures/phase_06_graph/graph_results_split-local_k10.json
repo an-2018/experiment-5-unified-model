@@ -1,0 +1,77 @@
+{
+  "graph_type": "split-local",
+  "k": 10,
+  "router": "both",
+  "hidden_dim": 256,
+  "num_samples": 32966,
+  "train_edges": 223720,
+  "val_edges": 39040,
+  "test_edges": 66900,
+  "dataset_counts": {
+    "daic": 189,
+    "mosei": 22777,
+    "fi": 10000
+  },
+  "graph_stats": {
+    "daic": {
+      "train": {
+        "num_nodes": 107,
+        "num_edges": 1070,
+        "avg_degree": 10.0,
+        "cross_dataset_ratio": 0.0
+      },
+      "val": {
+        "num_nodes": 35,
+        "num_edges": 350,
+        "avg_degree": 10.0,
+        "cross_dataset_ratio": 0.0
+      },
+      "test": {
+        "num_nodes": 47,
+        "num_edges": 470,
+        "avg_degree": 10.0,
+        "cross_dataset_ratio": 0.0
+      }
+    },
+    "mosei": {
+      "train": {
+        "num_nodes": 16265,
+        "num_edges": 152450,
+        "avg_degree": 9.311629611531883,
+        "cross_dataset_ratio": 0.008848802886192194
+      },
+      "val": {
+        "num_nodes": 1869,
+        "num_edges": 17080,
+        "avg_degree": 8.970588235294118,
+        "cross_dataset_ratio": 0.10802107728337236
+      },
+      "test": {
+        "num_nodes": 4643,
+        "num_edges": 43240,
+        "avg_degree": 9.219616204690832,
+        "cross_dataset_ratio": 0.04195189639222942
+      }
+    },
+    "fi": {
+      "train": {
+        "num_nodes": 6000,
+        "num_edges": 60000,
+        "avg_degree": 2.6819238333631326,
+        "cross_dataset_ratio": 0.0
+      },
+      "val": {
+        "num_nodes": 2000,
+        "num_edges": 20000,
+        "avg_degree": 5.122950819672131,
+        "cross_dataset_ratio": 0.0
+      },
+      "test": {
+        "num_nodes": 2000,
+        "num_edges": 20000,
+        "avg_degree": 3.7064492216456633,
+        "cross_dataset_ratio": 0.0
+      }
+    }
+  }
+}

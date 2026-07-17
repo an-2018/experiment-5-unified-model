@@ -1,0 +1,11 @@
+{
+  "young_val_auc": 0.9263157894736842,
+  "cross_track_auc": 0.39485820822294176,
+  "within_track_auc": 0.27717391304347827,
+  "cross_track_gap": -0.1176842951794635,
+  "best_c": 0.01,
+  "young_train_size": 184,
+  "young_pos_rate": 0.5434782608695652,
+  "elderly_size": 337,
+  "elderly_pos_rate": 0.2344213649851632
+}

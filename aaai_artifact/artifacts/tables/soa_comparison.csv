@@ -1,0 +1,10 @@
+dataset,modality,metric,our_value,our_ci_lower,our_ci_upper,soa_value,soa_ci_lower,soa_ci_upper,gap,beats_trivial,soa_source,notes
+daic,text,AUROC,0.671,0.4913,0.818,0.78,0.7,0.86,0.109,True,Zhang et al. 2025 (MIL),Zhang reports AUC=0.78. Our LR baseline is weak. Text-only SoA on DAIC is challenging.
+daic,audio,AUROC,0.4686,0.2863,0.6516,0.62,0.55,0.69,0.1514,False,Alam et al. 2025 (Wav2Vec+LLM),SoA uses full audio (16 min). We truncate to 30s WavLM segments.
+daic,video,AUROC,0.5628,0.3622,0.7533,0.83,0.76,0.9,0.2672,True,Song et al. 2025 (3D landmarks),SoA uses 3D facial landmarks. We use OpenFace AU features. No raw video available.
+mosei,text,CCC,0.5123,0.4943,0.5295,0.774,0.75,0.8,0.2617,True,CSGI-Net 2025 / DPDF-LQ 2025,SoA reports Pearson r=0.774. We report CCC which accounts for both correlation and bias.
+mosei,audio,CCC,0.1472,0.1318,0.1638,0.5,0.45,0.55,0.3528,True,Estimated from SoA unimodal ablations,Audio-only is known to be weak on MOSEI. Our WavLM features are [148] pooled vs typical full-sequence models.
+mosei,video,CCC,0.141,0.1256,0.1563,0.52,0.47,0.57,0.379,True,Estimated from SoA unimodal ablations,SoA video typically uses full-frame features. Our ViT features are pooled [1536].
+fi,text,CCC,0.2157,0.1657,0.2657,0.6,0.55,0.65,0.3843,True,Best text-only models on FI (transcripts),FI SoA reports accuracy (classification). CCC not common. SoA accuracy=93.97% (CHMAFN 2025).
+fi,audio,CCC,0.4476,0.3976,0.4976,0.34,0.3,0.38,-0.1076,True,DeepPersonality 2024 (CRNet),Our audio CCC=0.4476 is competitive with SoA CRNet CCC~0.34. PROVISIONAL.
+fi,video,CCC,0.4578,0.4078,0.5078,0.6,0.55,0.65,0.1422,True,DeepPersonality 2024 (HRNet/VAT),SoA video CCC~0.6. Our ViT pooled features lag behind HRNet full-frame features.

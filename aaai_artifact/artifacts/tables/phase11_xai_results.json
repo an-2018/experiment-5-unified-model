@@ -1,0 +1,1388 @@
+{
+  "case_studies": [
+    {
+      "dataset": "daic",
+      "case_id": 0,
+      "sample_id": "302",
+      "task": "depression",
+      "prediction": 0.11320491135120392,
+      "confidence": 0.5282710423380351,
+      "true_label": 0.0,
+      "shap_values": {
+        "text": 0.09215464815497398,
+        "audio": 0.0,
+        "video": 0.0
+      },
+      "perturbation_deltas": {
+        "text": -0.09215464815497398,
+        "audio": 0.0,
+        "video": 0.0
+      },
+      "counterfactual": {
+        "text": 3.932288646697998,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 29,
+          "distance": 0.01899850368499756,
+          "dataset": "daic",
+          "weight": 0.9810014963150024
+        },
+        {
+          "id": 20,
+          "distance": 0.01899850368499756,
+          "dataset": "daic",
+          "weight": 0.9810014963150024
+        },
+        {
+          "id": 15,
+          "distance": 0.026454687118530273,
+          "dataset": "daic",
+          "weight": 0.9735453128814697
+        },
+        {
+          "id": 23,
+          "distance": 0.026454687118530273,
+          "dataset": "daic",
+          "weight": 0.9735453128814697
+        },
+        {
+          "id": 29,
+          "distance": 0.02696925401687622,
+          "dataset": "daic",
+          "weight": 0.9730307459831238
+        }
+      ],
+      "expert_routing": {
+        "expert_0": 0.2208,
+        "expert_1": 0.7792
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.5282710194587708,
+        "sentiment_score": 0.20908372104167938,
+        "emotion_probs": {
+          "happiness": 0.4109981954097748,
+          "sadness": 0.42848271131515503,
+          "anger": 0.4603075087070465,
+          "fear": 0.46161219477653503,
+          "disgust": 0.5840543508529663,
+          "surprise": 0.4151430130004883
+        },
+        "personality_scores": {
+          "extraversion": 0.16231808066368103,
+          "neuroticism": 0.2128850817680359,
+          "agreeableness": 0.2391406148672104,
+          "conscientiousness": 0.34621310234069824,
+          "openness": 0.29769638180732727
+        }
+      },
+      "narrative": "The model's prediction of depression (score=0.528) is primarily driven by the text input, with a SHAP value of 0.0922. Specifically, the model identified influential nodes in the routing graph, including edges 0\u21922, 0\u21923, 0\u21921, 0\u21924, and 0\u219218. These nodes likely contain textual cues related to depressive symptoms, such as negative self-talk, hopelessness, and lack of energy. The audio and video modalities did not contribute significantly to the decision-making process in this case."
+    },
+    {
+      "dataset": "daic",
+      "case_id": 1,
+      "sample_id": "307",
+      "task": "depression",
+      "prediction": -0.39947575330734253,
+      "confidence": 0.40143830230287064,
+      "true_label": 0.0,
+      "shap_values": {
+        "text": -0.42052601650357246,
+        "audio": 0.0,
+        "video": 0.0
+      },
+      "perturbation_deltas": {
+        "text": 0.42052601650357246,
+        "audio": 0.0,
+        "video": 0.0
+      },
+      "counterfactual": {
+        "text": 4.121701240539551,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 29,
+          "distance": 0.01899850368499756,
+          "dataset": "daic",
+          "weight": 0.9810014963150024
+        },
+        {
+          "id": 20,
+          "distance": 0.01899850368499756,
+          "dataset": "daic",
+          "weight": 0.9810014963150024
+        },
+        {
+          "id": 15,
+          "distance": 0.026454687118530273,
+          "dataset": "daic",
+          "weight": 0.9735453128814697
+        },
+        {
+          "id": 23,
+          "distance": 0.026454687118530273,
+          "dataset": "daic",
+          "weight": 0.9735453128814697
+        },
+        {
+          "id": 29,
+          "distance": 0.02696925401687622,
+          "dataset": "daic",
+          "weight": 0.9730307459831238
+        }
+      ],
+      "expert_routing": {
+        "expert_0": 0.261,
+        "expert_1": 0.739
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.40143832564353943,
+        "sentiment_score": 0.06713660806417465,
+        "emotion_probs": {
+          "happiness": 0.34818944334983826,
+          "sadness": 0.3045228123664856,
+          "anger": 0.4378785789012909,
+          "fear": 0.35841307044029236,
+          "disgust": 0.645359456539154,
+          "surprise": 0.4090101420879364
+        },
+        "personality_scores": {
+          "extraversion": 0.26192033290863037,
+          "neuroticism": 0.21519708633422852,
+          "agreeableness": 0.2754128575325012,
+          "conscientiousness": 0.3842025101184845,
+          "openness": 0.3370259404182434
+        }
+      },
+      "narrative": "The model's prediction of depression not detected is primarily influenced by the text modality, which had a negative contribution of -0.4205. The specific text input appears to have contained phrases that are typical of non-depressed individuals, as supported by the routing graph, which shows that the model heavily relied on the connections to nodes representing non-depressed individuals (edges 0\u21922, 0\u21923, 0\u21921, 0\u21924, and 0\u219218). The audio and video modalities did not contribute significantly to the prediction."
+    },
+    {
+      "dataset": "daic",
+      "case_id": 2,
+      "sample_id": "331",
+      "task": "depression",
+      "prediction": -0.012902573682367802,
+      "confidence": 0.4967744013281238,
+      "true_label": 0.0,
+      "shap_values": {
+        "text": -0.033952836878597736,
+        "audio": 0.0,
+        "video": 0.0
+      },
+      "perturbation_deltas": {
+        "text": 0.033952836878597736,
+        "audio": 0.0,
+        "video": 0.0
+      },
+      "counterfactual": {
+        "text": 3.9746294021606445,
+        "audio": -1.0,
+        "video": -1.0
+      },
+      "top_neighbors": [
+        {
+          "id": 29,
+          "distance": 0.01899850368499756,
+          "dataset": "daic",
+          "weight": 0.9810014963150024
+        },
+        {
+          "id": 20,
+          "distance": 0.01899850368499756,
+          "dataset": "daic",
+          "weight": 0.9810014963150024
+        },
+        {
+          "id": 15,
+          "distance": 0.026454687118530273,
+          "dataset": "daic",
+          "weight": 0.9735453128814697
+        },
+        {
+          "id": 23,
+          "distance": 0.026454687118530273,
+          "dataset": "daic",
+          "weight": 0.9735453128814697
+        },
+        {
+          "id": 29,
+          "distance": 0.02696925401687622,
+          "dataset": "daic",
+          "weight": 0.9730307459831238
+        }
+      ],
+      "expert_routing": {
+        "expert_0": 0.2056,
+        "expert_1": 0.7944
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.4967744052410126,
+        "sentiment_score": 0.10588763654232025,
+        "emotion_probs": {
+          "happiness": 0.3907984495162964,
+          "sadness": 0.3936604857444763,
+          "anger": 0.4721866846084595,
+          "fear": 0.44499486684799194,
+          "disgust": 0.48277747631073,
+          "surprise": 0.4966788589954376
+        },
+        "personality_scores": {
+          "extraversion": 0.1527971625328064,
+          "neuroticism": 0.09582912921905518,
+          "agreeableness": 0.28274595737457275,
+          "conscientiousness": 0.35517990589141846,
+          "openness": 0.24319659173488617
+        }
+      },
+      "narrative": "The model's prediction of \"Depression not detected\" was driven primarily by the text modality, where negative sentiments were detected. Specifically, the patient's response to the question \"Do you feel hopeless?\" was a key factor. Additionally, the model was influenced by the patient's overall behavior and context, as inferred from the routing graph, which included interactions with the interviewer, such as eye contact and facial expressions, that were consistent with a lack of depressive symptoms."
+    },
+    {
+      "dataset": "mosei",
+      "case_id": 0,
+      "sample_id": "mosei_val_00000",
+      "task": "sentiment",
+      "prediction": 0.6224753856658936,
+      "confidence": 0.6507813268411656,
+      "true_label": 1.0,
+      "shap_values": {
+        "text": 0.35393282771110535,
+        "audio": -0.04331779479980469,
+        "video": -0.17905497550964355
+      },
+      "perturbation_deltas": {
+        "text": -0.35393282771110535,
+        "audio": 0.04331779479980469,
+        "video": 0.17905497550964355
+      },
+      "counterfactual": {
+        "text": 4.036536693572998,
+        "audio": 1.5115621089935303,
+        "video": 0.1812780648469925
+      },
+      "top_neighbors": [
+        {
+          "id": 18,
+          "distance": 0.10201281309127808,
+          "dataset": "mosei",
+          "weight": 0.8979871869087219
+        },
+        {
+          "id": 16,
+          "distance": 0.10201281309127808,
+          "dataset": "mosei",
+          "weight": 0.8979871869087219
+        },
+        {
+          "id": 17,
+          "distance": 0.14912104606628418,
+          "dataset": "mosei",
+          "weight": 0.8508789539337158
+        },
+        {
+          "id": 18,
+          "distance": 0.14912104606628418,
+          "dataset": "mosei",
+          "weight": 0.8508789539337158
+        },
+        {
+          "id": 23,
+          "distance": 0.1696847677230835,
+          "dataset": "mosei",
+          "weight": 0.8303152322769165
+        }
+      ],
+      "expert_routing": {
+        "expert_2": 0.3375,
+        "expert_3": 0.6625
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.49746671319007874,
+        "sentiment_score": 0.6224753856658936,
+        "emotion_probs": {
+          "happiness": 0.8944692611694336,
+          "sadness": 0.08587811887264252,
+          "anger": 0.002903556451201439,
+          "fear": 0.03510664030909538,
+          "disgust": 0.37031710147857666,
+          "surprise": 0.2822377681732178
+        },
+        "personality_scores": {
+          "extraversion": 0.09570903331041336,
+          "neuroticism": 0.06516864150762558,
+          "agreeableness": 0.20089945197105408,
+          "conscientiousness": 0.15571458637714386,
+          "openness": 0.08307085186243057
+        }
+      },
+      "narrative": "The model's prediction of a sentiment score of 0.651 is primarily driven by the text modality, specifically the use of positive words and phrases. The most influential neighbors in the routing graph include edges connected to nodes with similar usage of positive language, such as nodes 1, 47, 5, 14, and 24 in the mosei dataset. However, the audio and video modalities had a slightly negative impact on the prediction, which might be due to inconsistencies or lack of positive emotional cues in these modalities."
+    },
+    {
+      "dataset": "mosei",
+      "case_id": 1,
+      "sample_id": "mosei_val_00001",
+      "task": "sentiment",
+      "prediction": 0.7577913999557495,
+      "confidence": 0.6808740308710222,
+      "true_label": -0.1111111119389534,
+      "shap_values": {
+        "text": 0.41910314559936523,
+        "audio": 0.0,
+        "video": -0.05428469181060791
+      },
+      "perturbation_deltas": {
+        "text": -0.41910314559936523,
+        "audio": 0.0,
+        "video": 0.05428469181060791
+      },
+      "counterfactual": {
+        "text": 3.9414212703704834,
+        "audio": -1.0,
+        "video": 0.1626095175743103
+      },
+      "top_neighbors": [
+        {
+          "id": 18,
+          "distance": 0.10201281309127808,
+          "dataset": "mosei",
+          "weight": 0.8979871869087219
+        },
+        {
+          "id": 16,
+          "distance": 0.10201281309127808,
+          "dataset": "mosei",
+          "weight": 0.8979871869087219
+        },
+        {
+          "id": 17,
+          "distance": 0.14912104606628418,
+          "dataset": "mosei",
+          "weight": 0.8508789539337158
+        },
+        {
+          "id": 18,
+          "distance": 0.14912104606628418,
+          "dataset": "mosei",
+          "weight": 0.8508789539337158
+        },
+        {
+          "id": 23,
+          "distance": 0.1696847677230835,
+          "dataset": "mosei",
+          "weight": 0.8303152322769165
+        }
+      ],
+      "expert_routing": {
+        "expert_2": 0.1052,
+        "expert_3": 0.8948
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.457750529050827,
+        "sentiment_score": 0.7577913999557495,
+        "emotion_probs": {
+          "happiness": 0.9908964037895203,
+          "sadness": 0.03587634861469269,
+          "anger": 0.0005144763272255659,
+          "fear": 0.015072614885866642,
+          "disgust": 0.8198166489601135,
+          "surprise": 0.1184932291507721
+        },
+        "personality_scores": {
+          "extraversion": 0.042929425835609436,
+          "neuroticism": -0.0075763314962387085,
+          "agreeableness": 0.11145493388175964,
+          "conscientiousness": 0.08262664079666138,
+          "openness": -0.04356400668621063
+        }
+      },
+      "narrative": "The model's prediction of a sentiment score of 0.681 was primarily driven by the text modality, with a SHAP value of 0.4191, indicating that the text's content contributed significantly to the prediction. Specifically, the model's interpretation of the text was influenced by the connections to nodes 1, 47, 5, 14, and 24 in the routing graph, which may represent similar sentiments or contexts in the mosei dataset. The audio and video modalities did not have a significant impact on the prediction, as their SHAP values were close to zero."
+    },
+    {
+      "dataset": "mosei",
+      "case_id": 2,
+      "sample_id": "mosei_val_00002",
+      "task": "sentiment",
+      "prediction": 0.30907437205314636,
+      "confidence": 0.5766593097857885,
+      "true_label": -0.1111111119389534,
+      "shap_values": {
+        "text": 0.17944444715976715,
+        "audio": -0.006239742040634155,
+        "video": -0.06296566128730774
+      },
+      "perturbation_deltas": {
+        "text": -0.17944444715976715,
+        "audio": 0.006239742040634155,
+        "video": 0.06296566128730774
+      },
+      "counterfactual": {
+        "text": 4.7168450355529785,
+        "audio": 2.187530755996704,
+        "video": 0.2333827018737793
+      },
+      "top_neighbors": [
+        {
+          "id": 18,
+          "distance": 0.10201281309127808,
+          "dataset": "mosei",
+          "weight": 0.8979871869087219
+        },
+        {
+          "id": 16,
+          "distance": 0.10201281309127808,
+          "dataset": "mosei",
+          "weight": 0.8979871869087219
+        },
+        {
+          "id": 17,
+          "distance": 0.14912104606628418,
+          "dataset": "mosei",
+          "weight": 0.8508789539337158
+        },
+        {
+          "id": 18,
+          "distance": 0.14912104606628418,
+          "dataset": "mosei",
+          "weight": 0.8508789539337158
+        },
+        {
+          "id": 23,
+          "distance": 0.1696847677230835,
+          "dataset": "mosei",
+          "weight": 0.8303152322769165
+        }
+      ],
+      "expert_routing": {
+        "expert_2": 0.4514,
+        "expert_3": 0.5486
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.48616141080856323,
+        "sentiment_score": 0.30907437205314636,
+        "emotion_probs": {
+          "happiness": 0.6994433403015137,
+          "sadness": 0.06518923491239548,
+          "anger": 0.013081719167530537,
+          "fear": 0.008476445451378822,
+          "disgust": 0.38899970054626465,
+          "surprise": 0.12995728850364685
+        },
+        "personality_scores": {
+          "extraversion": 0.0832548588514328,
+          "neuroticism": 0.04440343379974365,
+          "agreeableness": 0.14483052492141724,
+          "conscientiousness": 0.13516508042812347,
+          "openness": 0.05333702266216278
+        }
+      },
+      "narrative": "Based on the model's prediction and SHAP values, the sentiment of the text input was predicted to be slightly positive. The text modality contributed most significantly to this prediction, with the audio and video modalities having minimal impact. The model's decision was influenced by the connections to nodes 1, 47, 5, 14, and 24 in the routing graph, suggesting that the model's prediction was influenced by similar samples in the mosei dataset."
+    },
+    {
+      "dataset": "fi",
+      "case_id": 0,
+      "sample_id": "fi_val_-6otZ7M-Mro.003.mp4",
+      "task": "personality",
+      "prediction": 0.6638550758361816,
+      "confidence": 0.6601258453344505,
+      "true_label": 0.7102803587913513,
+      "shap_values": {
+        "text": 0.0,
+        "audio": 0.0,
+        "video": 0.1531711220741272
+      },
+      "perturbation_deltas": {
+        "text": 0.0,
+        "audio": 0.0,
+        "video": -0.1531711220741272
+      },
+      "counterfactual": {
+        "text": -1.0,
+        "audio": -1.0,
+        "video": 2.8806068897247314
+      },
+      "top_neighbors": [
+        {
+          "id": 41,
+          "distance": 0.0035130977630615234,
+          "dataset": "fi",
+          "weight": 0.9964869022369385
+        },
+        {
+          "id": 40,
+          "distance": 0.0035130977630615234,
+          "dataset": "fi",
+          "weight": 0.9964869022369385
+        },
+        {
+          "id": 41,
+          "distance": 0.008068084716796875,
+          "dataset": "fi",
+          "weight": 0.9919319152832031
+        },
+        {
+          "id": 42,
+          "distance": 0.008068084716796875,
+          "dataset": "fi",
+          "weight": 0.9919319152832031
+        },
+        {
+          "id": 40,
+          "distance": 0.008945345878601074,
+          "dataset": "fi",
+          "weight": 0.9910546541213989
+        }
+      ],
+      "expert_routing": {
+        "expert_4": 0.6178,
+        "expert_5": 0.3822
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.5239723324775696,
+        "sentiment_score": -0.2995451092720032,
+        "emotion_probs": {
+          "happiness": 0.2425023913383484,
+          "sadness": 0.41580095887184143,
+          "anger": 0.5181705355644226,
+          "fear": 0.29940345883369446,
+          "disgust": 0.5060001015663147,
+          "surprise": 0.3744666278362274
+        },
+        "personality_scores": {
+          "extraversion": 0.5464927554130554,
+          "neuroticism": 0.6597051620483398,
+          "agreeableness": 0.7223135232925415,
+          "conscientiousness": 0.7241489887237549,
+          "openness": 0.6666148900985718
+        }
+      },
+      "narrative": "The model's prediction of a personality score of 0.660 for the individual is primarily influenced by the video modality, with contributions from specific neighbors in the routing graph. The video data of this individual seems to exhibit characteristics consistent with a certain level of openness, conscientiousness, and extraversion, as suggested by edges 0\u21921, 0\u219246, 0\u219214, 0\u219229, and 0\u21924. These characteristics are supported by the inferred context 'fi', which may indicate a specific population or dataset. However, text input was not significant in this prediction, and audio data was not utilized."
+    },
+    {
+      "dataset": "fi",
+      "case_id": 1,
+      "sample_id": "fi_val_-6otZ7M-Mro.005.mp4",
+      "task": "personality",
+      "prediction": 0.6075049042701721,
+      "confidence": 0.6473714271373062,
+      "true_label": 0.5233644843101501,
+      "shap_values": {
+        "text": 0.0,
+        "audio": 0.0,
+        "video": 0.09682095050811768
+      },
+      "perturbation_deltas": {
+        "text": 0.0,
+        "audio": 0.0,
+        "video": -0.09682095050811768
+      },
+      "counterfactual": {
+        "text": -1.0,
+        "audio": -1.0,
+        "video": 2.793572187423706
+      },
+      "top_neighbors": [
+        {
+          "id": 41,
+          "distance": 0.0035130977630615234,
+          "dataset": "fi",
+          "weight": 0.9964869022369385
+        },
+        {
+          "id": 40,
+          "distance": 0.0035130977630615234,
+          "dataset": "fi",
+          "weight": 0.9964869022369385
+        },
+        {
+          "id": 41,
+          "distance": 0.008068084716796875,
+          "dataset": "fi",
+          "weight": 0.9919319152832031
+        },
+        {
+          "id": 42,
+          "distance": 0.008068084716796875,
+          "dataset": "fi",
+          "weight": 0.9919319152832031
+        },
+        {
+          "id": 40,
+          "distance": 0.008945345878601074,
+          "dataset": "fi",
+          "weight": 0.9910546541213989
+        }
+      ],
+      "expert_routing": {
+        "expert_4": 0.6699,
+        "expert_5": 0.3301
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.539723813533783,
+        "sentiment_score": -0.12791024148464203,
+        "emotion_probs": {
+          "happiness": 0.3923109769821167,
+          "sadness": 0.3143838346004486,
+          "anger": 0.38115108013153076,
+          "fear": 0.2615070044994354,
+          "disgust": 0.5689460039138794,
+          "surprise": 0.3242298364639282
+        },
+        "personality_scores": {
+          "extraversion": 0.502430260181427,
+          "neuroticism": 0.5975689888000488,
+          "agreeableness": 0.6528973579406738,
+          "conscientiousness": 0.6557611227035522,
+          "openness": 0.6288667321205139
+        }
+      },
+      "narrative": "The prediction of a personality score of 0.647 was primarily driven by the video modality, specifically by the content of nodes 1, 46, 14, 29, and 4 in the routing graph. These nodes may have contained visual cues such as facial expressions, body language, or gestures that were indicative of a certain personality trait, as inferred from the context of the \"fi\" dataset."
+    },
+    {
+      "dataset": "fi",
+      "case_id": 2,
+      "sample_id": "fi_val_-8asrRvfJWA.001.mp4",
+      "task": "personality",
+      "prediction": 0.5309006571769714,
+      "confidence": 0.6296931514458536,
+      "true_label": 0.4859813153743744,
+      "shap_values": {
+        "text": 0.0,
+        "audio": 0.0,
+        "video": 0.020216703414916992
+      },
+      "perturbation_deltas": {
+        "text": 0.0,
+        "audio": 0.0,
+        "video": -0.020216703414916992
+      },
+      "counterfactual": {
+        "text": -1.0,
+        "audio": -1.0,
+        "video": 2.3842389583587646
+      },
+      "top_neighbors": [
+        {
+          "id": 41,
+          "distance": 0.0035130977630615234,
+          "dataset": "fi",
+          "weight": 0.9964869022369385
+        },
+        {
+          "id": 40,
+          "distance": 0.0035130977630615234,
+          "dataset": "fi",
+          "weight": 0.9964869022369385
+        },
+        {
+          "id": 41,
+          "distance": 0.008068084716796875,
+          "dataset": "fi",
+          "weight": 0.9919319152832031
+        },
+        {
+          "id": 42,
+          "distance": 0.008068084716796875,
+          "dataset": "fi",
+          "weight": 0.9919319152832031
+        },
+        {
+          "id": 40,
+          "distance": 0.008945345878601074,
+          "dataset": "fi",
+          "weight": 0.9910546541213989
+        }
+      ],
+      "expert_routing": {
+        "expert_4": 0.6461,
+        "expert_5": 0.3539
+      },
+      "multi_construct_profile": {
+        "depression_prob": 0.5385847091674805,
+        "sentiment_score": -0.24243347346782684,
+        "emotion_probs": {
+          "happiness": 0.14319142699241638,
+          "sadness": 0.3625071942806244,
+          "anger": 0.5117189884185791,
+          "fear": 0.30202004313468933,
+          "disgust": 0.47195929288864136,
+          "surprise": 0.4438696801662445
+        },
+        "personality_scores": {
+          "extraversion": 0.47541385889053345,
+          "neuroticism": 0.4949807822704315,
+          "agreeableness": 0.5400184392929077,
+          "conscientiousness": 0.5216113328933716,
+          "openness": 0.6224790215492249
+        }
+      },
+      "narrative": "The model's prediction of a personality score of 0.63 for the patient in the fi dataset is primarily influenced by the visual cues from the video modality, as well as the connections to nodes 1, 46, 14, 29, and 4 in the routing graph, which likely represent similar samples in the dataset with similar personality traits. The model's confidence in this prediction is relatively high, suggesting a strong association between the visual cues in the patient's video and the predicted personality score."
+    }
+  ],
+  "perturbation_results": [
+    {
+      "sample": 0,
+      "modality": "text",
+      "delta": -0.09215464815497398
+    },
+    {
+      "sample": 0,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 0,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 1,
+      "modality": "text",
+      "delta": 0.42052601650357246
+    },
+    {
+      "sample": 1,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 1,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 2,
+      "modality": "text",
+      "delta": 0.033952836878597736
+    },
+    {
+      "sample": 2,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 2,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 3,
+      "modality": "text",
+      "delta": -0.33981848880648613
+    },
+    {
+      "sample": 3,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 3,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 4,
+      "modality": "text",
+      "delta": -0.30922387167811394
+    },
+    {
+      "sample": 4,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 4,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 5,
+      "modality": "text",
+      "delta": 0.1591614969074726
+    },
+    {
+      "sample": 5,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 5,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 6,
+      "modality": "text",
+      "delta": 0.45016898587346077
+    },
+    {
+      "sample": 6,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 6,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 7,
+      "modality": "text",
+      "delta": 0.4703628905117512
+    },
+    {
+      "sample": 7,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 7,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 8,
+      "modality": "text",
+      "delta": 0.6385980136692524
+    },
+    {
+      "sample": 8,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 8,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 9,
+      "modality": "text",
+      "delta": 0.4363361485302448
+    },
+    {
+      "sample": 9,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 9,
+      "modality": "video",
+      "delta": 0.0
+    },
+    {
+      "sample": 0,
+      "modality": "text",
+      "delta": -0.35393282771110535
+    },
+    {
+      "sample": 0,
+      "modality": "audio",
+      "delta": 0.04331779479980469
+    },
+    {
+      "sample": 0,
+      "modality": "video",
+      "delta": 0.17905497550964355
+    },
+    {
+      "sample": 1,
+      "modality": "text",
+      "delta": -0.41910314559936523
+    },
+    {
+      "sample": 1,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 1,
+      "modality": "video",
+      "delta": 0.05428469181060791
+    },
+    {
+      "sample": 2,
+      "modality": "text",
+      "delta": -0.17944444715976715
+    },
+    {
+      "sample": 2,
+      "modality": "audio",
+      "delta": 0.006239742040634155
+    },
+    {
+      "sample": 2,
+      "modality": "video",
+      "delta": 0.06296566128730774
+    },
+    {
+      "sample": 3,
+      "modality": "text",
+      "delta": -0.7549436464905739
+    },
+    {
+      "sample": 3,
+      "modality": "audio",
+      "delta": -0.08985555171966553
+    },
+    {
+      "sample": 3,
+      "modality": "video",
+      "delta": -0.28179478645324707
+    },
+    {
+      "sample": 4,
+      "modality": "text",
+      "delta": 0.23196270316839218
+    },
+    {
+      "sample": 4,
+      "modality": "audio",
+      "delta": -0.08942391723394394
+    },
+    {
+      "sample": 4,
+      "modality": "video",
+      "delta": 0.02468465268611908
+    },
+    {
+      "sample": 5,
+      "modality": "text",
+      "delta": -0.004552200436592102
+    },
+    {
+      "sample": 5,
+      "modality": "audio",
+      "delta": -0.02317608892917633
+    },
+    {
+      "sample": 5,
+      "modality": "video",
+      "delta": 0.0863533765077591
+    },
+    {
+      "sample": 6,
+      "modality": "text",
+      "delta": -0.17851708829402924
+    },
+    {
+      "sample": 6,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 6,
+      "modality": "video",
+      "delta": 0.8661184459924698
+    },
+    {
+      "sample": 7,
+      "modality": "text",
+      "delta": 0.3758061472326517
+    },
+    {
+      "sample": 7,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 7,
+      "modality": "video",
+      "delta": 0.030916357412934303
+    },
+    {
+      "sample": 8,
+      "modality": "text",
+      "delta": -0.044204533100128174
+    },
+    {
+      "sample": 8,
+      "modality": "audio",
+      "delta": 0.05210116505622864
+    },
+    {
+      "sample": 8,
+      "modality": "video",
+      "delta": 0.017544299364089966
+    },
+    {
+      "sample": 9,
+      "modality": "text",
+      "delta": 0.11725795269012451
+    },
+    {
+      "sample": 9,
+      "modality": "audio",
+      "delta": -0.053077638149261475
+    },
+    {
+      "sample": 9,
+      "modality": "video",
+      "delta": 0.10679501295089722
+    },
+    {
+      "sample": 0,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 0,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 0,
+      "modality": "video",
+      "delta": -0.1531711220741272
+    },
+    {
+      "sample": 1,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 1,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 1,
+      "modality": "video",
+      "delta": -0.09682095050811768
+    },
+    {
+      "sample": 2,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 2,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 2,
+      "modality": "video",
+      "delta": -0.020216703414916992
+    },
+    {
+      "sample": 3,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 3,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 3,
+      "modality": "video",
+      "delta": 0.07986491918563843
+    },
+    {
+      "sample": 4,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 4,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 4,
+      "modality": "video",
+      "delta": -0.23318201303482056
+    },
+    {
+      "sample": 5,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 5,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 5,
+      "modality": "video",
+      "delta": 0.05223262310028076
+    },
+    {
+      "sample": 6,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 6,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 6,
+      "modality": "video",
+      "delta": -0.00019162893295288086
+    },
+    {
+      "sample": 7,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 7,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 7,
+      "modality": "video",
+      "delta": -0.041942596435546875
+    },
+    {
+      "sample": 8,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 8,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 8,
+      "modality": "video",
+      "delta": -0.005312204360961914
+    },
+    {
+      "sample": 9,
+      "modality": "text",
+      "delta": 0.0
+    },
+    {
+      "sample": 9,
+      "modality": "audio",
+      "delta": 0.0
+    },
+    {
+      "sample": 9,
+      "modality": "video",
+      "delta": -0.06743353605270386
+    }
+  ],
+  "counterfactual_results": [
+    {
+      "dataset": "daic",
+      "sample": 0,
+      "text": 3.932288646697998,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 1,
+      "text": 4.121701240539551,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 2,
+      "text": 3.9746294021606445,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 3,
+      "text": 4.049356460571289,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 4,
+      "text": 4.061758041381836,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 5,
+      "text": 3.938290596008301,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 6,
+      "text": 3.410337209701538,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 7,
+      "text": 3.391606092453003,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 8,
+      "text": 3.4045252799987793,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "daic",
+      "sample": 9,
+      "text": 3.3545656204223633,
+      "audio": -1.0,
+      "video": -1.0
+    },
+    {
+      "dataset": "mosei",
+      "sample": 0,
+      "text": 4.036536693572998,
+      "audio": 1.5115621089935303,
+      "video": 0.1812780648469925
+    },
+    {
+      "dataset": "mosei",
+      "sample": 1,
+      "text": 3.9414212703704834,
+      "audio": -1.0,
+      "video": 0.1626095175743103
+    },
+    {
+      "dataset": "mosei",
+      "sample": 2,
+      "text": 4.7168450355529785,
+      "audio": 2.187530755996704,
+      "video": 0.2333827018737793
+    },
+    {
+      "dataset": "mosei",
+      "sample": 3,
+      "text": 4.9806742668151855,
+      "audio": 2.996764898300171,
+      "video": 0.28662121295928955
+    },
+    {
+      "dataset": "mosei",
+      "sample": 4,
+      "text": 3.8692262172698975,
+      "audio": 3.1514065265655518,
+      "video": 0.5264398455619812
+    },
+    {
+      "dataset": "mosei",
+      "sample": 5,
+      "text": 4.259704113006592,
+      "audio": 1.69829523563385,
+      "video": 0.31995806097984314
+    },
+    {
+      "dataset": "mosei",
+      "sample": 6,
+      "text": 4.742794036865234,
+      "audio": -1.0,
+      "video": 0.3442620635032654
+    },
+    {
+      "dataset": "mosei",
+      "sample": 7,
+      "text": 4.574450492858887,
+      "audio": -1.0,
+      "video": 0.2600778341293335
+    },
+    {
+      "dataset": "mosei",
+      "sample": 8,
+      "text": 4.874727249145508,
+      "audio": 2.0321483612060547,
+      "video": 0.19893336296081543
+    },
+    {
+      "dataset": "mosei",
+      "sample": 9,
+      "text": 4.374628067016602,
+      "audio": 2.8607981204986572,
+      "video": 0.28682395815849304
+    },
+    {
+      "dataset": "fi",
+      "sample": 0,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 2.8806068897247314
+    },
+    {
+      "dataset": "fi",
+      "sample": 1,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 2.793572187423706
+    },
+    {
+      "dataset": "fi",
+      "sample": 2,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 2.3842389583587646
+    },
+    {
+      "dataset": "fi",
+      "sample": 3,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 1.7512917518615723
+    },
+    {
+      "dataset": "fi",
+      "sample": 4,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 2.668396472930908
+    },
+    {
+      "dataset": "fi",
+      "sample": 5,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 1.5975680351257324
+    },
+    {
+      "dataset": "fi",
+      "sample": 6,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 1.8278696537017822
+    },
+    {
+      "dataset": "fi",
+      "sample": 7,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 1.8874382972717285
+    },
+    {
+      "dataset": "fi",
+      "sample": 8,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 2.7630484104156494
+    },
+    {
+      "dataset": "fi",
+      "sample": 9,
+      "text": -1.0,
+      "audio": -1.0,
+      "video": 2.563784599304199
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "within_daic": {
+    "method": "within_daic",
+    "target_auc": 0.3874458874458874,
+    "target_acc": 0.574468085106383,
+    "target_f1": 0.16666666666666666,
+    "best_c": 10.0
+  },
+  "fi_to_daic": {
+    "method": "source_only",
+    "target_auc": 0.5173160173160173,
+    "target_acc": 0.2978723404255319,
+    "target_f1": 0.45901639344262296,
+    "best_c": 0.01
+  },
+  "fi_daic_shift": {
+    "mean_distance": 5.213101387023926,
+    "std_distance": 0.6612403392791748,
+    "covariance_distance": 0.5838860869407654,
+    "total_shift": 6.458227813243866
+  },
+  "coral_fi_to_daic": {
+    "target_auc": 0.5346320346320346,
+    "coral_loss": 0.3409229516983032
+  },
+  "mosei_to_daic": {
+    "method": "source_only",
+    "target_auc": 0.5670995670995672,
+    "target_acc": 0.2978723404255319,
+    "target_f1": 0.4,
+    "best_c": 0.1
+  }
+}

@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local data (populate per README.md, "Data Access" — never commit raw datasets here)
+data/
+
+# Local run outputs that would overwrite the pre-computed artifacts/ shipped in this release
+logs/
+lightning_logs/
+*.log
+
+# Checkpoints (regenerable; excluded from this release due to size — see README.md)
+*.pt
+*.ckpt
+
+# OS
+.DS_Store

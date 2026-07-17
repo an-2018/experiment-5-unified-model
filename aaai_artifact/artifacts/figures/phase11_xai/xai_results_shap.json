@@ -1,0 +1,23 @@
+{
+  "test_auc": 0.35064935064935066,
+  "explain_mode": "shap",
+  "sample_id": "daic_test_001",
+  "shap": {
+    "n_samples": 30,
+    "audio_importance": 0.0001980890340497125,
+    "total_importance": 0.0001980890340497125,
+    "audio_dominance": 1.0
+  },
+  "perturbation": {
+    "baseline_auc": 0.35064935064935066,
+    "perturbed_auc": 0.5,
+    "auc_delta": 0.14935064935064934,
+    "mean_pred_change": -0.048805122027881245,
+    "mean_abs_pred_change": 0.15000456848760124
+  },
+  "counterfactual": {
+    "mean_counterfactual_score": 27.36660630880588,
+    "n_positive_corr_features": 386,
+    "n_negative_corr_features": 382
+  }
+}
