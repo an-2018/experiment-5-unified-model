@@ -51,12 +51,12 @@ Mental health assessment from multimodal signals is a cornerstone challenge in a
 
 Our central hypothesis has two parts, which we evaluate separately rather than conflating. First, we hypothesize that mental health assessment can be made more \emph{transparent} by characterizing a person's affective and psychological profile — sentiment, emotion, and apparent personality — jointly with a depression assessment, rather than reporting a single opaque depression score in isolation: the auxiliary constructs give a clinician additional, more legible context (e.g., is a low mood reading accompanied by high negative sentiment and low extraversion, or is it isolated?) for interpreting the primary prediction. Second, we hypothesize that a graph over similar individuals can provide both a \emph{visual} (subgraph diagrams, per-modality attribution plots) and a \emph{machine-readable} (structured case records: SHAP values, neighbor identities and distances, routing weights) account of which factors and which comparable cases informed a given prediction, complementing the auxiliary-construct characterization with instance-level explanation. This is a claim about transparency, evaluated separately from the further hypothesis that graph-based \emph{routing} improves raw predictive performance (Section~\ref{sec:results}) — a model can be well-explained without being more accurate, and our results show these are empirically distinct questions in this setting: the performance hypothesis is not supported, while the transparency mechanisms (multi-construct characterization, graph-based visual and machine-readable explanation) are implemented and evaluated for faithfulness in Section~\ref{sec:xai}. We do not claim that apparent personality and clinical depression measure the same construct — personality is auxiliary context, not a depression proxy. The proposed system is intended as a decision-support tool and should not replace clinical diagnosis; all results require prospective validation before clinical deployment.
 
-Figure~\ref{fig:process_flow} gives an overview of the full experimental pipeline, from data and feature extraction through the baseline ladder, the graph-routing investigation (Section~\ref{sec:results}), and the downstream LLM, calibration, domain-adaptation, and explainability analyses.
+Figure~\ref{fig:process_flow} details the software architecture of our experimental pipeline, moving from data extraction through unimodal baselines into the joint multitask training implementation. The central empirical question of our pipeline is the graph-routing investigation (Section~\ref{sec:results}). To isolate its effect, we compare five graph-routing ablation variants (V0--V4) against non-graph MMoEEx and KNN-voting baselines. When initial results showed no improvement on DAIC/MOSEI and degradation on FI personality, we deployed a homophily diagnostic comparing real graph edges against random pairing, alongside targeted fixes including a $K$-sensitivity sweep ($K=5, 10, 15, 20$) and learning a per-task $\lambda$ weight instead of fixing it at 0.5. These diagnostics confirmed that graph routing does not help in this setting because the required signal is either absent or unused. Downstream LLM, calibration, domain-adaptation, and explainability analyses then follow.
 
 \begin{figure*}[t]
     \centering
-    \includegraphics[width=0.85\textwidth]{figures/process_flow.pdf}
-    \caption{Experimental pipeline overview. The graph-routing investigation (dashed box) is the central empirical question of this paper: five ablation variants are compared against non-graph baselines, and a homophily diagnostic together with two targeted fixes (K-sweep, learned $\lambda$) explains the resulting negative finding.}
+    \includegraphics[width=0.85\textwidth]{figures/pipeline-flow.png}
+    \caption{Implementation details of the experimental pipeline and joint multitask training. The diagram shows the progression from dataset caching through the non-graph MMoEEx baseline into the Phase 7 multitask epoch loop---including the negative-transfer monitor and progressive unfreezing mechanisms---and concluding with downstream domain adaptation, calibration, and XAI validation layers.}
     \label{fig:process_flow}
 \end{figure*}
 
@@ -183,14 +183,7 @@ Metrics: DAIC (AUROC, F1), MOSEI sentiment (CCC), MOSEI emotion (macro-AUROC), F
     \label{fig:training_curves}
 \end{figure}
 
-Figure~\ref{fig:training_curves} shows representative per-task training curves for the V0 configuration: the two large-sample tasks (MOSEI sentiment, MOSEI emotion) converge smoothly, while DAIC depression and FI personality — the two small-sample tasks — are visibly noisier and begin to overfit after roughly epoch 20--30, motivating the early-stopping choice above. Figure~\ref{fig:training_pipeline} details the implementation of this training procedure end to end, including the non-graph MMoEEx baseline (Phase 5) that precedes it and serves as the comparison point throughout Section~\ref{sec:results}.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\columnwidth]{figures/pipeline-flow.png}
-    \caption{Implementation detail of joint multitask training: DataLoader tensor shapes, initialization, the epoch loop (forward pass, loss, optimizer step), and the negative-transfer monitor and progressive-unfreezing mechanisms. The non-graph MMoEEx baseline (Phase 5) and graph-routed training (Phase 7) share this same implementation, differing only in whether the graph router contributes to expert routing.}
-    \label{fig:training_pipeline}
-\end{figure}
+Figure~\ref{fig:training_curves} shows representative per-task training curves for the V0 configuration: the two large-sample tasks (MOSEI sentiment, MOSEI emotion) converge smoothly, while DAIC depression and FI personality — the two small-sample tasks — are visibly noisier and begin to overfit after roughly epoch 20--30, motivating the early-stopping choice above. Figure~\ref{fig:process_flow} details the implementation of this training procedure end to end, including the non-graph MMoEEx baseline (Phase 5) that precedes it and serves as the comparison point throughout Section~\ref{sec:results}.
 
 \section{Results}
 \label{sec:results}

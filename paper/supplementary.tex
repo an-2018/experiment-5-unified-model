@@ -38,17 +38,12 @@ Anonymous Authors
 
 \section{Experimental Pipeline Overview}
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/process_flow.png}
-\caption{Experimental pipeline overview. The graph-routing investigation (dashed box) is the central empirical question of the main paper: five ablation variants are compared against non-graph baselines, and a homophily diagnostic together with two targeted fixes (K-sweep, learned $\lambda$) explains the resulting negative finding.}
-\label{fig:process_flow}
-\end{figure*}
+The central empirical question of the main paper is the graph-routing investigation. To isolate its effect, we compare five graph-routing ablation variants (V0--V4) against non-graph baselines. When initial results showed no improvement on DAIC/MOSEI and degradation on FI personality, we deployed a homophily diagnostic comparing real graph edges against random pairing, alongside targeted fixes including a $K$-sensitivity sweep ($K=5, 10, 15, 20$) and learning a per-task $\lambda$ weight instead of fixing it at 0.5. These diagnostics confirmed that graph routing does not help in this setting because the required signal is either absent or unused.
 
-\begin{figure*}[t]
+\begin{figure*}[htbp]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/pipeline-flow.png}
-\caption{Implementation detail of Phases 5--11: the non-graph MMoEEx baseline (Phase 5) and the graph-routed joint multitask training (Phase 7) shown in Figure~\ref{fig:process_flow} share the same DataLoader, initialization, and epoch training loop, differing only in whether the graph router contributes to expert routing; downstream phases (LLM ablations, domain adaptation, calibration, explainability) follow.}
+\caption{Implementation detail of Phases 5--11: the non-graph MMoEEx baseline (Phase 5) and the graph-routed joint multitask training (Phase 7) share the same DataLoader, initialization, and epoch training loop, differing only in whether the graph router contributes to expert routing; downstream phases (LLM ablations, domain adaptation, calibration, explainability) follow.}
 \label{fig:training_pipeline}
 \end{figure*}
 

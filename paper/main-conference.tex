@@ -1,3 +1,4 @@
+% VEENUE: https://aaai.org/conference/aaai/aaai-27/main-technical-track-call
 \documentclass[letterpaper]{article}
 \usepackage[submission]{aaai2027}
 \usepackage{times}
@@ -47,12 +48,12 @@ We address three interlocking challenges: (i) learning multimodal representation
 
 Our contributions are threefold. First, a rigorously investigated negative result: graph-guided gating that combines GraphSAGE-aggregated neighbourhood information with task-specific gates in log-space does not improve over a non-graph baseline, and we support this with a homophily diagnostic and two targeted fix attempts rather than a bare negative number. Second, a leakage-safe graph construction protocol with three modes (inductive, split-local, transductive) under strict subject-independent splits, with an explicit audit that no test-label leakage occurs through graph edges. Third, a systematic ablation ladder — unimodal baselines, three fusion strategies, an MMoEEx baseline, five graph-routing configurations, and LLM-encoder replacements — showing LLM-based encoders are the largest performance driver we observed, well above both classical encoders and graph routing.
 
-Figure~\ref{fig:process_flow_main} gives an overview of the full experimental pipeline, from data and feature extraction through the baseline ladder, the graph-routing investigation, and the downstream LLM, calibration, domain-adaptation, and explainability analyses; a further figure detailing the implementation of Phase 7 joint multitask training itself is in the supplementary material.
+Figure~\ref{fig:process_flow_main} details the software architecture of our experimental pipeline, moving from data extraction through unimodal baselines (Phases 1--4) into the joint multitask training implementation (Phase 7). A central empirical question of our pipeline is the graph-routing investigation. To isolate its effect, we compare five graph-routing ablation variants (V0--V4, evaluating inductive, split-local, and transductive constructions) against non-graph MMoEEx and KNN-voting baselines. When initial results showed no improvement on DAIC/MOSEI and degradation on FI personality, we deployed a homophily diagnostic comparing real graph edges against random pairing, alongside targeted fixes including a $K$-sensitivity sweep ($K=5, 10, 15, 20$) and learning a per-task $\lambda$ weight instead of fixing it at 0.5. These diagnostics confirmed that graph routing does not help in this setting because the required signal is either absent (DAIC) or unused (FI).
 
 \begin{figure*}[t]
     \centering
-    \includegraphics[width=0.85\textwidth]{figures/process_flow.png}
-    \caption{Experimental pipeline overview. The graph-routing investigation (dashed box) is the central empirical question of this paper: five ablation variants are compared against non-graph baselines, and a homophily diagnostic together with two targeted fixes (K-sweep, learned $\lambda$) explains the resulting negative finding.}
+    \includegraphics[width=0.85\textwidth]{figures/pipeline-flow.png}
+    \caption{Implementation details of the experimental pipeline and joint multitask training. The diagram shows the progression from dataset caching through the non-graph MMoEEx baseline into the Phase 7 multitask epoch loop---including the negative-transfer monitor and progressive unfreezing mechanisms---and concluding with downstream domain adaptation, calibration, and XAI validation layers.}
     \label{fig:process_flow_main}
 \end{figure*}
 
@@ -85,10 +86,10 @@ Figure~\ref{fig:architecture} gives an overview: modality-specific encoders proj
 \subsection{Modality Encoders and Gated Fusion}
 
 Text is encoded with RoBERTa-base \citep{liu2019roberta} (768-dim), audio with WavLM-large \citep{chen2022wavlm} (1536-dim; eGeMAPS \citep{eyben2016geneva} for the classical-encoder ablation), and video with ViT-B/16 \citep{dosovitskiy2020image} (1536-dim; OpenFace \citep{baltrusaitis2018openface} action units as an alternative). Each is linearly projected to $d{=}256$. Given projected embeddings $h_i^{\text{text}}, h_i^{\text{audio}}, h_i^{\text{video}}$ and a modality-availability mask $m_i$ (FI has no text; some DAIC sessions have incomplete audio), gated late fusion computes:
-\[
-    \alpha_i = \text{softmax}\big(W_\alpha[h_i^{\text{text}}; h_i^{\text{audio}}; h_i^{\text{video}}]\big), \quad
-    h_i^{\text{fused}} = \sum_m \frac{\alpha_i \odot m_i}{\lVert \alpha_i \odot m_i \rVert_1 + \epsilon}[m]\, h_i^{m}.
-\]
+\begin{align*}
+    \alpha_i &= \text{softmax}\big(W_\alpha[h_i^{\text{text}}; h_i^{\text{audio}}; h_i^{\text{video}}]\big), \\
+    h_i^{\text{fused}} &= \sum_m \frac{\alpha_i \odot m_i}{\lVert \alpha_i \odot m_i \rVert_1 + \epsilon}[m]\, h_i^{m}.
+\end{align*}
 
 \subsection{MMoEEx Expert Bank and Graph-Guided Routing}
 
