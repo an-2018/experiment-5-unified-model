@@ -3,6 +3,7 @@
 \centering
 \caption{MPDD-Young Benchmark Results. Logistic Regression with L2 regularization (C=0.01) achieves the best test AUROC of 0.674. Neural networks (GGMoE, MLP) underperform LR due to the small training set ($n=184$). SHAP analysis identifies audio\_44 as the top feature (SHAP=0.018).}
 \label{tab:mpdd_results}
+\resizebox{\columnwidth}{!}{
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Model} & \textbf{Val AUROC} & \textbf{Test AUROC} & \textbf{Params} & \textbf{Notes} \\
@@ -15,4 +16,5 @@ Simple MLP & 0.512 & — & 347K & Not learning \\
 Reference (Fu et al., ACM MM 2025) & — & $\approx$0.78 & — & Multi-modal ensemble \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
