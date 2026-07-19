@@ -1861,7 +1861,15 @@ def run_ablation_L1_L5(level, args):
         print("ERROR: No training samples loaded.")
         return None
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
+    # Temperature-balanced sampling: sample_weight is computed by JointMultimodalDataset
+    # but was previously never consumed (plain shuffle=True), so DAIC's ~107 train rows
+    # got swamped by MOSEI's ~32k task-rows in every batch. See phase05/phase07 for the
+    # same fix.
+    train_sample_weights = torch.tensor([s["sample_weight"] for s in train_ds.samples], dtype=torch.double)
+    train_sampler = torch.utils.data.WeightedRandomSampler(
+        train_sample_weights, num_samples=len(train_ds), replacement=True
+    )
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=train_sampler,
                              collate_fn=collate_joint, num_workers=2, pin_memory=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
                            collate_fn=collate_joint, num_workers=2, pin_memory=True)
@@ -1957,6 +1965,19 @@ def run_ablation_L1_L5(level, args):
     print(f"  MOSEI Emotion AUC: {final_results['mosei_emotion']['auc']:.4f}")
     print(f"  FI Avg CCC: {final_results['fi']['avg_ccc']:.4f}")
     print(f"  GPU Hours: {gpu_hours:.2f}")
+
+    # Save per-sample val predictions so L{n} vs. L0 comparisons can compute real,
+    # traceable Cohen's d / DeLong stats instead of untraceable hand-typed numbers.
+    predictions_dir = ARTIFACTS_TABLES.parent / "predictions"
+    predictions_dir.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        predictions_dir / f"predictions_{level}.npz",
+        daic_all_labels=np.array(final_results["daic"]["all_labels"]),
+        daic_all_preds=np.array(final_results["daic"]["all_preds"]),
+        mosei_sent_all_labels=np.array(final_results["mosei_sentiment"]["all_labels"]),
+        mosei_sent_all_preds=np.array(final_results["mosei_sentiment"]["all_preds"]),
+    )
+    print(f"  Per-sample predictions saved to {predictions_dir / f'predictions_{level}.npz'}")
 
     return {
         "level": level,

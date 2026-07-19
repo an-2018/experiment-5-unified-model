@@ -105,24 +105,27 @@ Temperature balance $T$ & 3.0 \\
  & & DAIC AUROC & MOSEI Sent. CCC & MOSEI Emotion AUROC & FI Avg CCC \\
 \midrule
 0 & Trivial (majority class) & 0.500 & 0.000 & 0.500 & 0.000 \\
-1 & + Unimodal (best modality) & 0.535 & 0.512 & 0.771 & 0.458 \\
-2 & + Gated late fusion & 0.496 & 0.623 & 0.771 & 0.000 \\
-3 & + MMoEEx (no graph) & 0.493 & 0.493 & 0.722 & \textbf{0.578} \\
-4 & + KNN voting (no learned router) & \textbf{0.630} & 0.443 & 0.676 & 0.390 \\
-5 & + Graph router (V0, inductive $K{=}10$) & 0.515 & \textbf{0.517} & 0.719 & 0.542 \\
-6 & + Graph router (V3, inductive $K{=}15$) & 0.525 & 0.510 & \textbf{0.734} & 0.544 \\
+1 & + Unimodal (best modality: text/text/video) & 0.671 & 0.512 & --$^\dagger$ & 0.458 \\
+2 & + Gated late fusion & 0.442 & 0.575 & 0.634 & 0.000 \\
+3 & + MMoEEx (no graph) & \textbf{0.573} & 0.493 & 0.703 & \textbf{0.571} \\
+4 & + KNN voting (no learned router) & 0.630 & 0.443 & 0.676 & 0.390 \\
+5 & + Graph router (V0, inductive $K{=}10$) & 0.489 & 0.486 & 0.713 & 0.519 \\
+6 & + Graph router (V3, inductive $K{=}15$) & 0.533 & \textbf{0.508} & \textbf{0.720} & 0.531 \\
 \bottomrule
 \end{tabular}
+
+\vspace{2pt}
+{\footnotesize $^\dagger$Per-modality unimodal baselines evaluate MOSEI emotion as a regression task (CCC per emotion, averaged); no per-modality classification AUROC was computed at the unimodal stage, so this cell is not directly comparable to the classification AUROC reported for rows 2--6 and is left blank rather than filled with an unrelated number.}
 \end{table*}
 
-Row 4 (simple KNN label voting, no learned GraphSAGE router at all) reaches the best DAIC AUROC in the entire ladder. The learned router (rows 5--6) does not improve on this — the clearest single illustration that the learned component underperforms even the simplest graph-based heuristic on the primary clinical task.
+Row 4 (simple KNN label voting, no learned GraphSAGE router at all) reaches the best DAIC AUROC in the entire ladder except for row 3, the non-graph MMoEEx baseline (0.573) — which an earlier version of this table understated as chance-level (0.493) due to a temperature-balanced-sampling bug (\S\ref{sec:xai_supp} and main paper, Section~4) that let MOSEI's $\sim$32k task-rows swamp DAIC's 107 training rows in nearly every batch. With that fixed, the non-graph baseline is the best DAIC AUROC in the ladder, and the learned graph router (rows 5--6) underperforms both it and the simple KNN heuristic (row 4) — the clearest single illustration that the learned component fails to add value over either a working non-graph baseline or the simplest graph-based heuristic on the primary clinical task.
 
 \section{Graph-Sensitivity Sweep}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/k_sensitivity.png}
-\caption{No monotonic trend with $K \in \{5,10,15,20\}$ (inductive graph). $K{=}20$ lands DAIC AUROC exactly at chance (0.500).}
+\caption{No monotonic trend with $K \in \{5,10,15,20\}$ (inductive graph): DAIC AUROC is 0.496, 0.489, 0.533, 0.449 respectively, none reaching the 0.573 non-graph baseline. $K{=}20$ is the worst configuration, below chance.}
 \label{fig:k_sensitivity}
 \end{figure}
 
@@ -131,7 +134,7 @@ Row 4 (simple KNN label voting, no learned GraphSAGE router at all) reaches the 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/learned_lambda.png}
-\caption{Learned per-task $\lambda$ (V0 configuration) vs.\ the fixed default (0.5). Moves down for FI/MOSEI-emotion and up for MOSEI-sentiment/DAIC, consistent with the homophily diagnostic (main paper, Table~2), but only slightly.}
+\caption{Learned per-task $\lambda$ (V0 configuration, values 0.479--0.574) vs.\ the fixed default (0.5): a real gain on DAIC (AUROC 0.489 $\to$ 0.525, still short of the 0.573 non-graph baseline) but not on FI (CCC 0.519 $\to$ 0.503, moving further from the 0.571 baseline).}
 \label{fig:learned_lambda}
 \end{figure}
 
@@ -150,6 +153,25 @@ Row 4 (simple KNN label voting, no learned GraphSAGE router at all) reaches the 
 \caption{Calibration reliability diagrams (temperature/Platt/isotonic scaling vs.\ raw) for the L1 (Mistral text) DAIC depression classifier, held-out split. Monotonic recalibration changes reliability (ECE/Brier) but not ranking-based discrimination (AUROC), since AUROC is invariant to monotonic transforms of the score.}
 \label{fig:calibration}
 \end{figure}
+
+\section{Domain Adaptation Detail}
+\label{sec:domain_adaptation_supp}
+
+We tested unsupervised domain adaptation (CORAL, MMD, DANN, and a combined CORAL+MMD loss) for transferring FI and MOSEI representations to DAIC depression detection, against a no-adaptation baseline, across three transfer scenarios (FI$\to$DAIC, MOSEI$\to$DAIC, multisource). All four methods underperform the no-adaptation baseline in 10 of 12 evaluated conditions: the no-adaptation baseline's best result (MOSEI$\to$DAIC, AUROC=0.6942) beats the best DA result anywhere (combined CORAL+MMD, FI$\to$DAIC, AUROC=0.6901); CORAL is the most consistently harmful ($-$0.0744 vs.\ baseline at worst), and only MMD marginally improves its own no-adaptation baseline (+0.0041, within bootstrap CI). We attribute this to DAIC's training set ($n{=}107$) being too small to train a stable domain discriminator, and to shared multitask heads already providing implicit alignment; we do not merge domain adaptation into the main model.
+
+\section{MPDD Cross-Dataset Generalization Detail}
+\label{sec:mpdd_supp}
+
+To probe whether our findings generalize beyond DAIC/MOSEI/FI, we ran a supplementary benchmark on MPDD (Multimodal Depression Detector: Wav2Vec2 + OpenFace features, two age tracks). On MPDD-Young, a strongly-regularized logistic regression (AUROC=0.674) outperforms both GGMoE with and without graph routing (0.545/0.559) — the small sample size favors a linear model over any neural architecture we tested, including the graph router.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{figures/feature_importance.png}
+\caption{Top-30 SHAP feature importances for MPDD-Young depression detection. \texttt{audio\_44} is the single most important feature, though the top-30 set is video-dominated (17 of 30).}
+\label{fig:mpdd_shap_supp}
+\end{figure}
+
+Zero-shot transfer from Young to Elderly collapses to near-constant predictions (cross-track AUROC=0.395, below chance), while cross-\emph{dataset} transfer sharing a Wav2Vec2-family audio encoder (MPDD$\to$DAIC) transfers positively (AUROC=0.551, above the within-DAIC baseline of 0.344) — encoder-family match appears to matter more than domain similarity for transfer, and age-group-specific rather than universal biomarkers likely explain the cross-track failure.
 
 \section{Expert Routing Analysis}
 
@@ -173,7 +195,7 @@ For 9 case studies (3 per dataset), we pass the same sample's shared representat
 
 \subsection{Graph-Based Explanation}
 
-For each case study we generate a visual record (SHAP per-modality beeswarm plot, GNNExplainer subgraph diagram, and a GraphXAIN-style \citep{cedro2024graphxain} natural-language narrative panel, Figure~\ref{fig:graphxain_supp}) and a machine-readable record (SHAP values, top-$k$ neighbour identities and cosine distances, expert routing weights, the multi-construct profile, and counterfactual/perturbation deltas). The narrative is generated by prompting an LLM (Mistral-7B) with the SHAP values, subgraph structure, and sample metadata, used purely as \emph{post-hoc} explanation of an independently-computed prediction — not as reasoning inserted into the prediction pipeline itself. This distinction matters: chain-of-thought-style reasoning improves mental-health text classification when used to produce the prediction \citep{patil2025cognitivemental}, but can be unfaithful or reduce reliability when embedded in the clinical decision itself \citep{wu2025cotfails}.
+For each case study we generate a visual record (SHAP per-modality beeswarm plot, GNNExplainer-style subgraph diagram \citep{gnnexplainer2019}, and a GraphXAIN-style \citep{cedro2024graphxain} natural-language narrative panel, Figure~\ref{fig:graphxain_supp}) and a machine-readable record (SHAP values, top-$k$ neighbour identities and cosine distances, expert routing weights, the multi-construct profile, and counterfactual/perturbation deltas). The narrative is generated by prompting an LLM (Mistral-7B) with the SHAP values, subgraph structure, and sample metadata, used purely as \emph{post-hoc} explanation of an independently-computed prediction — not as reasoning inserted into the prediction pipeline itself. This distinction matters: chain-of-thought-style reasoning improves mental-health text classification when used to produce the prediction \citep{patil2025cognitivemental}, but can be unfaithful or reduce reliability when embedded in the clinical decision itself \citep{wu2025cotfails}.
 
 \begin{figure}[t]
 \centering
