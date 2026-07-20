@@ -96,6 +96,8 @@ Every numbered script corresponds to one stage of the pipeline and writes both a
 | $K$-sensitivity sweep / learned routing weight | `scripts/phase13_graph_sensitivity.py`, `scripts/run_v2_fix_and_learned_lambda.sh` | `artifacts/tables/graph_sensitivity.csv` |
 | KNN-voting baseline | `scripts/phase13_knn_voting_baseline.py` | `artifacts/tables/knn_voting_results.csv` |
 | LLM encoder ablation (L0–L5) | `scripts/phase08_llm_ablations.py`, `scripts/run_phase08_all.sh` | `artifacts/figures/llm_delta_bar.png` |
+| LLM-ablation significance (Cohen's *d*, DeLong *p*) | `scripts/compute_llm_ablation_stats.py` (reads `artifacts/predictions/predictions_L*.npz`) | `artifacts/tables/llm_ablation_statistics.csv` |
+| Full ablation ladder (Table, supplementary) | `scripts/generate_ablation_ladder_table.py` | printed table, sourced from the CSVs above |
 | Domain adaptation (CORAL/MMD/DANN) | `scripts/phase09_domain_adaptation.py` | `artifacts/figures/phase_09_domain_adaptation/` |
 | Cross-dataset/cross-track generalization (MPDD) | `scripts/benchmark_mpdd.py`, `scripts/cross_track_validation.py`, `scripts/cross_dataset_mpdd_daic.py` | `artifacts/figures/feature_importance.png`, `cross_track_comparison.png` |
 | Calibration + statistical validation | `scripts/phase10_calibration.py`, `scripts/phase13_statistical_rigor.py` | `artifacts/figures/calibration.png` |
@@ -137,6 +139,7 @@ Covers the leakage-safe graph builder (`tests/data/test_graph_builder.py`) and t
 - **Trained checkpoints are not included** (each is 30–60MB; excluded to keep this artifact lightweight). Every checkpoint is regenerable from the commands above; random seeds are fixed in `src/utils/seed.py` and the reported confidence intervals (BCa bootstrap, 2,000 resamples) reflect the variance you should expect across reruns.
 - **Leakage safety is enforced, not just claimed**: `scripts/phase13_leakage_audit.py` runs an automated audit (inductive train/test separation, split-local val/test separation, transductive cross-split-edge accounting, and an injected-bug detection check) and exits non-zero if any check fails.
 - **All reported numbers in the paper are read directly from the CSV/JSON files in `artifacts/tables/`** — nothing in the paper is a number typed by hand without a corresponding artifact file.
+- **The non-graph MMoEEx baseline (`phase05_mmoe_ex.py`) and the LLM ablation (`phase08_llm_ablations.py`) use a `WeightedRandomSampler` over each sample's temperature-balanced weight** so DAIC's 107 training rows aren't swamped by MOSEI's ~32k task-rows in every batch. An earlier version of this codebase computed that weight but never passed it to the `DataLoader` (plain `shuffle=True`), which silently capped the non-graph DAIC baseline at chance-level AUROC (0.493) and made every downstream graph-routing and LLM-ablation comparison against it unreliable. If you see a chance-level DAIC AUROC for the non-graph baseline in your own rerun, check that the `sampler=` argument (not `shuffle=True`) is being used on the training `DataLoader`.
 
 ## License
 

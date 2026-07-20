@@ -1375,6 +1375,10 @@ def main():
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
     parser.add_argument("--output_dir", type=str,
                         default="artifacts/figures/phase_07_joint_training")
+    parser.add_argument("--run_tag", type=str, default="",
+                        help="Suffix for results/checkpoint filenames, so multiple variants "
+                             "can run concurrently (parallel processes) without clobbering "
+                             "each other's artifacts/tables/phase07_results*.csv output.")
     args = parser.parse_args()
 
     if args.quick_test:
@@ -1484,14 +1488,26 @@ def main():
         print("ERROR: No training samples loaded. Check manifest and labels.")
         return
 
+    # Temperature-balanced sampling: _compute_sampling_weights() already computed a
+    # per-sample weight (inverse dataset frequency, tempered) to stop MOSEI's ~32k
+    # task-rows from swamping DAIC's ~107 train rows in every batch. Previously this
+    # weight was computed and threaded through the collate functions but never
+    # actually used by the DataLoader (plain shuffle=True), so DAIC got near-zero
+    # gradient signal in most optimizer steps despite the intent documented in
+    # sampler.py's docstring.
+    train_sample_weights = torch.tensor([s["sample_weight"] for s in train_ds.samples], dtype=torch.double)
+    train_sampler = torch.utils.data.WeightedRandomSampler(
+        train_sample_weights, num_samples=len(train_ds), replacement=True
+    )
+
     # Use appropriate collate function
     if edge_index_dict is not None:
-        train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=train_sampler,
                                   collate_fn=collate_graph_enhanced, num_workers=2, pin_memory=True)
         val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
                                 collate_fn=collate_graph_enhanced, num_workers=2, pin_memory=True)
     else:
-        train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=train_sampler,
                                   collate_fn=collate_joint, num_workers=2, pin_memory=True)
         val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
                                 collate_fn=collate_joint, num_workers=2, pin_memory=True)
@@ -1619,7 +1635,7 @@ def main():
                     "epoch": epoch,
                     "daic_auroc": daic_auroc,
                 }
-                ckpt_path = ARTIFACTS_TABLES / "phase07_best.pt"
+                ckpt_path = ARTIFACTS_TABLES / f"phase07_best{args.run_tag}.pt"
                 torch.save(best_checkpoint, ckpt_path)
                 print(f"    → Saved best model (DAIC AUROC={daic_auroc:.4f}) to {ckpt_path}")
             else:
@@ -1669,7 +1685,7 @@ def main():
             print(f"    - Epoch {r['epoch']}: {r['task']} = {r['value']:.4f} (baseline: {r['baseline']:.4f})")
 
     # Save results
-    results_path = ARTIFACTS_TABLES / "phase07_results.csv"
+    results_path = ARTIFACTS_TABLES / f"phase07_results{args.run_tag}.csv"
     with open(results_path, "w") as f:
         f.write("metric,value\n")
         # Safely format values for CSV

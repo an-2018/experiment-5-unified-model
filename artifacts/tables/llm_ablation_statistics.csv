@@ -1,0 +1,6 @@
+comparison,cohens_d,z_statistic,p_value,auroc_level,auroc_l0,significant_at_0.05
+L1 vs L0,-2.7237,-0.3492,0.7269,0.4819,0.5688,False
+L2 vs L0,0.0078,-0.3346,0.7379,0.4855,0.5688,False
+L3 vs L0,-1.188,-0.2324,0.8163,0.5109,0.5688,False
+L4 vs L0,0.5204,-0.3053,0.7601,0.4928,0.5688,False
+L5 vs L0,-0.3721,0.3126,0.7546,0.6486,0.5688,False

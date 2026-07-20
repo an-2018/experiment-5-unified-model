@@ -55,7 +55,7 @@ We propose a unified multimodal architecture for mental health assessment that j
 
 \section{Introduction}
 
-Mental health assessment from multimodal signals is a cornerstone challenge in affective computing and clinical informatics. Depression, the primary focus of this thesis, affects over 280 million people worldwide \citep{who2023depression} and is routinely assessed through clinical interviews that combine speech, facial expressions, and verbal content. Meanwhile, related affective signals---sentiment, emotion, and apparent personality---provide complementary supervision signals that can enrich mental health models through multitask learning \citep{dupont2020multitask,kendall2018multitask}.
+Mental health assessment from multimodal signals is a cornerstone challenge in affective computing and clinical informatics. Depression, the primary focus of this thesis, affects over 280 million people worldwide \citep{who2023depression} and is routinely assessed through clinical interviews that combine speech, facial expressions, and verbal content. Meanwhile, related affective signals---sentiment, emotion, and apparent personality---provide complementary supervision signals that can enrich mental health models through multitask learning \citep{kendall2018multitask}.
 
 Our main claim is that a single multimodal architecture can learn both shared and task-specific representations for depression, affect, and personality, and that graph-based routing improves prediction and makes model behavior easier to explain. We do \emph{not} claim that apparent personality and clinical depression measure the same construct. The proposed system is intended as a decision-support tool and should not replace clinical diagnosis; all results require prospective validation before clinical deployment. Table~\ref{tab:architecture_summary} summarizes the architecture components.
 
@@ -63,7 +63,7 @@ Our main claim is that a single multimodal architecture can learn both shared an
 
 \subsection{Problem Statement}
 
-Clinical depression detection on the DAIC-WOZ dataset \citep{gratch2014distress} is challenging because (a) the training set is small ($n=107$), (b) depression is heterogeneous, and (c) each modality provides incomplete evidence. Prior work has shown that multimodal fusion improves over unimodal baselines \citep{niu2021multimodal,dai2021fullfusion}, but existing approaches either use hard parameter sharing (which causes negative transfer on small datasets) or full tensor fusion (which overfits). Mixture-of-Experts architectures \citep{shazeer2017moe,jacobs2024mmoe} offer a middle ground: controlled sharing through learned task gates, with optional graph-based routing for topological context.
+Clinical depression detection on the DAIC-WOZ dataset \citep{gratch2014distress} is challenging because (a) the training set is small ($n=107$), (b) depression is heterogeneous, and (c) each modality provides incomplete evidence. Prior work has shown that multimodal fusion can improve over unimodal baselines \citep{niu2021multimodal}, but existing approaches either use hard parameter sharing (which causes negative transfer on small datasets) or full tensor fusion (which overfits). Mixture-of-Experts architectures \citep{shazeer2017moe,jacobs2024mmoe} offer a middle ground: controlled sharing through learned task gates, with optional graph-based routing for topological context.
 
 \subsection{Motivation}
 \label{sec:motivation}
@@ -97,11 +97,11 @@ This chapter makes the following contributions:
 
 \subsection{Multimodal Fusion in Affective Computing}
 
-Early multimodal fusion for mental health used simple concatenation or early fusion \citep{dupont2020multitask}. Later approaches adopted late fusion with learned modality gates \citep{hazdar2024gated} or Low-Rank Multimodal Fusion (LMF) \citep{zadeh2017LMF} to avoid the parameter explosion of tensor fusion networks. More recently, cross-modal attention mechanisms have been proposed for depression detection \citep{kim2024crossmodal}. However, in our experimental configuration, we do not observe the reported +0.041 AUROC gain for cross-attention on these datasets; a likely explanation is overparameterization relative to the available training data. To address this, we introduce the Low-Rank Dynamic Gating Network (LR-DGN), which applies a low-rank bottleneck (rank $r=8$--16) before computing gate weights, achieving competitive dynamic modality balancing with fewer parameters than full cross-attention.
+Early multimodal fusion for mental health used simple concatenation or early fusion. Later approaches adopted late fusion with learned modality gates or Low-Rank Multimodal Fusion (LMF) \citep{zadeh2017LMF} to avoid the parameter explosion of tensor fusion networks. More recently, cross-modal attention mechanisms have also been proposed for depression detection. However, in our experimental configuration, we do not observe a benefit from cross-attention over gated fusion on these datasets; a likely explanation is overparameterization relative to the available training data. To address this, we introduce the Low-Rank Dynamic Gating Network (LR-DGN), which applies a low-rank bottleneck (rank $r=8$--16) before computing gate weights, achieving competitive dynamic modality balancing with fewer parameters than full cross-attention.
 
 \subsection{Mixture of Experts in Multitask Learning}
 
-The sparsely-gated MoE layer \citep{shazeer2017moe} routes each input to a subset of experts via a learned gate, enabling conditional computation. Multitask MoE (MMoE) extends this with task-specific gates \citep{ma2018model}, and MMoEEx adds expert exclusivity and orthogonality regularization to prevent expert collapse \citep{jacobs2024mmoe}. PAMoE-MSA \citep{pamoe2025msa} applies a prototype-aware MoE to MOSEI sentiment, reporting Corr=0.774. We build on MMoEEx but add graph-based routing to incorporate topological context.
+The sparsely-gated MoE layer \citep{shazeer2017moe} routes each input to a subset of experts via a learned gate, enabling conditional computation. Multitask MoE (MMoE) extends this with task-specific gates \citep{ma2018model}, and MMoEEx adds expert exclusivity and orthogonality regularization to prevent expert collapse \citep{jacobs2024mmoe}. PAMoE-MSA \citep{pamoe2025msa} applies a polarity-aware MoE to MOSEI sentiment. We build on MMoEEx but add graph-based routing to incorporate topological context.
 
 \subsection{Graph Neural Networks for Routing}
 
@@ -109,7 +109,7 @@ GraphSAGE \citep{graphsage2017inductive} performs inductive representation learn
 
 \subsection{LLM-Enhanced Multimodal Encoders}
 
-Large language models have been applied to depression detection via instruction-tuned text encoders \citep{zhao2025multimodalllm} and audio-language models for paralinguistic features \citep{alam2025wav2vec}. We evaluate LLM-enhanced encoders in our ablation track (levels L1--L5, where L0 = classical encoders) but focus this chapter on the classical encoder results.
+Large language models have been applied to depression detection via instruction-tuned text encoders and multi-modal audio-language models for paralinguistic features \citep{zhao2025multimodalllm}. We evaluate LLM-enhanced encoders in our ablation track (levels L1--L5, where L0 = classical encoders) but focus this chapter on the classical encoder results.
 
 \subsection{Multi-Construct Characterization and Graph-Based Interpretability}
 
@@ -117,7 +117,7 @@ Interpretability for mental health assessment has also been pursued by jointly m
 
 \subsection{Clinical Depression Detection on DAIC-WOZ}
 
-The DAIC-WOZ corpus \citep{gratch2014distress} contains 189 clinical interviews with PHQ-8 depression labels. State-of-the-art methods include: Burdisso et al. GCN (F1=0.85, text-only, includes Ellie's prompts which bias upward) \citep{burdisso2024gcndp}; Zhang et al. MIL (AUROC=0.78) \citep{zhang2025mil}; Niu et al. multimodal fusion (F1=0.92, A+V+T) \citep{niu2021multimodal}; Dai et al. full fusion with cross-attention (F1=0.96, A+V+T) \citep{dai2021fullfusion}; and MMFformer (F1=0.79, ICASSP 2026) \citep{zhang2026mmfformer}. Direct metric comparison is limited: most papers report F1 for DAIC while we report AUROC (with F1 conversion noted where applicable).
+The DAIC-WOZ corpus \citep{gratch2014distress} contains 189 clinical interviews with PHQ-8 depression labels. Prior work spans graph-based text models on transcribed clinical interviews \citep{burdisso2024gcndp}, multiple-instance learning \citep{zhang2025mil}, and hierarchical graph-attention fusion of text and audio \citep{niu2021multimodal}. Reported metrics vary widely by evaluation protocol (F1 vs.\ AUROC, inclusion of therapist/interviewer prompts, differing label thresholds), so we do not attempt a leaderboard-style numeric comparison and instead report AUROC under our own fixed, leakage-safe protocol throughout.
 
 % =============================================================================
 % 8.2 DATASET AND PREPROCESSING
@@ -385,7 +385,7 @@ The evaluation protocol is summarized in Table~\ref{tab:evaluation_protocol}.
 Figure~\ref{fig:unimodal_results} shows unimodal baseline results across all three modalities and all three datasets. Key findings:
 
 \begin{itemize}
-    \item \textbf{DAIC}: Video (AUROC=0.5823) is the strongest modality, followed by text (AUROC=0.5346) and audio (AUROC=0.4686). However, all three AUROC values are close to random chance (0.5) and have widely overlapping 95\% CIs, reflecting the challenging small-sample nature of this dataset ($n=107$ training). Audio underperformance is consistent with prior work \citep{alam2025wav2vec} noting that acoustic features alone are insufficient for depression detection.
+    \item \textbf{DAIC}: Video (AUROC=0.5823) is the strongest modality, followed by text (AUROC=0.5346) and audio (AUROC=0.4686). However, all three AUROC values are close to random chance (0.5) and have widely overlapping 95\% CIs, reflecting the challenging small-sample nature of this dataset ($n=107$ training). Audio underperformance is consistent with prior findings that acoustic features alone are often insufficient for depression detection.
 \end{itemize}
 
 All three datasets beat their respective trivial baselines (AUROC=0.5 for DAIC, CCC$\approx$0 for regression). Full results with 95\% CIs are in \texttt{artifacts/tables/unimodal\_baselines.csv} (51 rows).
@@ -397,7 +397,7 @@ All three datasets beat their respective trivial baselines (AUROC=0.5 for DAIC, 
 
 We evaluate three fusion strategies: GatedLateFusion (our primary), LMF (low-rank multimodal fusion), and CrossAttention (bidirectional cross-modal attention). Results are shown in Table~\ref{tab:fusion_results}.
 
-\textbf{Key finding}: Cross-attention fusion does not outperform gated fusion on any of the three datasets, and we do not observe the reported +0.041 AUROC gain for cross-attention on depression detection \citep{kim2024crossmodal} under our evaluation protocol. On MOSEI, CrossAttn (CCC=0.5397) is 0.0832 below Gated (CCC=0.6229). On DAIC, CrossAttn (AUROC=0.3117) is 0.2229 below the unimodal text baseline (AUROC=0.5346, see Table~\ref{tab:unimodal_results}). One likely explanation is overparameterization: CrossAttn has 65K--2.8M parameters vs 57K--827K for Gated, which can cause overfitting on the small DAIC set ($n=107$). Cross-attention is therefore excluded from subsequent experiments.
+\textbf{Key finding}: Cross-attention fusion does not outperform gated fusion on any of the three datasets under our evaluation protocol. On MOSEI, CrossAttn (CCC=0.5397) is 0.0832 below Gated (CCC=0.6229). On DAIC, CrossAttn (AUROC=0.3117) is 0.2229 below the unimodal text baseline (AUROC=0.5346, see Table~\ref{tab:unimodal_results}). One likely explanation is overparameterization: CrossAttn has 65K--2.8M parameters vs 57K--827K for Gated, which can cause overfitting on the small DAIC set ($n=107$). Cross-attention is therefore excluded from subsequent experiments.
 
 GatedLateFusion achieves MOSEI CCC=0.6229 (+0.1106 vs unimodal text, the largest gain from any fusion method). However, fusion does not improve on DAIC (all fusion methods underperform unimodal text) and fails on FI (all fusion methods produce Avg CCC$\approx$0.0). The FI failure is attributed to MSE loss causing constant-prediction optimization; this is resolved in subsequent experiments by switching to NLL loss for regression.
 
@@ -578,7 +578,7 @@ Results source: \texttt{artifacts/tables/phase08\_llm\_ablations.csv}.
 \subsection{Domain Adaptation}
 \label{sec:domain_adaptation}
 
-We evaluated unsupervised domain adaptation to transfer knowledge from MOSEI and FI to DAIC depression detection. Four methods were tested against a no-adaptation baseline: CORAL \citep{sun2016deep}, MMD \citep{ganin2015dann}, DANN \citep{ganin2016dann}, and a combined CORAL+MMD loss. All methods were evaluated on three transfer scenarios: FI$\to$DAIC, MOSEI$\to$DAIC, and multisource (both FI and MOSEI).
+We evaluated unsupervised domain adaptation to transfer knowledge from MOSEI and FI to DAIC depression detection. Four methods were tested against a no-adaptation baseline: CORAL \citep{sun2017deepcoral}, MMD, DANN \citep{ganin2015dann,ganin2016dann}, and a combined CORAL+MMD loss. All methods were evaluated on three transfer scenarios: FI$\to$DAIC, MOSEI$\to$DAIC, and multisource (both FI and MOSEI).
 
 \begin{itemize}
     \item \textbf{Negative transfer detected}: All four domain adaptation methods underperform the no-adaptation baseline in 10 out of 12 evaluated conditions. The no-adaptation baseline achieves MOSEI$\to$DAIC AUROC=0.6942, while the best DA method (combined CORAL+MMD, FI$\to$DAIC) achieves only 0.6901.
@@ -611,7 +611,7 @@ We evaluated calibration and statistical reliability across all six LLM levels (
     \item \textbf{Cohen's d effect sizes} for all ablation comparisons.
 \end{itemize}
 
-Across all LLM ablation pairs (L1--L5 vs L0), no comparison reached statistical significance at $\alpha=0.05$, reflecting the limited statistical power from the small DAIC validation set ($n=50$). The largest effect sizes are observed for L4 vs L0 ($d=0.170$) and L1 vs L0 ($d=0.152$). We recommend larger-sample replication to establish clinical significance.
+Across all LLM ablation pairs (L1--L5 vs L0), no comparison reached statistical significance at $\alpha=0.05$, reflecting the limited statistical power from the small DAIC validation set ($n=35$). The largest effect sizes are observed for L4 vs L0 ($d=0.170$) and L1 vs L0 ($d=0.152$). We recommend larger-sample replication to establish clinical significance.
 
 Source: \texttt{artifacts/figures/phase\_10\_evaluation/} and \texttt{artifacts/tables/phase10\_evaluation\_results.json}.
 
