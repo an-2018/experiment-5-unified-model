@@ -16,7 +16,7 @@ Usage:
 Hardware:
     - Phase 2: CPU for text/egemaps/openface, GPU (--parallel 1) for WavLM
     - Phase 3-7: GPU recommended (--device cuda)
-    - Phase 8 LLM ablations: Requires 4x NVIDIA RTX A6000 (48GB VRAM each)
+    - Phase 8 LLM ablations: Requires an NVIDIA RTX A6000 (48GB VRAM) or equivalent
       Auto-detects GPUs and distributes Mistral/LLaVA via accelerate device_map="auto"
     - Phase 9-12: CPU acceptable for most, GPU speeds up XAI
 
@@ -29,7 +29,7 @@ Phases:
     5  — MMoEEx (no graph)
     6  — Graph Construction + GraphSAGE/GAT Router
     7  — Joint Multitask Training
-    8  — LLM Modality Ablations (L0–L5 on 4x A6000)
+    8  — LLM Modality Ablations (L0–L5)
     9  — Domain Adaptation (CORAL, MMD, DANN)
     10 — Calibration + Statistical Validation
     11 — XAI (SHAP, GNNExplainer, GraphXAIN)
@@ -242,7 +242,7 @@ def get_phase_commands(phase: int, args) -> list:
 
     elif phase == 8:
         # Phase 8 — LLM modality ablations (L0–L5)
-        # Uses run_phase08_all.sh which auto-detects 4x A6000 and orchestrates L0-L5
+        # Uses run_phase08_all.sh which auto-detects GPUs and orchestrates L0-L5
         # First run: ~14-19 hours (extraction + training). After caching: ~1-3 hours.
         cmds.append(
             "bash scripts/run_phase08_all.sh --execute --epochs 30 --device cuda"
@@ -335,7 +335,7 @@ def main():
     # Print header
     print("=" * 70)
     print(f"Full Pipeline Run — phases {phases_to_run[0]}→{phases_to_run[-1]}")
-    print(f"Hardware: 4x NVIDIA RTX A6000 (48GB VRAM each)")
+    print(f"Hardware: NVIDIA RTX A6000 (48GB VRAM)")
     print(f"Master log: {master_log}")
     print(f"Visualization output: artifacts/figures/phase_XX_name/")
     if args.dry_run:
@@ -347,7 +347,7 @@ def main():
         ml.write(f"# {'='*68}\n")
         ml.write(f"# Pipeline Run — {datetime.now().isoformat()}\n")
         ml.write(f"# Phases: {phases_to_run[0]}→{phases_to_run[-1]}\n")
-        ml.write(f"# Hardware: 4x NVIDIA RTX A6000 (48GB VRAM each)\n")
+        ml.write(f"# Hardware: NVIDIA RTX A6000 (48GB VRAM)\n")
         ml.write(f"# {'='*68}\n")
         ml.write(f"# Log directory: {log_dir}\n")
         ml.write(f"# Master log: {master_log}\n")

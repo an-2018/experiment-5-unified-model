@@ -41,7 +41,7 @@ aaai_artifact/
 |---|---|
 | Python | 3.13 (pinned in `.python-version`) |
 | Package manager | [`uv`](https://docs.astral.sh/uv/) — **do not use pip/conda directly**, dependency resolution assumes uv |
-| GPU | Any CUDA GPU for Phases 3–7, 9–11 (classical encoders). **Phase 8 (LLM ablations, L1–L5)** additionally requires enough VRAM for a frozen Mistral-7B-Instruct text encoder (and CLAP/LLaVA-1.5-7B for L3/L4/L5) — we used 4× NVIDIA RTX A6000 (48GB each); L0 (classical baseline) runs on any GPU or CPU |
+| GPU | Any CUDA GPU for Phases 3–7, 9–11 (classical encoders). **Phase 8 (LLM ablations, L1–L5)** additionally requires enough VRAM for a frozen Mistral-7B-Instruct text encoder (and CLAP/LLaVA-1.5-7B for L3/L4/L5) — a single NVIDIA RTX A6000 (48GB) is sufficient; L0 (classical baseline) runs on any GPU or CPU |
 | RAM | 64GB+ recommended for full-dataset loading |
 | Storage | ~50GB free for extracted feature caches once you supply the raw datasets |
 

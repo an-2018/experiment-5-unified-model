@@ -116,7 +116,7 @@ Depression (DAIC) uses a binary head with BCE loss; sentiment (MOSEI) a regressi
 
 \subsection{Training Details}
 
-AdamW ($\text{lr}{=}3\times10^{-4}$), cosine annealing, early stopping (patience 20 epochs, max 150). Batch size 32. Temperature-balanced sampling ($T{=}3.0$) prevents MOSEI (120$\times$ larger than DAIC) from dominating joint training. Projectors are frozen for the first 20 epochs, then the top 2 layers are unfrozen.
+AdamW ($\text{lr}{=}3\times10^{-4}$), cosine annealing, early stopping (patience 20 epochs, max 150). Batch size 32. Temperature-balanced sampling ($T{=}3.0$) prevents MOSEI (120$\times$ larger than DAIC) from dominating joint training. Projectors are frozen for the first 20 epochs, then the top 2 layers are unfrozen. All experiments, including LLM-based ablations, were trained on a single NVIDIA RTX A6000 GPU.
 
 \subsection{Evaluation}
 
