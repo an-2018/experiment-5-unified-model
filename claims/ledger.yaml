@@ -200,6 +200,25 @@
   tolerance: 0.01
   manuscript_location: "Reproducibility appendix / documented failure mode section."
 
+- id: A-MPDD-ALL-FIVE-TRAITS-NEGATIVE
+  kind: assertion
+  check: all_fields_negative
+  statement: >
+    RESOLVED 2026-07-28. Binds the manuscript's "held-out R^2 negative for
+    all five traits" claim to the actual per-trait artifact array, catching
+    a real bug this session: the manuscript previously said "four of five"
+    while citing Agreeableness (R^2=-1.75, still negative) as the "best" --
+    internally inconsistent (if the best is negative, all five are), and a
+    class of error the ledger's own scalar-tolerance checks cannot catch
+    since they never bind a prose COUNT to the full array, only individual
+    pinned values. Fixed in main-conference.tex, journal_paper.tex (2
+    locations each) and supplementary.tex (which also had an unsupported
+    "Agreeableness reaches +0.1 under PCA" claim with no backing script or
+    artifact, removed).
+  source: artifacts/stats/mpdd_regressor_generalization.json
+  args:
+    field: test_r2
+
 # =====================================================================
 # INTERVALS (7)
 # =====================================================================

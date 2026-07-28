@@ -157,6 +157,27 @@ def _assert_list_is_empty(claim):
     return True, f"all {len(pointers)} pointer(s) empty as required"
 
 
+def _assert_all_fields_negative(claim):
+    """Binds a prose count claim ('all N traits negative') to the actual
+    artifact array, so a miscounted 'N of 5' in the manuscript can't survive
+    verification silently -- catches exactly the class of error where a
+    sentence's count and its cited exemplars disagree."""
+    data = load_source(claim)
+    field = claim["args"]["field"]
+    keys = claim["args"].get("keys") or list(data.keys())
+    values = {}
+    for k in keys:
+        entry = data[k]
+        values[k] = entry[field] if isinstance(entry, dict) else entry
+    non_negative = {k: v for k, v in values.items() if v >= 0}
+    if non_negative:
+        return False, f"expected all {len(keys)} '{field}' values negative; non-negative: {non_negative}"
+    worst = min(values, key=values.get)
+    least_negative = max(values, key=values.get)
+    return True, (f"all {len(keys)} '{field}' values negative "
+                  f"(worst: {worst}={values[worst]:.4f}, least negative: {least_negative}={values[least_negative]:.4f})")
+
+
 def _assert_same_sample_ids_across_arms(claim):
     import pandas as pd
     profiles_dir = REPO_ROOT / claim["args"]["profiles_dir"]
@@ -325,6 +346,7 @@ CHECKS = {
     "no_reportable_deltas": _assert_no_reportable_deltas,
     "min_reportable_deltas": _assert_min_reportable_deltas,
     "list_is_empty": _assert_list_is_empty,
+    "all_fields_negative": _assert_all_fields_negative,
     "same_sample_ids_across_arms": _assert_same_sample_ids_across_arms,
     "headline_points_to_stratified": _assert_headline_points_to_stratified,
     "checkpoint_hash_matches": _assert_checkpoint_hash_matches,
