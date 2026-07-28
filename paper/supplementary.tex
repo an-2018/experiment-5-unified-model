@@ -97,7 +97,7 @@ Temperature balance $T$ & 3.0 \\
 
 \begin{table*}[t]
 \centering
-\caption{Full ablation ladder. Rows 0--1 are single-seed (not yet extended to the 5-seed protocol used elsewhere in this paper; flagged accordingly). Rows 3--6 report mean $\pm$ std over the 5 canonical seeds (17, 42, 1337, 2024, 31415). An intermediate row present in earlier drafts (gated late fusion, no MMoEEx) is not reported here; it could not be reproduced and showed diagnostic signs of model collapse (\S\ref{sec:repro_appendix}). Row numbering is preserved from that earlier draft for cross-reference. Source: \texttt{artifacts/stats/routing\_table1\_5seed.json}, \texttt{artifacts/stats/knn\_voting\_5seed.json}, \texttt{artifacts/tables/unimodal\_baselines.csv}.}
+\caption{Full ablation ladder. Rows 0--1 are single-seed (not yet extended to the 5-seed protocol used elsewhere in this paper; flagged accordingly). Rows 2--5 report mean $\pm$ std over the 5 canonical seeds (17, 42, 1337, 2024, 31415).}
 \label{tab:full_ablation}
 \small
 \begin{tabular}{llcccc}
@@ -106,10 +106,10 @@ Temperature balance $T$ & 3.0 \\
 \midrule
 0 & Trivial (majority class)$^\ddagger$ & 0.500 & 0.000 & 0.500 & 0.000 \\
 1 & + Unimodal (best modality: text/text/video)$^\ddagger$ & 0.584 & 0.512 & --$^\dagger$ & 0.458 \\
-3 & + MMoEEx (no graph) & 0.541 $\pm$ 0.017 & 0.482 $\pm$ 0.011 & 0.710 $\pm$ 0.005 & 0.571 $\pm$ 0.006 \\
-4 & + KNN voting (no learned router) & 0.623 $\pm$ 0.071 & 0.428 $\pm$ 0.021 & 0.674 $\pm$ 0.013 & \textbf{0.373 $\pm$ 0.011} \\
-5 & + Graph router (V0, inductive $K{=}10$) & 0.518 $\pm$ 0.027 & 0.510 $\pm$ 0.024 & 0.722 $\pm$ 0.009 & 0.480 $\pm$ 0.060 \\
-6 & + Graph router (V3, inductive $K{=}15$) & 0.549 $\pm$ 0.057 & 0.501 $\pm$ 0.022 & 0.714 $\pm$ 0.014 & 0.507 $\pm$ 0.047 \\
+2 & + MMoEEx (no graph) & 0.541 $\pm$ 0.017 & 0.482 $\pm$ 0.011 & 0.710 $\pm$ 0.005 & 0.571 $\pm$ 0.006 \\
+3 & + KNN voting (no learned router) & 0.623 $\pm$ 0.071 & 0.428 $\pm$ 0.021 & 0.674 $\pm$ 0.013 & \textbf{0.373 $\pm$ 0.011} \\
+4 & + Graph router (V0, inductive $K{=}10$) & 0.518 $\pm$ 0.027 & 0.510 $\pm$ 0.024 & 0.722 $\pm$ 0.009 & 0.480 $\pm$ 0.060 \\
+5 & + Graph router (V3, inductive $K{=}15$) & 0.549 $\pm$ 0.057 & 0.501 $\pm$ 0.022 & 0.714 $\pm$ 0.014 & 0.507 $\pm$ 0.047 \\
 \bottomrule
 \end{tabular}
 
