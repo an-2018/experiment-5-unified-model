@@ -157,6 +157,7 @@ Across 5 independently trained seeds of the non-graph MMoEEx baseline, the 12-di
     \footnotesize
     \caption{DAIC test AUROC, mean $\pm$ std over 5 seeds, projections of the identical fused representation and fitting protocol. Top: full 12 dimensions. Middle: matched dimensionality after dropping per-seed near-constant profile dimensions (PCA reported at full dimensionality only, having no analogous issue). Bottom: matched-dimension delta, as a cross-seed statistic and a subject-level bootstrap (2000 resamples) propagating training and test-sampling uncertainty.}
     \label{tab:construct_ladder}
+    \resizebox{\columnwidth}{!}{%
     \begin{tabular}{lc}
         \toprule
         Representation                             & DAIC AUROC                  \\
@@ -171,7 +172,8 @@ Across 5 independently trained seeds of the non-graph MMoEEx baseline, the 12-di
         $\Delta$, matched dim.\ (cross-seed)       & $-0.063 \pm 0.011$          \\
         $\Delta$, subject-bootstrap mean (95\% CI) & $-0.076$ $[-0.119, -0.037]$ \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 Because all 5 seeds share the same 47 test participants, a cross-seed comparison alone would propagate only training-randomness uncertainty, not test-subject sampling uncertainty — the source that actually determines whether this generalizes. A subject-level bootstrap (2000 resamples of the 47 test participants, delta between the degeneracy-controlled profile and the matched random projection averaged across all 5 seeds' fixed predictions within each resample) gives mean delta $-0.076$, 95\% CI $[-0.119, -0.037]$, entirely below zero (99.95\% of resamples negative). This is the properly-powered statistic for the claim: propagating both training and test-sampling uncertainty, the inversion holds.
