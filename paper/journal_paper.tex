@@ -233,6 +233,7 @@ Across 5 independently trained seeds of the non-graph MMoEEx baseline, the 12-di
     \caption{DAIC test AUROC, mean $\pm$ std over 5 seeds, for three projections of the identical fused representation under an identical fitting protocol. Top: full 12 dimensions. Bottom: after dropping per-seed near-constant profile dimensions and regenerating the random projection at matching reduced dimensionality (PCA has no analogous near-constant-dimension issue, so is reported only at full dimensionality); $\Delta$ is the degeneracy-controlled construct profile minus the matched random projection, with a subject-level bootstrap CI (2000 resamples) propagating both training-seed and test-subject sampling uncertainty.}
     \label{tab:construct_ladder_journal}
     \small
+    \resizebox{\columnwidth}{!}{%
     \begin{tabular}{lc}
         \toprule
         Representation                                & DAIC AUROC        \\
@@ -247,7 +248,8 @@ Across 5 independently trained seeds of the non-graph MMoEEx baseline, the 12-di
         $\Delta$, matched dim.\ (cross-seed)             & $-0.063 \pm 0.011$ \\
         $\Delta$, subject-bootstrap mean (95\% CI)       & $-0.076$ $[-0.119, -0.037]$ \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 Because all 5 seeds share the same 47 test participants, a cross-seed comparison alone would propagate only training-randomness uncertainty, not test-subject sampling uncertainty. A subject-level bootstrap (2000 resamples of the 47 test participants, delta averaged across all 5 seeds' fixed predictions within each resample) gives mean delta $-0.076$, 95\% CI $[-0.119, -0.037]$, entirely below zero (99.95\% of resamples negative) — the properly-powered statistic for this claim.
@@ -275,17 +277,17 @@ Five graph variants (V0--V4) are compared against the non-graph MMoEEx baseline 
     \caption{Graph routing vs.\ non-graph MMoEEx baseline, mean $\pm$ std over the 5 canonical seeds, real labels and evaluation throughout. \textbf{Bold} only where reportable (SPEC-H4-03).}
     \small
     \resizebox{\columnwidth}{!}{
-        \begin{tabular}{lccc}
+        \begin{tabular}{lcccc}
             \toprule
-            Variant                 & DAIC AUROC      & MOSEI Sent.\ CCC       & FI CCC             \\
+            Variant                 & DAIC AUROC      & MOSEI Sent.\ CCC       & MOSEI Emo.\ AUROC      & FI CCC             \\
             \midrule
-            \emph{Non-graph MMoEEx} & \emph{0.541 $\pm$ 0.017}   & \emph{0.482 $\pm$ 0.011}   & \emph{0.571 $\pm$ 0.006} \\
+            \emph{Non-graph MMoEEx} & \emph{0.541 $\pm$ 0.017}   & \emph{0.482 $\pm$ 0.011}   & \emph{0.710 $\pm$ 0.005}   & \emph{0.571 $\pm$ 0.006} \\
             \midrule
-            V0 (inductive-k10)      & 0.518 $\pm$ 0.027   & 0.510 $\pm$ 0.024   & \textbf{0.480 $\pm$ 0.060} \\
-            V1 (split-local-k10)    & 0.543 $\pm$ 0.033   & 0.498 $\pm$ 0.023   & \textbf{0.481 $\pm$ 0.052} \\
-            V2 (transductive-k10)   & 0.595 $\pm$ 0.063   & 0.486 $\pm$ 0.019   & \textbf{0.493 $\pm$ 0.050} \\
-            V3 (inductive-k15)      & 0.549 $\pm$ 0.057   & 0.501 $\pm$ 0.022   & 0.507 $\pm$ 0.047 \\
-            V4 (split-local-k15)    & 0.538 $\pm$ 0.051   & 0.501 $\pm$ 0.017   & 0.506 $\pm$ 0.046 \\
+            V0 (inductive-k10)      & 0.518 $\pm$ 0.027   & 0.510 $\pm$ 0.024   & 0.722 $\pm$ 0.009   & \textbf{0.480 $\pm$ 0.060} \\
+            V1 (split-local-k10)    & 0.543 $\pm$ 0.033   & 0.498 $\pm$ 0.023   & 0.721 $\pm$ 0.012   & \textbf{0.481 $\pm$ 0.052} \\
+            V2 (transductive-k10)   & 0.595 $\pm$ 0.063   & 0.486 $\pm$ 0.019   & 0.709 $\pm$ 0.029   & \textbf{0.493 $\pm$ 0.050} \\
+            V3 (inductive-k15)      & 0.549 $\pm$ 0.057   & 0.501 $\pm$ 0.022   & 0.714 $\pm$ 0.014   & 0.507 $\pm$ 0.047 \\
+            V4 (split-local-k15)    & 0.538 $\pm$ 0.051   & 0.501 $\pm$ 0.017   & 0.715 $\pm$ 0.014   & 0.506 $\pm$ 0.046 \\
             \bottomrule
         \end{tabular}
     }
@@ -315,6 +317,7 @@ Applying the SPEC-H4-03 reportability rule to all 20 (variant $\times$ metric) c
     \caption{Real graph neighbors vs.\ random pairing. ``Untrained embedding'' is the representation actually used to build every V0--V4 routing graph. ``Trained repr.'' recomputes the identical diagnostic on the corresponding trained checkpoint's own fused representation.}
     \label{tab:homophily_journal}
     \small
+    \resizebox{\columnwidth}{!}{%
     \begin{tabular}{lcc}
         \toprule
         Task (representation)                        & Real graph & Random \\
@@ -327,7 +330,8 @@ Applying the SPEC-H4-03 reportability rule to all 20 (variant $\times$ metric) c
         FI, untrained embedding (5-seed mean)          & 0.289      & $-$0.000 \\
         FI, trained repr.\ (correlation)               & 0.423      & $-$0.001 \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 On the untrained embedding actually used for routing, the 5-seed result is unambiguous and uniform: DAIC shows no signal beyond chance in any of the four leakage-safe variants ($p \in [0.12, 0.78]$), while MOSEI and FI both show strong signal in every variant ($p<0.0001$). Recomputing the identical diagnostic on the trained representation instead shows a more specific secondary pattern, on the representation not actually used for routing: DAIC signal is graph-topology-dependent (real edges exceed random pairing for the two inductive variants, $p<0.0001$; split-local variants show no separation, $p{=}0.36$ and $p{=}0.94$), while MOSEI and FI again show strong signal regardless of topology. Neither version of the diagnostic explains the FI degradation above: FI carries strong real signal by both measures, in every variant, yet routing reportably \emph{hurts} FI prediction rather than merely failing to exploit available signal — the router's failure mode on FI is not signal absence.
