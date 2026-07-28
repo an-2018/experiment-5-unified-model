@@ -1,5 +1,5 @@
 %%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'primaryColor': '#1a1a2e', 'primaryBorderColor': '#16213e', 'lineColor': '#a0a0a0', 'secondaryColor': '#0f3460', 'tertiaryColor': '#2d6a4f' }} }%%
-graph TD
+graph LR
     %% =========================================================================
     %% Phase 0: Environment Setup
     %% =========================================================================
@@ -44,11 +44,11 @@ graph TD
     P4 --> P4_Sub --> P4_Out
 
     %% =========================================================================
-    %% Phase 5: MMoEEx (No Graph)
+    %% Phase 5: MMoEEx (No Graph) -- non-graph baseline, 5 canonical seeds
     %% =========================================================================
-    P5["Phase 5: MMoEEx Multitask Backbone<br>(scripts/phase05_mmoe_ex.py)"]
-    P5_Sub["Key params:<br>- 8 experts (2 per task group)<br>- Expert isolation: {0→[0,1], 1→[2,3], 2→[2,3], 3→[4,5]}<br>- Homoscedastic uncertainty weighting<br>- Task-specific linear gates"]
-    P5_Out["Artifacts: task-expert heatmaps,<br>expert diversity plots, gate entropy curves,<br>loss curves per task, uncertainty weights,<br>best checkpoint: mmoe_ex_best.pt"]
+    P5["Phase 5: MMoEEx Multitask Backbone (non-graph baseline)<br>(scripts/phase05_mmoe_ex.py --seed {17,42,1337,2024,31415})"]
+    P5_Sub["Key params:<br>- 8 experts (2 per task group)<br>- Expert isolation: {0→[0,1], 1→[2,3], 2→[2,3], 3→[4,5]}<br>- Homoscedastic uncertainty weighting<br>- Task-specific linear gates<br>- Sampling-weight bug fixed: was silently<br>  capping DAIC AUROC at chance (0.493)"]
+    P5_Out["Artifacts: 5-seed task-expert heatmaps,<br>expert diversity plots, gate entropy curves,<br>loss curves per task, uncertainty weights,<br>checkpoints: mmoe_ex_best_seed{N}.pt"]
 
     P2_Out & P4_Out --> P5
     P5 --> P5_Sub --> P5_Out
@@ -57,71 +57,70 @@ graph TD
     %% Phase 6: Graph Construction
     %% =========================================================================
     P6["Phase 6: Leakage-Safe Graph Construction<br>(scripts/phase06_graph.py, src/data/graph_builder.py)"]
-    P6_Sub["Graph types:<br>- split-local (PRIMARY): per-split KNN<br>- inductive: test→train only edges<br>- transductive (ABLATION): cross-split edges<br>KNN params: k=10, cosine distance<br>Validation: validate_graph_leakage()"]
+    P6_Sub["Graph types:<br>- inductive (V0, V3): test→train only edges<br>- split-local (V1, V4): per-split KNN<br>- transductive (V2, ABLATION): cross-split edges<br>KNN params: k∈{5,10,15,20}, cosine distance<br>Validation: validate_graph_leakage()<br>NOTE: built on a fresh, randomly-initialized<br>projection of raw features, not the trained<br>model's own fused representation -- disclosed<br>in Method/Results rather than carried forward silently"]
     P6_Out["Artifacts: KNN graph edge indices,<br>degree distributions, dataset mixing matrices,<br>neighborhood examples,<br>leakage validation reports"]
 
     P2_Out & P5_Out --> P6
     P6 --> P6_Sub --> P6_Out
 
     %% =========================================================================
-    %% Phase 7: Joint GG-MoE Training (CORE)
+    %% Phase 7: Joint GG-MoE Training (CORE), 5 canonical seeds + K-sweep + learned-lambda
     %% =========================================================================
-    P7["Phase 7: Joint Multitask GG-MoE Training<br>(scripts/phase07_joint_training.py)"]
-    P7_Sub["Training config:<br>- 150 epochs, AdamW lr=3e-4<br>- CosineAnnealingLR scheduler<br>- Batch size: 32, Temperature: 3.0<br>- Projectors frozen 0-20 epochs<br>- Graph weight: 0.5 (log-space fusion)<br>- Negative transfer monitor (95% baseline)<br>- GraphSAGE/GAT router with KNN edges<br>- Early stopping patience: 20 epochs<br>- Gradient clipping: max_norm=1.0"]
-    P7_Monitors["Training monitors:<br>- Per-task loss curves (4 tasks)<br>- AUROC/CCC metrics over time<br>- Routing entropy over time<br>- Negative transfer regression log<br>- Uncertainty-weighted multi-task loss<br>- Expert usage statistics"]
-    P7_Out["Artifacts: training curves,<br>metrics over training, routing entropy plot,<br>best checkpoint: phase07_best.pt,<br>results: phase07_results.csv"]
+    P7["Phase 7: Joint Multitask GG-MoE Training<br>(scripts/phase07_joint_training.py --seed {17,42,1337,2024,31415})"]
+    P7_Sub["Training config:<br>- 150 epochs, AdamW lr=3e-4<br>- CosineAnnealingLR scheduler<br>- Batch size: 32, Temperature: 3.0<br>- Projectors frozen 0-20 epochs<br>- Graph weight λ: 0.5 fixed (V0-V4), or<br>  learned per-task (V0learned)<br>- K-sensitivity sweep: K∈{5,10,15,20}<br>- Negative transfer monitor (95% baseline)<br>- GraphSAGE/GAT router with KNN edges<br>- Early stopping patience: 20 epochs"]
+    P7_Monitors["Training monitors:<br>- Per-task loss curves (4 tasks)<br>- AUROC/CCC metrics over time<br>- Routing entropy over time<br>- Negative transfer regression log<br>- Uncertainty-weighted multi-task loss"]
+    P7_Out["Artifacts: 25 runs (V0-V4 x 5 seeds) +<br>10 runs (K5/K20 x 5 seeds) + 5 runs (V0learned),<br>checkpoints: phase07_best_{variant}_seed{N}.pt,<br>results: phase07_results_{variant}_seed{N}.csv"]
 
     P2_Out & P5_Out & P6_Out --> P7
     P7 --> P7_Sub --> P7_Monitors --> P7_Out
 
     %% =========================================================================
-    %% Phase 8: LLM Ablations
+    %% CENTRAL RESULT: 5-Seed Statistical Analysis & Claim Verification
     %% =========================================================================
-    P8["Phase 8: LLM-Enhanced Ablations (L0-L5)<br>(scripts/phase08_llm_ablations.py)"]
-    P8_Levels["LLM Ablation Matrix:<br>L0: Classical only (RoBERTa+WavLM+OpenFace)<br>L1: +Mistral-7B text (frozen, dim=4096)<br>L2: +Mistral-7B text (LoRA r=16, α=32)<br>L3: +CLAP audio (dim=512)<br>L4: +LLaVA video (dim=4096)<br>L5: Full LLM stack (T:4096, A:512, V:4096)"]
-    P8_Out["Artifacts: per-level predictions,<br>LLM feature UMAP projections,<br>cost/performance plot,<br>feature attribution comparisons,<br>checkpoints: phase08_L{0-5}_best.pt"]
+    PA["★ Central-Result Analysis (analysis/)<br>Construct-profile vs. unsupervised-projection comparison,<br>MPDD ground-truth-vs-estimated dissociation,<br>5-seed reportability statistics (SPEC-H4-03)"]
+    PA_Construct["Construct bottleneck (E1/E7):<br>- e1_e7_profile_gate.py: construct profile vs.<br>  random projection vs. PCA-12, 5 seeds<br>- e1_degeneracy_check.py / e1_degeneracy_controlled_rerun.py<br>- e1_indomain_control.py: in-domain re-derivation, 5 seeds<br>- e1_subject_bootstrap.py: 2000-resample subject-level CI<br>- e1_statistical_treatment.py: DeLong, sign test, paired t"]
+    PA_MPDD["MPDD dissociation:<br>- mpdd_groundtruth_traits_ci.py: ground-truth Big-Five<br>  decodes depression (subject-level, deduplicated)<br>- mpdd_construct_inversion_replication.py: estimated-trait<br>  regressor fails the held-out generalization gate<br>- mpdd_stratified_auc.py: within-track AUC for pooled arm"]
+    PA_Routing["Routing / homophily reportability:<br>- aggregate_routing_table1.py + routing_table1_statistics.py<br>- aggregate_ksweep_learned_lambda.py<br>- homophily_trained_representation.py (untrained vs.<br>  trained-representation diagnostic)"]
+    PA_Out["Artifacts: artifacts/stats/*.json (5-seed aggregates<br>+ reportability statistics), artifacts/profiles/*.parquet"]
 
-    P2_Out & P7_Out --> P8
-    P8 --> P8_Levels --> P8_Out
-
-    %% =========================================================================
-    %% Phase 9: Domain Adaptation
-    %% =========================================================================
-    P9["Phase 9: Domain Adaptation<br>(scripts/phase09_domain_adaptation.py,<br>src/training/domain_adaptation.py)"]
-    P9_Methods["Methods:<br>- CORAL (correlation alignment)<br>- MMD (RBF kernel)<br>- DANN (gradient reversal)<br>- All three combined"]
-    P9_Out["Artifacts: domain alignment UMAPs,<br>domain shift metrics,<br>adaptation ablation tables"]
-
-    P2_Out & P7_Out --> P9
-    P9 --> P9_Methods --> P9_Out
+    P7_Out --> PA
+    PA --> PA_Construct & PA_MPDD & PA_Routing --> PA_Out
 
     %% =========================================================================
-    %% Phase 10: Calibration & Evaluation
+    %% Claim-Verification Harness
     %% =========================================================================
-    P10["Phase 10: Calibration & Statistical Validation<br>(scripts/phase10_calibration.py,<br>scripts/statistical_validation.py)"]
-    P10_Calib["Calibration methods:<br>- Temperature scaling (L-BFGS)<br>- Platt scaling (L-BFGS)<br>- Isotonic regression<br>Metrics: Brier score, ECE, reliability curves"]
-    P10_Stats["Statistical tests:<br>- BCa bootstrap CIs (2000 samples)<br>- DeLong test for AUROC comparison<br>- Paired permutation tests (10000)<br>- Cohen's d effect size<br>- Paired bootstrap delta CIs"]
-    P10_Out["Artifacts: reliability diagrams,<br>ROC/PR curves, calibration curves,<br>bootstrap CI bar charts,<br>Bland-Altman plots,<br>statistical significance tables"]
+    PL["Claim-Verification Harness (claims/)<br>ledger.yaml: 48 claims, each bound to a source<br>artifact + tolerance/check; verify_claims.py<br>--pre-submission: strict gate, incl. quarantined-<br>number placement (discarded/irreproducible values<br>confined to the reproducibility appendix)"]
 
-    P7_Out & P8_Out & P9_Out --> P10
-    P10 --> P10_Calib --> P10_Stats --> P10_Out
+    PA_Out --> PL
 
     %% =========================================================================
-    %% Phase 11: XAI
+    %% Single-Seed Exploratory Cluster (excluded from main paper claims)
     %% =========================================================================
-    P11["Phase 11: Explainability (XAI)<br>(scripts/xai_analysis.py,<br>scripts/phase11_xai.py)"]
-    P11_Methods["Methods:<br>- SHAP (modality-level attribution)<br>- Gradient sensitivity (feature-level)<br>- GNNExplainer (subgraph importance)<br>- Perturbation tests (modality removal)<br>- Counterfactual tests (minimal change needed)<br>- GraphXAIN LLM narratives"]
-    P11_Out["Artifacts: SHAP force plots,<br>GNN subgraph visualizations,<br>routing weight heatmaps,<br>modality attribution bar charts,<br>GraphXAIN LLM narrative examples,<br>case-study panels"]
+    PX["⚠ Single-Seed Exploratory Material (excluded from main claims)<br>LLM ablations (L0-L5), calibration, domain adaptation, XAI<br>Reported ONLY in a supplementary no-claims-made section --<br>reporting these as confirmatory would be self-refuting for a<br>paper whose thesis is that single-seed results can mislead"]
+    P8["Phase 8: LLM-Enhanced Ablations (L0-L5)<br>(scripts/phase08_llm_ablations.py) -- single seed"]
+    P9["Phase 9: Domain Adaptation<br>(scripts/phase09_domain_adaptation.py) -- single seed"]
+    P10["Phase 10: Calibration & Statistical Validation<br>(scripts/phase10_calibration.py) -- single seed"]
+    P11["Phase 11: Explainability (XAI)<br>(scripts/phase11_xai.py) -- single seed"]
 
-    P7_Out & P8_Out & P10_Out --> P11
-    P11 --> P11_Methods --> P11_Out
+    P7_Out -.-> PX
+    PX -.-> P8 & P9 & P10 & P11
 
     %% =========================================================================
-    %% Phase 12: Thesis Export
+    %% Paper & Artifact Export
     %% =========================================================================
-    P12["Phase 12: Thesis Chapter Export<br>(scripts/phase12_thesis.py)"]
-    P12_Out["Artifacts: paper/chapter_8.tex,<br>paper/figures/ (10 figures),<br>paper/tables/ (14 tables),<br>all architecture .mmd diagrams,<br>visualization summary (10 phases)"]
+    P12["Paper & Artifact Export<br>(paper/main-conference.tex, supplementary.tex,<br>journal_paper.tex, aaai_artifact/)"]
+    P12_Out["Artifacts: main-conference.pdf, supplementary.pdf,<br>reversal-catalogue table (6 documented single-seed→<br>multi-seed reversals), aaai_artifact.zip"]
 
-    P3_Out & P4_Out & P5_Out & P6_Out --> P12
-    P7_Out & P8_Out & P9_Out --> P12
-    P10_Out & P11_Out --> P12
+    PL --> P12
+    PX -.-> P12
     P12 --> P12_Out
+
+    %% =========================================================================
+    %% Styling
+    %% =========================================================================
+    classDef central fill:#2d6a4f,stroke:#16213e,color:#ffffff,stroke-width:2px;
+    classDef exploratory fill:#3a3a3a,stroke:#16213e,color:#c0c0c0,stroke-dasharray: 5 5;
+    classDef harness fill:#e63946,stroke:#16213e,color:#ffffff;
+    class PA,PA_Construct,PA_MPDD,PA_Routing,PA_Out central;
+    class PX,P8,P9,P10,P11 exploratory;
+    class PL harness;

@@ -62,7 +62,7 @@ This work makes five contributions: (1) a leakage-safe graph construction protoc
 \begin{figure*}[t]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/pipeline-flow.png}
-    \caption{Implementation details of the experimental pipeline and joint multitask training. The diagram shows the progression from dataset caching through the non-graph MMoEEx baseline into the Phase 7 multitask epoch loop---including the negative-transfer monitor and progressive unfreezing mechanisms---and concluding with downstream domain adaptation, calibration, and XAI validation layers.}
+    \caption{Implementation details of the experimental pipeline. The diagram shows the progression from dataset caching through the non-graph MMoEEx baseline into the Phase 7 multitask epoch loop (5-seed protocol, K-sensitivity sweep, learned routing weight), feeding the central-result analysis (construct-profile comparison, MPDD dissociation, 5-seed reportability statistics) and the claim-verification harness. LLM ablations, domain adaptation, calibration, and XAI (dashed) are single-seed exploratory material, excluded from the paper's claims (Section~\ref{sec:exploratory}).}
     \label{fig:process_flow}
 \end{figure*}
 
