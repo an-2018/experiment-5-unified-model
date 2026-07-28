@@ -180,6 +180,7 @@ An early version of this analysis computed depression decoding directly from the
     \caption{Graph routing vs.\ non-graph MMoEEx baseline, mean $\pm$ std over the 5 canonical seeds (17, 42, 1337, 2024, 31415), real labels and evaluation throughout. A cell is \textbf{bolded} only where the delta from baseline is reportable under the SPEC-H4-03 rule ($|\Delta| > \max(\text{baseline CI half-width}, 2\times\text{pooled seed std})$); all other deltas are within seed noise at this sample size.}
     \label{tab:graph_ablation}
     \small
+    \resizebox{\columnwidth}{!}{%
     \begin{tabular}{lccc}
         \toprule
         Variant                 & DAIC AUROC         & MOSEI Sent.\ CCC   & FI CCC                        \\
@@ -192,7 +193,8 @@ An early version of this analysis computed depression decoding directly from the
         V3 (inductive-k15)      & 0.549 $\pm$ 0.057  & 0.501 $\pm$ 0.022  & 0.507 $\pm$ 0.047 \\
         V4 (split-local-k15)    & 0.538 $\pm$ 0.051  & 0.501 $\pm$ 0.017  & 0.506 $\pm$ 0.046 \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 The non-graph baseline reaches DAIC AUROC $0.541 \pm 0.017$ over 5 seeds — a non-chance, working classifier (a sampling bug that previously capped an earlier version of this baseline at chance level is diagnosed and fixed; reproducibility appendix, supplementary material). Applying the SPEC-H4-03 reportability rule (a delta counts only if it exceeds both the baseline's own confidence interval half-width and twice the pooled seed standard deviation) to all 20 (variant $\times$ metric) cells on DAIC and MOSEI: \textbf{none are reportable} — every apparent difference from baseline on DAIC AUROC, MOSEI sentiment CCC, and MOSEI emotion AUROC is within seed noise at $n{=}5$ seeds. This supersedes an earlier single-seed version of this table that read "every variant underperforms baseline on DAIC" and "every variant exceeds baseline on MOSEI sentiment" — both directional claims that do not survive proper multi-seed statistical treatment; V1 and V3 even show a (non-reportable) small positive DAIC delta. FI personality is the exception: 3 of 5 variants (V0, V1, V2) show a reportable \emph{negative} delta ($p<0.05$, paired $t$-test against the 5 matched seeds), and the remaining two (V3, V4) are borderline ($p\approx0.05$–$0.06$) — graph routing consistently and substantially degrades FI personality prediction, the one directionally robust routing effect in this study. A KNN-voting baseline (label smoothing over the same graph neighbourhoods, no learned router), extended to the same 5 seeds, reaches DAIC AUROC $0.623 \pm 0.071$ — numerically above the non-graph baseline, but not reportably so (paired $\Delta{=}{+}0.083$, $p{=}0.087$). It is, however, reportably \emph{worse} than the non-graph baseline on all three other metrics (MOSEI sentiment CCC, MOSEI emotion AUROC, FI CCC; all $p<0.02$; supplementary material) — simple neighbourhood label-smoothing is not a free improvement once measured across seeds, even though a single-seed comparison previously made it look competitive on DAIC alone.
@@ -204,6 +206,7 @@ A homophily diagnostic (same-dataset edge label agreement/correlation vs.\ rando
     \caption{Real graph neighbours vs.\ random pairing. "Untrained embedding" is the representation actually used to build every V0--V4 routing graph (random projection of raw features, no trained checkpoint loaded; averaged over the 4 leakage-safe variants). "Trained representation" recomputes the identical diagnostic on the corresponding trained checkpoint's own fused representation (mean over 6 checkpoints $\times$ the 4 variants; DAIC shown split by graph topology since it differs qualitatively, Section~\ref{sec:results}).}
     \label{tab:homophily}
     \small
+    \resizebox{\columnwidth}{!}{%
     \begin{tabular}{lcc}
         \toprule
         Task (representation)                        & Real graph & Random \\
@@ -216,7 +219,8 @@ A homophily diagnostic (same-dataset edge label agreement/correlation vs.\ rando
         FI, untrained embedding (5-seed mean)          & 0.289      & $-$0.000 \\
         FI, trained repr.\ (correlation)               & 0.423      & $-$0.001 \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}%
+    }
 \end{table}
 
 Two targeted fixes were tried against the (untrained-embedding) DAIC null, both extended to the full 5-seed protocol (mean $\pm$ std; reportability per SPEC-H4-03, same rule and same non-graph baseline as Table~\ref{tab:graph_ablation}). A $K\in\{5,10,15,20\}$ sweep (inductive graph; $K{=}10$ and $K{=}15$ are V0 and V3 above) shows no monotonic trend and no configuration's DAIC delta from baseline is reportable ($K{=}5$: $0.541\pm0.048$, $\Delta{=}{+}0.001$, $p{=}0.97$; $K{=}20$: $0.526\pm0.057$, $\Delta{=}{-}0.015$, $p{=}0.55$); $K{=}5$ does show a reportable negative FI delta ($p{=}0.04$), consistent with the FI-degradation pattern above, while $K{=}20$'s FI delta is borderline ($p{=}0.06$). A learned per-task routing weight (replacing the fixed $\lambda{=}0.5$) reaches DAIC AUROC $0.546\pm0.034$ — a single-seed comparison previously read this as "a real gain on DAIC" (0.489 $\to$ 0.525 for one training run); across 5 seeds, the delta from the fixed-$\lambda$ V0 configuration is $+0.028$ but not reportable ($p{=}0.007$ by paired $t$-test alone, but below the SPEC-H4-03 threshold once cross-seed variance is accounted for), so this single-seed claim does not survive multi-seed treatment either — a sixth instance of the reversal pattern documented in the reproducibility appendix (supplementary material). Neither fix recovers a reportable DAIC benefit, consistent with the diagnosis that the routing graph itself lacks the relevant signal.
