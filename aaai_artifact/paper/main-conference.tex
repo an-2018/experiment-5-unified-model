@@ -1,0 +1,237 @@
+% VEENUE: https://aaai.org/conference/aaai/aaai-27/main-technical-track-call
+\documentclass[letterpaper]{article}
+\usepackage[submission]{aaai2027}
+\usepackage{times}
+\usepackage{helvet}
+\usepackage{courier}
+\usepackage[hyphens]{url}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{natbib}
+\usepackage{caption}
+\frenchspacing
+\setlength{\pdfpagewidth}{8.5in}
+\setlength{\pdfpageheight}{11in}
+\urlstyle{rm}
+\def\UrlFont{\rm}
+
+\pdfinfo{
+/TemplateVersion (2027.1)
+}
+
+\setcounter{secnumdepth}{2}
+
+\title{Graph-Guided Mixture-of-Experts for Unified Multimodal Mental Health Assessment: Affective Constructs Are a Bottleneck, Not a Basis, for Depression}
+
+\author{
+Anonymous Authors
+}
+\affiliations{
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+    We study whether graph-guided mixture-of-experts (MoE) routing can improve multimodal mental-health assessment when graphs are constructed in a leakage-safe way. We evaluate a unified model on DAIC-WOZ depression detection, CMU-MOSEI sentiment and emotion recognition, and ChaLearn First Impressions personality prediction, combining modality-specific encoders, gated late fusion, an MMoEEx expert bank, and a KNN-graph GraphSAGE router. Across five leakage-safe graph configurations, a K-sensitivity sweep, and a learned per-task routing weight, routing does not improve depression detection, and a graph-homophily diagnostic localizes why: the routing graph carries no depression-label signal beyond chance while carrying real signal for sentiment and personality. Pursuing that diagnostic to its source yields our main result. Under an identical protocol we compare three 12-dimensional projections of the same fused representation — a supervised affective-construct projection, a random projection, and PCA. Random projection and PCA are indistinguishable from one another and both exceed the construct projection, which is never separable from a label-permutation null; the gap is negative in every seed under a subject-level bootstrap propagating training and sampling uncertainty. Affective-construct projections that are actually achievable at clinical sample sizes — whether transferred across corpora or estimated in-domain — degrade depression-relevant variance that an unsupervised projection of the same features retains. An independent corpus dissociates the cause: ground-truth Big-Five traits decode depression, while traits estimated from the same features fail to generalize. The bottleneck is construct measurement, not construct validity. We release the leakage-safe protocol, the full ablation ladder, and a claim-verification harness.
+\end{abstract}
+
+\section{Introduction}
+
+Multimodal mental health assessment integrates verbal and non-verbal signals — language, prosody, facial expressions — to predict clinically relevant constructs such as depression severity, emotional state, and personality traits. Prior work tackles these tasks in isolation with task-specific architectures that cannot share complementary information across related supervision signals. Multitask and multimodal fusion approaches exist, but often yield opaque models whose routing decisions are difficult to interpret, and rarely address label leakage introduced by graph-based sample relationships.
+
+This paper asks whether graph-guided MoE routing improves multimodal mental-health assessment when graph construction is made leakage-safe and evaluation is performed under strict subject-independent splits. We evaluate a unified architecture to isolate the effect of graph-guided routing, combining modality-specific encoders, a gated late-fusion mechanism, an MMoEEx expert bank, and a graph-guided router built on a leakage-safe K-nearest-neighbour similarity graph over multimodal embeddings. Across five leakage-safe graph configurations, a $K$-sensitivity sweep, and a learned per-task routing weight, this routing does not improve depression detection over a non-graph MMoEEx baseline. A graph-homophily diagnostic — comparing real graph edges against random pairing — localizes why: the routing graph carries no depression-label signal beyond chance for DAIC, while carrying real signal for MOSEI sentiment/emotion and FI personality.
+
+That diagnostic answers a narrower question than it first appears to ask. It tells us the routing graph does not encode depression-relevant neighborhood structure in the shared multimodal embedding space, but it does not say why — and the natural candidate explanation, that the embedding space is organized around exactly the affective constructs (sentiment, emotion, perceived personality) the model is jointly trained to predict, is directly testable rather than merely plausible. We pursue it. Under an identical leakage-safe protocol, we compare three 12-dimensional projections of the same fused DAIC representation: a supervised affective-construct projection (the per-task heads' own outputs), an unsupervised random projection, and an unsupervised variance-preserving PCA projection. If the routing graph's failure on DAIC is a symptom of construct-aligned representations discarding depression-relevant structure, this comparison should show it directly, without any graph or router in the loop. It does: the random and PCA projections are statistically indistinguishable from each other, and both exceed the construct projection, which never separates from a label-permutation null. The gap is negative in every one of five training seeds, survives dropping near-constant profile dimensions, and remains negative under a subject-level bootstrap that propagates both training-seed and test-subject sampling uncertainty. A separate in-domain re-derivation of the supervision signal, intended to test whether cross-corpus transfer explains the gap, is itself inconclusive under proper seed replication (Section~\ref{sec:construct-bottleneck}) — so this specific alternative is not ruled out by that control alone. What the evidence supports is narrower than construct supervision failing in principle: affective-construct projections that are actually achievable at clinical sample sizes, in this setting, degrade depression-relevant variance that an unsupervised projection of the same features retains.
+
+This raises an obvious follow-up question: are affective constructs simply uninformative about depression, or is the problem specifically that our estimates of them are unreliable at clinical sample sizes? A second, independent corpus (MPDD) dissociates the two. Ground-truth Big-Five personality scores decode depression well above chance; the same traits, estimated from that corpus's own audio/video features via a regressor trained the ordinary way, fail to generalize to held-out subjects at all (negative held-out $R^2$ for four of five traits). The construct is informative; our estimate of it is not. We read the DAIC result through this lens: the bottleneck is construct \emph{measurement}, not construct \emph{validity} — a claim consistent with, rather than contradicting, the clinical literature linking personality and affect to depression \citep{kotov2010linking,clark1991tripartite}.
+
+Our contributions are fivefold. First, a leakage-safe experimental protocol for graph-based routing in multimodal clinical settings, together with a rigorous negative result and a homophily diagnostic explaining it. Second, a matched-dimensionality comparison showing that supervising a shared representation with affective constructs destroys depression-relevant variance relative to unsupervised projections of the same features, replicated across five seeds with the uncertainty of both training and test-subject sampling accounted for. Third, an independent-corpus dissociation localizing this failure to construct estimation rather than construct validity. Fourth, a documented failure mode — an overfit intermediate predictor that manufactures a striking but spurious downstream effect — surfaced and discarded during our own analysis rather than reported as a result, together with the generalization gate that catches it. Fifth, a claim-verification harness that binds every quantitative statement in this paper to a machine-checked artifact, so that aggregate claims of the kind that invalidated an earlier version of this work cannot recur silently.
+
+Figure~\ref{fig:process_flow_main} details the software architecture of our experimental pipeline, moving from data extraction through unimodal baselines (Phases 1--4) into the joint multitask training implementation (Phase 7). To isolate the routing effect, we compare five graph-routing ablation variants (V0--V4, evaluating inductive, split-local, and transductive constructions) against non-graph MMoEEx and KNN-voting baselines, the former corrected for a sampling bug described in the reproducibility appendix so the comparison is against a working classifier rather than a chance-level one. When results showed no improvement on DAIC and degradation on FI personality, alongside a small gain on MOSEI, we deployed the homophily diagnostic above, together with targeted fixes including a $K$-sensitivity sweep ($K=5, 10, 15, 20$) and a learned per-task $\lambda$ weight in place of the fixed default of 0.5 — neither recovers a DAIC benefit, consistent with the diagnosis that the routing graph itself lacks the relevant signal rather than the router failing to exploit signal that is present.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/pipeline-flow.png}
+    \caption{Implementation details of the experimental pipeline and joint multitask training. The diagram shows the progression from dataset caching through the non-graph MMoEEx baseline into the Phase 7 multitask epoch loop---including the negative-transfer monitor and progressive unfreezing mechanisms---and concluding with downstream domain adaptation, calibration, and XAI validation layers.}
+    \label{fig:process_flow_main}
+\end{figure*}
+
+\section{Related Work}
+
+\textbf{Multimodal fusion} for affective computing spans early fusion (feature concatenation), late fusion (learned per-modality gates), and low-rank or cross-attention fusion. Gated late fusion with learned modality gates \citep{matsumoto2026interaction} and Low-Rank Multimodal Fusion \citep{zadeh2017LMF} avoid the parameter cost of full tensor fusion. Cross-modal attention has also been proposed for depression detection \citep{matsumoto2026interaction, hua2026asym}; we do not observe a benefit from it under our evaluation protocol (Section~\ref{sec:results}).
+
+\textbf{Mixture-of-experts.} The sparsely-gated MoE layer \citep{shazeer2017moe} routes inputs through a learned subset of experts. Multitask MoE (MMoE) adds task-specific gates \citep{ma2018model}, and MMoEEx adds expert exclusivity/orthogonality regularization to reduce expert collapse \citep{aoki2021mmoeex}. We build on MMoEEx and add graph-based routing.
+
+\textbf{Graph neural networks for routing.} GraphSAGE \citep{graphsage2017inductive} learns inductive aggregator functions that generalize to unseen nodes — a requirement for clinical deployment on new participants. We use GraphSAGE (and, as an ablation, GAT \citep{gat2018attention}) as a router: aggregating features from a sample's K nearest neighbours to produce a routing vector that modulates expert weights.
+
+\textbf{LLM-enhanced encoders.} Instruction-tuned LLMs and multi-modal LLMs integrating audio and visual understanding have been applied to depression detection \citep{zhao2025multimodalllm}. We explored LLM-based encoder replacements during development (single-seed, supplementary material only) but do not report them as a confirmatory result here (Limitations).
+
+
+\textbf{Depression detection on DAIC-WOZ.} The corpus \citep{gratch2014distress} contains 189 clinical interviews with PHQ-8 labels. Prior work spans graph-based text models \citep{burdisso2024gcndp}, multimodal behavioral phenotyping \citep{chen2026multimodal}, and gender-emotion interaction multi-task networks \citep{xing2026gender}. Closest to our multi-construct framing, PsyGAT \citep{vyalla2026psygat} builds a psychologically-grounded, interpretable graph model that explicitly distinguishes personality-trait context from acute depression symptoms, though it is not evaluated on our datasets or splits and we do not report a direct numeric comparison. Reported metrics vary widely by evaluation protocol (F1 vs.\ AUROC, inclusion of therapist/interviewer prompts, differing label thresholds); we report AUROC under our own fixed, leakage-safe protocol throughout.
+
+\section{Method}
+\label{sec:method}
+
+The method is intentionally conservative: we use standard multimodal encoders and MoE components so that any performance change can be attributed to graph-guided routing rather than to a novel backbone. Figure~\ref{fig:architecture} gives an overview: modality-specific encoders project to a common $d{=}256$ space; gated late fusion combines them; an MMoEEx expert bank and a KNN-graph GraphSAGE router jointly determine expert routing weights; task heads predict depression, sentiment, emotion, and personality.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/model_architecture.png}
+    \caption{Unified multimodal graph-gated MoE architecture, including per-dataset routing, the gated fusion mechanism, the MMoEEx expert bank, and the GraphSAGE/GAT router.}
+    \label{fig:architecture}
+\end{figure*}
+
+\subsection{Modality Encoders and Gated Fusion}
+
+Text is encoded with RoBERTa-base \citep{liu2019roberta} (768-dim), audio with WavLM-large \citep{chen2022wavlm} (1536-dim; eGeMAPS \citep{eyben2016geneva} for the classical-encoder ablation), and video with ViT-B/16 \citep{dosovitskiy2020image} (1536-dim; OpenFace \citep{baltrusaitis2018openface} action units as an alternative). Each is linearly projected to $d{=}256$. Given projected embeddings $h_i^{\text{text}}, h_i^{\text{audio}}, h_i^{\text{video}}$ and a modality-availability mask $m_i$, gated late fusion computes:
+\begin{align*}
+    \alpha_i           & = \text{softmax}\big(W_\alpha[h_i^{\text{text}}; h_i^{\text{audio}}; h_i^{\text{video}}]\big),  \\
+    h_i^{\text{fused}} & = \sum_m \frac{\alpha_i \odot m_i}{\lVert \alpha_i \odot m_i \rVert_1 + \epsilon}[m]\, h_i^{m}.
+\end{align*}
+Critically, $m_i$ is not only a missing-data indicator: each dataset is assigned a fixed \emph{native routing} — DAIC \emph{text-only}, FI \emph{video-only}, MOSEI \emph{full multimodal} — reflecting which modalities are actually informative for that task in our data, not merely which are physically present. This is a deliberate architectural choice, not an artifact: unmasking audio/video for DAIC did not improve depression detection in development (Section~\ref{sec:results}), so the released model runs DAIC as an effectively unimodal-text task inside a jointly-trained multimodal, multitask architecture. We state this here rather than leaving it to be discovered downstream, since it directly qualifies what ``multimodal'' means for the depression task and is load-bearing for how the graph-routing results below should be read.
+
+\subsection{MMoEEx Expert Bank and Graph-Guided Routing}
+
+We instantiate $M{=}8$ expert MLPs with residual connections, hidden dimension 256 in both configurations we report. For the graph-routed configuration (our primary reported results), all 8 experts are available to every task via a full per-task softmax gate $g_t(h_i) \in \mathbb{R}^8$; we additionally report a non-graph MMoEEx baseline that hard-isolates experts per task group instead, used to quantify the value added by graph routing.
+
+We construct an undirected KNN graph over fused embeddings using cosine similarity, with three leakage-safe construction modes: \textbf{inductive} (graph on training data only; validation/test nodes connect solely to training neighbours), \textbf{split-local} (separate graphs per split, no cross-split edges), and \textbf{transductive} (graph over all splits — ablation only, explicitly not leakage-safe). The embeddings used for graph construction come from a fixed, separately-initialized gated-fusion projection of the raw modality features rather than the jointly-trained model's own $h_i^{\text{fused}}$ (Section~\ref{sec:method-profile}) — a deliberate decoupling of graph topology from the evolving task model, but one whose embedding space is a random projection rather than a pretrained or task-relevant one, which we return to when interpreting the homophily diagnostic (Section~\ref{sec:results}). A two-layer GraphSAGE router aggregates neighbourhood features into a routing vector $r_i = \text{softmax}(W_r h_i^{(2)}) \in \mathbb{R}^8$. Task gate and graph router combine in log-space:
+\[
+    \tilde w_{t,i} = \text{softmax}\big(\log g_t(h_i) + \lambda \log r_i\big),
+\]
+with $\lambda{=}0.5$ fixed across all reported experiments (not tuned).
+
+\subsection{Task Heads and Training Objective}
+
+Depression (DAIC) uses a binary head with BCE loss; sentiment (MOSEI) a regression head with NLL loss; emotion (MOSEI, 6 labels) a multi-label BCE head; personality (FI, Big-Five) five regression heads with NLL loss. The multitask objective is an unweighted sum of the four task losses; the two regression losses (sentiment, personality) additionally use a homoscedastic-uncertainty NLL form \citep{kendall2017uncertainties} with a single learned $\sigma$ shared across both:
+\[
+    \mathcal{L} = \mathcal{L}_{\text{dep}}^{\text{BCE}} + \mathcal{L}_{\text{emo}}^{\text{BCE}} + \tfrac{1}{2\sigma^2}\big(\mathcal{L}_{\text{sent}} + \mathcal{L}_{\text{pers}}\big) + \log\sigma.
+\]
+
+\subsection{Construct Profiles and Unsupervised Projections}
+\label{sec:method-profile}
+
+To test whether $h_i^{\text{fused}}$'s organization around affective constructs is itself the obstacle, we compare three 12-dimensional projections of it directly, with no graph or router involved: (i) a \emph{construct profile} — the model's sentiment (1-dim), emotion (6-dim), and personality (5-dim) heads applied to $h_i^{\text{fused}}$ under DAIC's native text-only routing (the depression head is excluded, as it is the prediction target); (ii) a random Gaussian projection (20 draws, $W \sim \mathcal{N}(0, 1/d)^{d\times 12}$); (iii) PCA fit on train. All three feed an identical $\ell_2$-regularized logistic regression (regularization via nested 5-fold CV) predicting DAIC depression on the held-out test split — isolating whether the step from shared representation to construct-supervised profile discards depression-relevant variance, separately from the routing question above.
+
+Three controls accompany this comparison: a label-permutation null (1000 permutations) establishes above-chance decoding; a degeneracy control drops near-zero-variance profile dimensions before comparison (random projection regenerated at matching dimensionality), ruling out collapsed construct-head outputs; an in-domain control re-derives sentiment/emotion supervision directly on DAIC transcripts (off-the-shelf classifiers, Section~\ref{sec:construct-bottleneck}) rather than transferring MOSEI-trained heads, testing cross-corpus domain shift. Both derived-predictor controls require clearing a held-out generalization gate before their output is used downstream; Section~\ref{sec:construct-bottleneck} reports what happens when this check is skipped.
+
+\subsection{Independent-Corpus Dissociation (MPDD)}
+\label{sec:method-mpdd}
+
+MPDD \citep{fu2025mpdd} provides real Big-Five scores and binary depression labels for two age tracks (Young, Elderly; pre-extracted Wav2Vec audio and OpenFace video, no text). Since MPDD's encoders differ entirely from DAIC's, we do not transfer the unified model but ask the same question natively: depression decoding from \emph{ground-truth} Big-Five scores vs.\ from scores \emph{estimated} by a ridge regressor on MPDD's own features (same generalization gate applies). Evaluation is subject-level (scores/labels are subject-level constants; segment-level scoring would duplicate each subject 3--4$\times$). For pooled Young+Elderly, we report a \emph{stratified} AUC (concordant pairs counted only within-track) since a naive pooled ranking lets between-track differences contribute spuriously.
+
+\section{Experimental Setup}
+
+\subsection{Datasets}
+
+\textbf{DAIC-WOZ}: 189 clinical interview sessions (107 train / 35 val / 47 test), PHQ-8 binary depression label, subject-independent splits. \textbf{CMU-MOSEI} \citep{zadeh2018multimodal}: 22{,}777 utterance-level samples (16{,}265 / 1{,}869 / 4{,}643), continuous sentiment and 6-label emotion. \textbf{ChaLearn First Impressions} \citep{escalante2020chalearn}: 10{,}000 clips (6{,}000 / 2{,}000 / 2{,}000), Big-Five apparent-personality regression; personality is a distinct construct from clinical depression and serves as auxiliary supervision only.
+
+\subsection{Training Details}
+
+AdamW ($\text{lr}{=}3\times10^{-4}$), cosine annealing, early stopping (patience 20 epochs, max 150). Batch size 32. Temperature-balanced sampling ($T{=}3.0$) prevents MOSEI (120$\times$ larger than DAIC) from dominating joint training. Projectors are frozen for the first 20 epochs, then the top 2 layers are unfrozen. All experiments, including LLM-based ablations, were trained on a single NVIDIA RTX A6000 GPU.
+
+\subsection{Evaluation}
+
+DAIC: AUROC (primary) and F1. MOSEI sentiment: CCC (primary). MOSEI emotion: macro-AUROC over 6 emotions. FI: mean CCC over five traits. All results report 95\% BCa bootstrap confidence intervals; AUROC comparisons use the DeLong test; CCC/F1 comparisons use paired permutation tests; effect sizes are Cohen's $d$.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Construct-Aligned Projections Underperform Unsupervised Ones}
+\label{sec:construct-bottleneck}
+
+Across 5 independently trained seeds of the non-graph MMoEEx baseline, the 12-dimensional construct profile (Section~\ref{sec:method-profile}) decodes DAIC depression at mean test AUROC $0.524 \pm 0.039$, never separating from a label-permutation null (per-seed permutation $p \in [0.30, 0.75]$) — an absolute claim this design has power only to bound loosely at $n_{\text{test}}{=}47$. The comparison that is well-powered is relative: a random 12-dimensional projection of the identical fused representation reaches $0.616 \pm 0.017$, and PCA-12 (unsupervised, variance-preserving, fit on train) reaches $0.610 \pm 0.040$ — indistinguishable from each other, and both above the construct profile in every seed. Table~\ref{tab:construct_ladder} reports the matched-dimensionality comparison after dropping per-seed near-constant profile dimensions (SPEC-H2-03-style check; between 0 and 2 of 12 dimensions per seed, most often the \texttt{happiness} emotion dimension) and regenerating the random projection at the same reduced dimensionality: the profile reaches $0.544 \pm 0.018$ against a matched random projection of $0.607 \pm 0.021$, a delta of $-0.063 \pm 0.011$, negative in all 5 seeds (one-sided sign test $p{=}0.031$). A raw 768-dimensional RoBERTa text embedding — a different, unprojected representation, reported separately rather than as a fourth point on this ladder — reaches $0.584$ under the identical fitting protocol, deterministically identical across all 5 seeds.
+
+\begin{table}[t]
+    \centering
+    \caption{Matched-dimensionality comparison at DAIC test AUROC, mean $\pm$ std over 5 seeds. All three rows are projections of the identical fused representation, same dimensionality (per-seed, after dropping near-constant profile dimensions), same fitting protocol.}
+    \label{tab:construct_ladder}
+    \small
+    \begin{tabular}{lc}
+        \toprule
+        Representation                          & DAIC AUROC        \\
+        \midrule
+        Random projection (matched dim.)         & $0.607 \pm 0.021$ \\
+        Construct profile (degeneracy-controlled) & $0.544 \pm 0.018$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Because all 5 seeds share the same 47 test participants, a cross-seed comparison alone would propagate only training-randomness uncertainty, not test-subject sampling uncertainty — the source that actually determines whether this generalizes. A subject-level bootstrap (2000 resamples of the 47 test participants, delta between the degeneracy-controlled profile and the matched random projection averaged across all 5 seeds' fixed predictions within each resample) gives mean delta $-0.076$, 95\% CI $[-0.119, -0.037]$, entirely below zero (99.95\% of resamples negative). This is the properly-powered statistic for the claim: propagating both training and test-sampling uncertainty, the inversion holds.
+
+We checked two alternative explanations before treating this as a construct-supervision effect. First, that it is merely dimensionality reduction of any kind: PCA-12, which is unsupervised, lands within noise of the random projection ($0.610$ vs.\ $0.616$) and clearly above the construct profile — the effect is specific to construct alignment, not to projecting to 12 dimensions per se. Second, that it reflects zero-shot cross-corpus transfer (the sentiment/emotion heads are trained on MOSEI, not DAIC): we re-derived sentiment and emotion supervision directly on DAIC transcripts with off-the-shelf classifiers \citep{cardiffnlp2021twitter,hartmann2022emotion} and refit a DAIC-native projector, per seed. Across all 5 seeds, only 1--3 of 7 re-derived dimensions clear the held-out generalization gate (never a fixed set) — itself informative, since it shows most affective dimensions are not reliably estimable from DAIC's $n{=}107$ training set even in-domain. Using whichever dimensions pass per seed, the delta between the in-domain profile and a matched-dimensionality random projection is $-0.037 \pm 0.084$ across the 5 seeds — 3 of 5 negative, 2 of 5 positive (one-sided sign test $p{=}0.5$). This control is \textbf{inconclusive, not corroborating}: at this sample size ($n_{\text{test}}{=}47$, 1--3 usable dimensions), it does not settle whether domain shift contributes. We report it as an attempted, honestly negative control rather than retrofitting a supporting narrative; the evidence against domain shift as the primary explanation for Section~\ref{sec:construct-bottleneck}'s main result rests on the cross-corpus finding's own 5-seed replication and subject-level bootstrap, not on this control.
+
+Per-seed DeLong tests comparing the profile against individual random-projection draws reach significance in only 10 of 100 comparisons (5 seeds $\times$ 20 draws) — a single such comparison is exactly as underpowered as the absolute decoding claim above, and we report this explicitly as a power limitation rather than as evidence either way; the cross-seed, subject-bootstrapped statistic above is the one we rely on.
+
+\subsection{An Independent Dissociation: MPDD}
+
+If affective constructs were simply uninformative about depression, the DAIC result above would be unsurprising. MPDD \citep{fu2025mpdd} lets us test this directly, since it provides real (not model-estimated) Big-Five scores. Ground-truth Big-Five decodes MPDD depression at AUROC $0.667$ (95\% CI $[0.273, 1.000]$, Young track, $n{=}13$ test subjects) and $0.925$ (95\% CI $[0.727, 1.000]$, Elderly, $n{=}13$); pooling both tracks with a stratified estimator (concordant pairs counted only within a track, removing the contribution of between-track differences to the ranking, Section~\ref{sec:method-mpdd}) gives $0.857$ (95\% CI $[0.681, 1.000]$, $n{=}26$). These intervals are wide and the ceiling-touching upper bound reflects real imprecision at this sample size; we read this arm as corroborating the clinical literature linking personality to depression \citep{kotov2010linking}, not as independently establishing it.
+
+The same construct, \emph{estimated} from MPDD's own raw audio/video features by a ridge regressor trained the ordinary way, fails to generalize at all: held-out $R^2$ is negative for 4 of 5 traits (worst: Extraversion, $R^2{=}-2.86$; best: Agreeableness, $R^2{=}-1.75$), despite train-set $R^2$ of $0.91$--$0.99$ — a textbook overfitting signature at this feature-to-sample ratio (1221 features, 184 training subjects). Ground-truth traits are informative; our estimate of them, in this corpus and at this sample size, is not. We take this as the mechanism behind Section~\ref{sec:construct-bottleneck}: the bottleneck is construct \emph{measurement}, not construct \emph{validity}.
+
+An early version of this analysis computed depression decoding directly from the overfit MPDD regressor's predictions before checking its held-out $R^2$, producing a striking-looking AUROC in the opposite direction — a large, spurious inversion (quantified, clearly labeled invalid, in the reproducibility appendix). We discarded this number once the generalization check surfaced the problem, rather than reporting it as a result; it stands as evidence for a general harness rule we adopt here: \emph{any derived predictor whose output feeds a downstream analysis must clear a held-out generalization check before its output may be consumed} — the same rule that gates the in-domain DAIC control above.
+
+\begin{table}[t]
+    \centering
+    \caption{Graph routing vs.\ non-graph MMoEEx baseline, mean $\pm$ std over the 5 canonical seeds (17, 42, 1337, 2024, 31415), real labels and evaluation throughout. A cell is \textbf{bolded} only where the delta from baseline is reportable under the SPEC-H4-03 rule ($|\Delta| > \max(\text{baseline CI half-width}, 2\times\text{pooled seed std})$); all other deltas are within seed noise at this sample size.}
+    \label{tab:graph_ablation}
+    \small
+    \begin{tabular}{lccc}
+        \toprule
+        Variant                 & DAIC AUROC         & MOSEI Sent.\ CCC   & FI CCC                        \\
+        \midrule
+        \emph{Non-graph MMoEEx} & \emph{0.541 $\pm$ 0.017} & \emph{0.482 $\pm$ 0.011} & \emph{0.571 $\pm$ 0.006} \\
+        \midrule
+        V0 (inductive-k10)      & 0.518 $\pm$ 0.027  & 0.510 $\pm$ 0.024  & \textbf{0.480 $\pm$ 0.060} \\
+        V1 (split-local-k10)    & 0.543 $\pm$ 0.033  & 0.498 $\pm$ 0.023  & \textbf{0.481 $\pm$ 0.052} \\
+        V2 (transductive-k10)   & 0.595 $\pm$ 0.063  & 0.486 $\pm$ 0.019  & \textbf{0.493 $\pm$ 0.050} \\
+        V3 (inductive-k15)      & 0.549 $\pm$ 0.057  & 0.501 $\pm$ 0.022  & 0.507 $\pm$ 0.047 \\
+        V4 (split-local-k15)    & 0.538 $\pm$ 0.051  & 0.501 $\pm$ 0.017  & 0.506 $\pm$ 0.046 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The non-graph baseline reaches DAIC AUROC $0.541 \pm 0.017$ over 5 seeds — a non-chance, working classifier (a sampling bug that previously capped an earlier version of this baseline at chance level is diagnosed and fixed; reproducibility appendix, supplementary material). Applying the SPEC-H4-03 reportability rule (a delta counts only if it exceeds both the baseline's own confidence interval half-width and twice the pooled seed standard deviation) to all 20 (variant $\times$ metric) cells on DAIC and MOSEI: \textbf{none are reportable} — every apparent difference from baseline on DAIC AUROC, MOSEI sentiment CCC, and MOSEI emotion AUROC is within seed noise at $n{=}5$ seeds. This supersedes an earlier single-seed version of this table that read "every variant underperforms baseline on DAIC" and "every variant exceeds baseline on MOSEI sentiment" — both directional claims that do not survive proper multi-seed statistical treatment; V1 and V3 even show a (non-reportable) small positive DAIC delta. FI personality is the exception: 3 of 5 variants (V0, V1, V2) show a reportable \emph{negative} delta ($p<0.05$, paired $t$-test against the 5 matched seeds), and the remaining two (V3, V4) are borderline ($p\approx0.05$–$0.06$) — graph routing consistently and substantially degrades FI personality prediction, the one directionally robust routing effect in this study. A KNN-voting baseline (label smoothing over the same graph neighbourhoods, no learned router), extended to the same 5 seeds, reaches DAIC AUROC $0.623 \pm 0.071$ — numerically above the non-graph baseline, but not reportably so (paired $\Delta{=}{+}0.083$, $p{=}0.087$). It is, however, reportably \emph{worse} than the non-graph baseline on all three other metrics (MOSEI sentiment CCC, MOSEI emotion AUROC, FI CCC; all $p<0.02$; supplementary material) — simple neighbourhood label-smoothing is not a free improvement once measured across seeds, even though a single-seed comparison previously made it look competitive on DAIC alone.
+
+A homophily diagnostic (same-dataset edge label agreement/correlation vs.\ random pairing) clarifies part of this picture, with an important caveat about what representation it measures. The graph actually used to route experts in every V0--V4 run is built over a KNN graph on a \emph{separate, randomly-initialized, untrained} fusion projection of the raw modality features, not the trained model's own fused representation $h_i^{\text{fused}}$ used everywhere else in this paper — a property of the existing graph-construction code, not something we introduce, but one that was not previously disclosed and materially changes what the diagnostic can be said to explain. We also found this diagnostic's own random projection was unseeded in prior work (a different draw every run); we fix this and report it, like everything else in this paper, averaged over the 5 canonical seeds. Table~\ref{tab:homophily} reports both the (now properly seeded, 5-seed-averaged) untrained-embedding version and a supplementary version recomputed on the trained representation. On the untrained embedding actually used for routing, the 5-seed result is unambiguous and uniform: DAIC shows no signal beyond chance in \emph{any} of the four leakage-safe variants ($p \in [0.12, 0.78]$, paired $t$-test on the real-vs-random delta across seeds), while MOSEI and FI both show strong signal in every variant ($p<0.0001$) — closely matching an earlier, unseeded single-run estimate of the same quantities, so the qualitative conclusion was not an artifact of that run's particular random draw. Recomputing the identical diagnostic on the trained representation instead (6 checkpoints $\times$ 4 leakage-safe variants) shows a more specific secondary pattern, on the representation not actually used for routing: DAIC signal is graph-topology-dependent (real edges exceed random pairing for the two inductive variants, V0 $\Delta{=}{+}0.064$ and V3 $\Delta{=}{+}0.042$, both $p<0.0001$; split-local variants V1 and V4 show no separation, $p{=}0.36$ and $p{=}0.94$), while MOSEI and FI again show strong signal in every variant regardless of graph topology ($p<0.0001$ throughout). Neither version of the diagnostic explains the FI performance degradation above: FI carries strong real signal by both measures, in every variant, yet routing reportably \emph{hurts} FI prediction rather than merely failing to exploit available signal — the router's failure mode on FI is not signal absence.
+
+\begin{table}[t]
+    \centering
+    \caption{Real graph neighbours vs.\ random pairing. "Untrained embedding" is the representation actually used to build every V0--V4 routing graph (random projection of raw features, no trained checkpoint loaded; averaged over the 4 leakage-safe variants). "Trained representation" recomputes the identical diagnostic on the corresponding trained checkpoint's own fused representation (mean over 6 checkpoints $\times$ the 4 variants; DAIC shown split by graph topology since it differs qualitatively, Section~\ref{sec:results}).}
+    \label{tab:homophily}
+    \small
+    \begin{tabular}{lcc}
+        \toprule
+        Task (representation)                        & Real graph & Random \\
+        \midrule
+        DAIC, untrained embedding (5-seed mean)       & 0.564      & 0.561  \\
+        DAIC, trained repr.\ (inductive: V0/V3)        & 0.619      & 0.566  \\
+        DAIC, trained repr.\ (split-local: V1/V4)      & 0.555      & 0.562  \\
+        MOSEI, untrained embedding (5-seed mean)       & 0.249      & $-$0.001 \\
+        MOSEI, trained repr.\ (correlation)            & 0.485      & 0.000  \\
+        FI, untrained embedding (5-seed mean)          & 0.289      & $-$0.000 \\
+        FI, trained repr.\ (correlation)               & 0.423      & $-$0.001 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Two targeted fixes were tried against the (untrained-embedding) DAIC null, both extended to the full 5-seed protocol (mean $\pm$ std; reportability per SPEC-H4-03, same rule and same non-graph baseline as Table~\ref{tab:graph_ablation}). A $K\in\{5,10,15,20\}$ sweep (inductive graph; $K{=}10$ and $K{=}15$ are V0 and V3 above) shows no monotonic trend and no configuration's DAIC delta from baseline is reportable ($K{=}5$: $0.541\pm0.048$, $\Delta{=}{+}0.001$, $p{=}0.97$; $K{=}20$: $0.526\pm0.057$, $\Delta{=}{-}0.015$, $p{=}0.55$); $K{=}5$ does show a reportable negative FI delta ($p{=}0.04$), consistent with the FI-degradation pattern above, while $K{=}20$'s FI delta is borderline ($p{=}0.06$). A learned per-task routing weight (replacing the fixed $\lambda{=}0.5$) reaches DAIC AUROC $0.546\pm0.034$ — a single-seed comparison previously read this as "a real gain on DAIC" (0.489 $\to$ 0.525 for one training run); across 5 seeds, the delta from the fixed-$\lambda$ V0 configuration is $+0.028$ but not reportable ($p{=}0.007$ by paired $t$-test alone, but below the SPEC-H4-03 threshold once cross-seed variance is accounted for), so this single-seed claim does not survive multi-seed treatment either — a sixth instance of the reversal pattern documented in the reproducibility appendix (supplementary material). Neither fix recovers a reportable DAIC benefit, consistent with the diagnosis that the routing graph itself lacks the relevant signal.
+
+On fusion, cross-attention underperforms gated fusion on all three datasets, likely due to overparameterization (65K--2.8M params vs.\ 57K--827K for gated) relative to DAIC's 107 training sessions.
+
+\section{Discussion}
+
+The construct-bottleneck and graph-routing results are related but distinct measurements. The V0--V4 routing graph is built on an untrained projection of raw features, not the trained model's fused representation $h_i^{\text{fused}}$ that Section~\ref{sec:construct-bottleneck} analyzes directly — a property of the existing code we disclose rather than carry forward silently. Recomputed on the trained representation, the homophily diagnostic shows a more specific pattern than a clean "DAIC absent, MOSEI/FI present" story: DAIC signal is present for inductive construction and absent for split-local, while MOSEI and FI show strong signal regardless of topology. Table 1 is consistent with a bottleneck account for FI — strong real signal by both measures, yet routing reportably degrades it, echoing Section~\ref{sec:construct-bottleneck}'s finding that construct-supervised transformations can destroy task-relevant structure — but not for DAIC, which shows no reportable routing effect at this sample size; the two analyses are complementary rather than one confirming the other's mechanism. The leakage-safe protocol remains essential regardless: transductive (non-leakage-safe) construction is retained only as an ablation, with edge split-membership determined by direct destination-node lookup rather than assumed sample ordering.
+
+Limitations: DAIC's small training ($n{=}107$) and test ($n{=}47$) sets limit power for absolute claims, distinct from the better-powered comparisons carrying this paper's evidence (Section~\ref{sec:construct-bottleneck}); reliance on frozen pretrained encoders; graph-quality sensitivity when modalities are missing; and untried remedies beyond our two fix attempts (a jointly-trained embedding space, graph rewiring, task-affinity-aware grouping; supplementary material). The in-domain control is inconclusive rather than corroborating; the cross-corpus result and MPDD dissociation, both 5-seed replicated, carry the paper's weight. We explored LLM-based encoders, calibration, domain adaptation, and SHAP/graph explanation during development; none touch the inversion, dissociation, or localizability result, and given this paper's own repeated single-seed-can-mislead finding (six cases, reproducibility appendix, supplementary material), we report them there only, labeled single-seed and exploratory.
+
+\section{Conclusion}
+
+We set out to test whether graph-guided mixture-of-experts routing improves unified multimodal mental health assessment. Across five leakage-safe configurations, a $K$-sweep, and a learned routing weight, it does not improve depression detection, and a homophily diagnostic localizes why: the routing graph carries no depression-label signal beyond chance. Pursuing that diagnostic to its representational source, we find that affective-construct projections (sentiment, emotion, perceived personality) that are actually achievable at clinical sample sizes degrade depression-relevant variance that an unsupervised projection of the same shared representation retains — a matched-dimensionality comparison, replicated across 5 seeds, robust to dropping near-constant profile dimensions, and negative under a subject-level bootstrap propagating both training and test-sampling uncertainty. A companion in-domain re-derivation, designed to test whether cross-corpus transfer explains this gap, is itself inconclusive under proper seed replication (3 of 5 seeds negative, 2 of 5 positive; Section~\ref{sec:construct-bottleneck}) — so the claim here is about achievable construct estimation in this regime, not about construct supervision failing in principle. An independent corpus (MPDD) localizes a convergent failure specifically to construct \emph{estimation}, for a different reason (data starvation rather than cross-corpus transfer): ground-truth Big-Five traits decode depression consistent with the clinical literature, while traits estimated from the same corpus's own features do not generalize at all. That two genuinely different mechanisms — cross-corpus transfer on DAIC, data starvation on MPDD — both degrade construct estimation is what carries the general claim. The bottleneck is construct measurement, not construct validity — a position that agrees with the psychological literature on affect and depression while explaining why a machine-learning pipeline built on that literature can still fail. We recommend, as a general practice for this class of pipeline: validate any intermediate predictor on held-out data before consuming its output downstream, prefer variance-preserving (unsupervised or randomly-projected) bottlenecks over construct-supervised ones at small clinical sample sizes, and report an unsupervised-projection control alongside any supervised-representation claim. We release the leakage-safe graph protocol, the full ablation ladder, and a claim-verification harness that binds every quantitative statement in this paper to a machine-checked artifact.
+
+\bibliography{references/references}
+\end{document}

@@ -1,0 +1,542 @@
+{
+  "original": {
+    "V0": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.6257,
+        "random_baseline": 0.5571
+      },
+      "mosei": {
+        "n_edges": 18690,
+        "metric": "pearson_correlation",
+        "real": 0.337,
+        "random_baseline": 0.0074
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.4946,
+        "random_baseline": 0.0012
+      }
+    },
+    "V1": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 2.5614754098360656e-05,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.5629,
+        "random_baseline": 0.58
+      },
+      "mosei": {
+        "n_edges": 18689,
+        "metric": "pearson_correlation",
+        "real": 0.6883,
+        "random_baseline": -0.0028
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.3503,
+        "random_baseline": -0.0033
+      }
+    },
+    "V3": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.6152,
+        "random_baseline": 0.5695
+      },
+      "mosei": {
+        "n_edges": 28035,
+        "metric": "pearson_correlation",
+        "real": 0.331,
+        "random_baseline": -0.0064
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.4808,
+        "random_baseline": 0.001
+      }
+    },
+    "V4": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 6.830601092896175e-05,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.5676,
+        "random_baseline": 0.5524
+      },
+      "mosei": {
+        "n_edges": 28031,
+        "metric": "pearson_correlation",
+        "real": 0.6021,
+        "random_baseline": -0.0088
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.336,
+        "random_baseline": -0.0098
+      }
+    }
+  },
+  "seed17": {
+    "V0": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.6257,
+        "random_baseline": 0.58
+      },
+      "mosei": {
+        "n_edges": 18690,
+        "metric": "pearson_correlation",
+        "real": 0.3362,
+        "random_baseline": 0.0083
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.4986,
+        "random_baseline": -0.0085
+      }
+    },
+    "V1": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 2.5614754098360656e-05,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.5486,
+        "random_baseline": 0.5829
+      },
+      "mosei": {
+        "n_edges": 18689,
+        "metric": "pearson_correlation",
+        "real": 0.6889,
+        "random_baseline": -0.0019
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.3707,
+        "random_baseline": -0.0029
+      }
+    },
+    "V3": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.6171,
+        "random_baseline": 0.5714
+      },
+      "mosei": {
+        "n_edges": 28035,
+        "metric": "pearson_correlation",
+        "real": 0.3248,
+        "random_baseline": -0.0101
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.4834,
+        "random_baseline": 0.0016
+      }
+    },
+    "V4": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 5.122950819672131e-05,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.5505,
+        "random_baseline": 0.5505
+      },
+      "mosei": {
+        "n_edges": 28032,
+        "metric": "pearson_correlation",
+        "real": 0.6016,
+        "random_baseline": -0.0061
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.3523,
+        "random_baseline": 0.0026
+      }
+    }
+  },
+  "seed42": {
+    "V0": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.6086,
+        "random_baseline": 0.5457
+      },
+      "mosei": {
+        "n_edges": 18690,
+        "metric": "pearson_correlation",
+        "real": 0.3086,
+        "random_baseline": -0.0005
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.5071,
+        "random_baseline": -0.0014
+      }
+    },
+    "V1": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.5371,
+        "random_baseline": 0.5886
+      },
+      "mosei": {
+        "n_edges": 18690,
+        "metric": "pearson_correlation",
+        "real": 0.6957,
+        "random_baseline": 0.003
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.3583,
+        "random_baseline": -0.0061
+      }
+    },
+    "V3": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.6114,
+        "random_baseline": 0.5771
+      },
+      "mosei": {
+        "n_edges": 28035,
+        "metric": "pearson_correlation",
+        "real": 0.3056,
+        "random_baseline": -0.0043
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.4894,
+        "random_baseline": 0.0
+      }
+    },
+    "V4": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.5505,
+        "random_baseline": 0.5771
+      },
+      "mosei": {
+        "n_edges": 28035,
+        "metric": "pearson_correlation",
+        "real": 0.6057,
+        "random_baseline": -0.0049
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.342,
+        "random_baseline": -0.007
+      }
+    }
+  },
+  "seed1337": {
+    "V0": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.6343,
+        "random_baseline": 0.5714
+      },
+      "mosei": {
+        "n_edges": 18690,
+        "metric": "pearson_correlation",
+        "real": 0.3093,
+        "random_baseline": 0.0039
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.4995,
+        "random_baseline": 0.0015
+      }
+    },
+    "V1": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 2.5614754098360656e-05,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.54,
+        "random_baseline": 0.5571
+      },
+      "mosei": {
+        "n_edges": 18689,
+        "metric": "pearson_correlation",
+        "real": 0.6779,
+        "random_baseline": 0.0047
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.372,
+        "random_baseline": 0.0082
+      }
+    },
+    "V3": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.619,
+        "random_baseline": 0.5733
+      },
+      "mosei": {
+        "n_edges": 28035,
+        "metric": "pearson_correlation",
+        "real": 0.3054,
+        "random_baseline": -0.0063
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.4863,
+        "random_baseline": -0.0025
+      }
+    },
+    "V4": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 3.4153005464480874e-05,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.56,
+        "random_baseline": 0.5295
+      },
+      "mosei": {
+        "n_edges": 28034,
+        "metric": "pearson_correlation",
+        "real": 0.5937,
+        "random_baseline": 0.0001
+      },
+      "fi": {
+        "n_edges": 29999,
+        "metric": "pearson_correlation",
+        "real": 0.3516,
+        "random_baseline": 0.0019
+      }
+    }
+  },
+  "seed2024": {
+    "V0": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.6171,
+        "random_baseline": 0.5486
+      },
+      "mosei": {
+        "n_edges": 18690,
+        "metric": "pearson_correlation",
+        "real": 0.3493,
+        "random_baseline": -0.0025
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.5003,
+        "random_baseline": 0.005
+      }
+    },
+    "V1": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.5629,
+        "random_baseline": 0.5343
+      },
+      "mosei": {
+        "n_edges": 18690,
+        "metric": "pearson_correlation",
+        "real": 0.6886,
+        "random_baseline": -0.0008
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.3688,
+        "random_baseline": -0.0044
+      }
+    },
+    "V3": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.6133,
+        "random_baseline": 0.579
+      },
+      "mosei": {
+        "n_edges": 28035,
+        "metric": "pearson_correlation",
+        "real": 0.3351,
+        "random_baseline": -0.0053
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.4851,
+        "random_baseline": -0.0029
+      }
+    },
+    "V4": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.5486,
+        "random_baseline": 0.5638
+      },
+      "mosei": {
+        "n_edges": 28035,
+        "metric": "pearson_correlation",
+        "real": 0.6049,
+        "random_baseline": -0.005
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.3486,
+        "random_baseline": -0.0096
+      }
+    }
+  },
+  "seed31415": {
+    "V0": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.6171,
+        "random_baseline": 0.5429
+      },
+      "mosei": {
+        "n_edges": 18690,
+        "metric": "pearson_correlation",
+        "real": 0.3388,
+        "random_baseline": 0.0046
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.4975,
+        "random_baseline": -0.0009
+      }
+    },
+    "V1": {
+      "total_edges": 39040,
+      "cross_dataset_fraction": 0.00020491803278688525,
+      "daic": {
+        "n_edges": 350,
+        "metric": "label_agreement_fraction",
+        "real": 0.5714,
+        "random_baseline": 0.5543
+      },
+      "mosei": {
+        "n_edges": 18682,
+        "metric": "pearson_correlation",
+        "real": 0.6833,
+        "random_baseline": -0.003
+      },
+      "fi": {
+        "n_edges": 20000,
+        "metric": "pearson_correlation",
+        "real": 0.3541,
+        "random_baseline": -0.0119
+      }
+    },
+    "V3": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.619,
+        "random_baseline": 0.5733
+      },
+      "mosei": {
+        "n_edges": 28035,
+        "metric": "pearson_correlation",
+        "real": 0.3302,
+        "random_baseline": -0.0069
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.4801,
+        "random_baseline": 0.0013
+      }
+    },
+    "V4": {
+      "total_edges": 58560,
+      "cross_dataset_fraction": 0.0003073770491803279,
+      "daic": {
+        "n_edges": 525,
+        "metric": "label_agreement_fraction",
+        "real": 0.56,
+        "random_baseline": 0.5676
+      },
+      "mosei": {
+        "n_edges": 28017,
+        "metric": "pearson_correlation",
+        "real": 0.5955,
+        "random_baseline": -0.0099
+      },
+      "fi": {
+        "n_edges": 30000,
+        "metric": "pearson_correlation",
+        "real": 0.3331,
+        "random_baseline": -0.0032
+      }
+    }
+  }
+}

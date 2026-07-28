@@ -1,0 +1,12 @@
+{
+  "n_bootstrap": 2000,
+  "n_valid": 2000,
+  "n_skipped": 0,
+  "mean_delta": -0.07559623917654394,
+  "ci_95_subject_resampled": [
+    -0.11862446377152257,
+    -0.03686688311688309
+  ],
+  "fraction_negative": 0.9995,
+  "entirely_below_zero": true
+}

@@ -1,0 +1,90 @@
+{
+  "V0": {
+    "total_edges": 39040,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 350,
+      "metric": "label_agreement_fraction",
+      "real": 0.5714,
+      "random_baseline": 0.5829
+    },
+    "mosei": {
+      "n_edges": 18690,
+      "metric": "pearson_correlation",
+      "real": 0.1163,
+      "random_baseline": 0.0029
+    },
+    "fi": {
+      "n_edges": 15474,
+      "metric": "pearson_correlation",
+      "real": 0.3196,
+      "random_baseline": 0.004
+    }
+  },
+  "V1": {
+    "total_edges": 39040,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 350,
+      "metric": "label_agreement_fraction",
+      "real": 0.5371,
+      "random_baseline": 0.5714
+    },
+    "mosei": {
+      "n_edges": 18690,
+      "metric": "pearson_correlation",
+      "real": 0.4229,
+      "random_baseline": 0.0015
+    },
+    "fi": {
+      "n_edges": 15063,
+      "metric": "pearson_correlation",
+      "real": 0.2906,
+      "random_baseline": 0.0164
+    }
+  },
+  "V3": {
+    "total_edges": 58560,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 525,
+      "metric": "label_agreement_fraction",
+      "real": 0.579,
+      "random_baseline": 0.5257
+    },
+    "mosei": {
+      "n_edges": 28035,
+      "metric": "pearson_correlation",
+      "real": 0.113,
+      "random_baseline": -0.0058
+    },
+    "fi": {
+      "n_edges": 22969,
+      "metric": "pearson_correlation",
+      "real": 0.2943,
+      "random_baseline": 0.005
+    }
+  },
+  "V4": {
+    "total_edges": 58560,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 525,
+      "metric": "label_agreement_fraction",
+      "real": 0.5467,
+      "random_baseline": 0.5695
+    },
+    "mosei": {
+      "n_edges": 28035,
+      "metric": "pearson_correlation",
+      "real": 0.3628,
+      "random_baseline": 0.0015
+    },
+    "fi": {
+      "n_edges": 22442,
+      "metric": "pearson_correlation",
+      "real": 0.2682,
+      "random_baseline": 0.005
+    }
+  }
+}

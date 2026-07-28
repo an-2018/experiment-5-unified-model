@@ -2,9 +2,9 @@
 
 Code and results artifact accompanying the AAAI 2027 submission of the same name
 
-This paper investigates whether graph-guided mixture-of-experts (MoE) routing improves unified multimodal mental health assessment across three public benchmarks — DAIC-WOZ (depression), CMU-MOSEI (sentiment/emotion), and ChaLearn First Impressions (personality) — under a single model with modality-specific encoders, gated late fusion, an MMoEEx expert bank, and a leakage-safe KNN-graph GraphSAGE/GAT router. The central finding is a rigorously investigated **negative result**: graph-based routing does not improve over a non-graph MMoEEx baseline, and a homophily diagnostic explains why. Separately, LLM-based encoders are the largest performance driver observed, and the model's transparency mechanisms (multi-construct characterization, graph-based explanation) are evaluated for faithfulness, not just implemented.
+This paper investigates whether graph-guided mixture-of-experts (MoE) routing improves unified multimodal mental health assessment across three public benchmarks — DAIC-WOZ (depression), CMU-MOSEI (sentiment/emotion), and ChaLearn First Impressions (personality) — under a single model with modality-specific encoders, gated late fusion, an MMoEEx expert bank, and a leakage-safe KNN-graph GraphSAGE/GAT router. Across five leakage-safe graph configurations, a $K$-sensitivity sweep, and a learned per-task routing weight — all replicated across 5 seeds — routing does not improve depression detection, and a homophily diagnostic localizes why. Pursuing that diagnostic to its representational source is the paper's central result: a supervised affective-construct projection of the shared representation (sentiment/emotion/personality) is reliably **outperformed** by an unsupervised random projection or PCA of the same features at matched dimensionality, replicated across 5 seeds and a subject-level bootstrap. A second, independent corpus (MPDD) dissociates why — ground-truth Big-Five traits decode depression, but traits *estimated* from the same features do not generalize — localizing the bottleneck to construct **measurement**, not construct **validity**. LLM ablations, calibration, domain adaptation, and XAI case studies are reported separately as single-seed exploratory material only, under an explicit no-claims banner (`analysis/`, `claims/` below).
 
-This folder is a self-contained release of the code, non-proprietary results, and reproduction instructions. It excludes raw datasets (redistribution is not permitted by the original data licenses — see [Data Access](#data-access) below) and trained model checkpoints (large binary files; regenerable from the code, see [Reproducing Results](#reproducing-results)).
+This folder is a self-contained release of the code, non-proprietary results, and reproduction instructions, including the claim-verification harness (`claims/ledger.yaml` + `claims/verify_claims.py`) that binds every quantitative statement in the paper to a machine-checked artifact — run it yourself (`uv run python claims/verify_claims.py --pre-submission`, see [Reproducing Results](#reproducing-results)) rather than taking the paper's numbers on faith. It excludes raw datasets (redistribution is not permitted by the original data licenses — see [Data Access](#data-access) below) and trained model checkpoints (large binary files; regenerable from the code, see [Reproducing Results](#reproducing-results)).
 
 ## Contents
 
@@ -20,7 +20,14 @@ aaai_artifact/
 │   ├── training/            Lightning trainers, losses, temperature-balanced sampler, calibration
 │   ├── evaluation/          metrics, bootstrap/permutation statistics, SHAP/GNNExplainer/GraphXAIN XAI engine
 │   └── utils/               seeding, logging, module registry
-├── scripts/                — numbered pipeline scripts (phase01–phase13) + orchestration shell scripts
+├── scripts/                — numbered pipeline scripts (phase01–phase13) + orchestration shell scripts;
+│                              phase05/07/13 and diagnose_graph_homophily accept --seed for the 5-seed protocol
+├── analysis/                — statistical analysis scripts backing the paper's central result: matched-dimensionality
+│                              construct-vs-random-projection comparison, subject-level bootstrap, MPDD ground-truth-
+│                              vs-estimated dissociation, degeneracy/in-domain controls, routing-table reportability
+├── claims/                  — claim-verification harness
+│   ├── ledger.yaml           48 claims, each bound to a source artifact and a tolerance/check
+│   └── verify_claims.py      run with --pre-submission for the strict gate used before this paper was submitted
 ├── configs/
 │   └── dataset_contract.yaml — modality/task/split contract enforced across all three datasets
 ├── tests/                  — unit tests for the graph builder and GNN routers
@@ -28,9 +35,15 @@ aaai_artifact/
 │   ├── tables/               result CSVs/JSON for every phase (baselines, ablations, calibration, XAI case studies)
 │   ├── figures/               every figure referenced in the paper and supplementary material
 │   ├── predictions/           held-out predictions used for statistical tests
+│   ├── profiles/              per-seed DAIC construct-profile parquet files (analysis/e1_e7_profile_gate.py output)
+│   ├── stats/                 5-seed aggregates and reportability statistics referenced by claims/ledger.yaml
+│   ├── *.md                   diagnostic reports (in-domain control, homophily methodology, reproducibility audits)
 │   └── references/
 │       └── bibliography.bib   full citation list
 └── paper/
+    ├── main-conference.tex    submitted paper source (needed for claims/verify_claims.py's text-scan checks)
+    ├── supplementary.tex      supplementary material source
+    ├── aaai2027.sty           AAAI style file
     ├── main-conference.pdf    the submitted paper
     └── supplementary.pdf      supplementary material
 ```
@@ -126,6 +139,15 @@ uv run python scripts/run_full_pipeline.py --start_phase 5 --stop_phase 7   # a 
 uv run python scripts/run_full_pipeline.py --dry_run              # print commands without executing
 ```
 
+### Verifying the claim ledger
+
+```bash
+uv run python claims/verify_claims.py                  # draft-mode check (48 claims)
+uv run python claims/verify_claims.py --pre-submission # strict gate; also checks quarantined-number placement
+```
+
+Each claim in `claims/ledger.yaml` is bound to a source file under `artifacts/` (a scalar value with tolerance, a bootstrap interval, or an assertion — e.g. that no graph-routing variant shows a reportable DAIC delta from baseline, or that a discarded/irreproducible number only appears inside its designated reproducibility-appendix section). This is the same check that gated this paper before submission; running it here reproduces that gate against the pre-computed artifacts already in this folder, without needing to retrain anything.
+
 ### Testing
 
 ```bash
@@ -136,7 +158,8 @@ Covers the leakage-safe graph builder (`tests/data/test_graph_builder.py`) and t
 
 ## Reproducibility Notes
 
-- **Trained checkpoints are not included** (each is 30–60MB; excluded to keep this artifact lightweight). Every checkpoint is regenerable from the commands above; random seeds are fixed in `src/utils/seed.py` and the reported confidence intervals (BCa bootstrap, 2,000 resamples) reflect the variance you should expect across reruns.
+- **Trained checkpoints are not included** (each is 30–60MB; excluded to keep this artifact lightweight). Every checkpoint is regenerable from the commands above.
+- **Every result the paper treats as evidence is replicated across 5 independently trained seeds** (17, 42, 1337, 2024, 31415), not a single run: `scripts/phase05_mmoe_ex.py`, `scripts/phase07_joint_training.py`, and `scripts/phase13_knn_voting_baseline.py` each accept `--seed`; `scripts/diagnose_graph_homophily.py` accepts `--seed` for its random-projection baseline. An earlier version of this codebase had no seed argument at all in these scripts (train/test splits were fixed, but model initialization and minibatch order were not controlled), which is why the paper reports mean $\pm$ std and a reportability-gated statistic (SPEC-H4-03) rather than a single point estimate for every claim it relies on — see `claims/ledger.yaml` and the reproducibility appendix (`paper/supplementary.tex`) for six documented cases where multi-seed treatment reversed a single-seed result.
 - **Leakage safety is enforced, not just claimed**: `scripts/phase13_leakage_audit.py` runs an automated audit (inductive train/test separation, split-local val/test separation, transductive cross-split-edge accounting, and an injected-bug detection check) and exits non-zero if any check fails.
 - **All reported numbers in the paper are read directly from the CSV/JSON files in `artifacts/tables/`** — nothing in the paper is a number typed by hand without a corresponding artifact file.
 - **The non-graph MMoEEx baseline (`phase05_mmoe_ex.py`) and the LLM ablation (`phase08_llm_ablations.py`) use a `WeightedRandomSampler` over each sample's temperature-balanced weight** so DAIC's 107 training rows aren't swamped by MOSEI's ~32k task-rows in every batch. An earlier version of this codebase computed that weight but never passed it to the `DataLoader` (plain `shuffle=True`), which silently capped the non-graph DAIC baseline at chance-level AUROC (0.493) and made every downstream graph-routing and LLM-ablation comparison against it unreliable. If you see a chance-level DAIC AUROC for the non-graph baseline in your own rerun, check that the `sampler=` argument (not `shuffle=True`) is being used on the training `DataLoader`.

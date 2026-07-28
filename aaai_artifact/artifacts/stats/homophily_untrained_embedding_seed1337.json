@@ -1,0 +1,90 @@
+{
+  "V0": {
+    "total_edges": 39040,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 350,
+      "metric": "label_agreement_fraction",
+      "real": 0.5714,
+      "random_baseline": 0.5943
+    },
+    "mosei": {
+      "n_edges": 18690,
+      "metric": "pearson_correlation",
+      "real": 0.1164,
+      "random_baseline": 0.0093
+    },
+    "fi": {
+      "n_edges": 15399,
+      "metric": "pearson_correlation",
+      "real": 0.3434,
+      "random_baseline": 0.005
+    }
+  },
+  "V1": {
+    "total_edges": 39040,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 350,
+      "metric": "label_agreement_fraction",
+      "real": 0.56,
+      "random_baseline": 0.5371
+    },
+    "mosei": {
+      "n_edges": 18690,
+      "metric": "pearson_correlation",
+      "real": 0.3932,
+      "random_baseline": 0.0018
+    },
+    "fi": {
+      "n_edges": 14986,
+      "metric": "pearson_correlation",
+      "real": 0.2634,
+      "random_baseline": -0.0093
+    }
+  },
+  "V3": {
+    "total_edges": 58560,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 525,
+      "metric": "label_agreement_fraction",
+      "real": 0.5657,
+      "random_baseline": 0.5695
+    },
+    "mosei": {
+      "n_edges": 28035,
+      "metric": "pearson_correlation",
+      "real": 0.1037,
+      "random_baseline": -0.0051
+    },
+    "fi": {
+      "n_edges": 22914,
+      "metric": "pearson_correlation",
+      "real": 0.3111,
+      "random_baseline": -0.0041
+    }
+  },
+  "V4": {
+    "total_edges": 58560,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 525,
+      "metric": "label_agreement_fraction",
+      "real": 0.5429,
+      "random_baseline": 0.539
+    },
+    "mosei": {
+      "n_edges": 28035,
+      "metric": "pearson_correlation",
+      "real": 0.3328,
+      "random_baseline": -0.0011
+    },
+    "fi": {
+      "n_edges": 22442,
+      "metric": "pearson_correlation",
+      "real": 0.2438,
+      "random_baseline": 0.0011
+    }
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "K5": {
+    "non_graph_baseline": {
+      "daic_auroc": {
+        "mean_delta": 0.0007399999999999962,
+        "paired_t": 0.036364773542081494,
+        "paired_p": 0.9727339310889789,
+        "threshold": 0.07210907293815391,
+        "reportable": false
+      },
+      "mosei_sentiment_ccc": {
+        "mean_delta": 0.011260000000000025,
+        "paired_t": 1.265659175222832,
+        "paired_p": 0.2743347914896811,
+        "threshold": 0.028044364852854154,
+        "reportable": false
+      },
+      "mosei_emotion_auc": {
+        "mean_delta": 0.014980000000000016,
+        "paired_t": 1.4830273043723692,
+        "paired_p": 0.21221393147184484,
+        "threshold": 0.026638978959412113,
+        "reportable": false
+      },
+      "fi_avg_ccc": {
+        "mean_delta": -0.10428000000000001,
+        "paired_t": -2.943072067493357,
+        "paired_p": 0.04225965635130656,
+        "threshold": 0.10423845739457197,
+        "reportable": true
+      }
+    }
+  },
+  "K20": {
+    "non_graph_baseline": {
+      "daic_auroc": {
+        "mean_delta": -0.014479999999999993,
+        "paired_t": -0.6533844989955891,
+        "paired_p": 0.5491626354720737,
+        "threshold": 0.08354162555277463,
+        "reportable": false
+      },
+      "mosei_sentiment_ccc": {
+        "mean_delta": -0.017380000000000007,
+        "paired_t": -1.1319859965947443,
+        "paired_p": 0.320901387877332,
+        "threshold": 0.04623730095929042,
+        "reportable": false
+      },
+      "mosei_emotion_auc": {
+        "mean_delta": 0.007100000000000018,
+        "paired_t": 0.72874002133054,
+        "paired_p": 0.506534927253178,
+        "threshold": 0.02829671359009734,
+        "reportable": false
+      },
+      "fi_avg_ccc": {
+        "mean_delta": -0.09266000000000002,
+        "paired_t": -2.6618287958602136,
+        "paired_p": 0.056282965339298885,
+        "threshold": 0.09780358275646142,
+        "reportable": false
+      }
+    }
+  },
+  "V0learned": {
+    "non_graph_baseline": {
+      "daic_auroc": {
+        "mean_delta": 0.00578000000000003,
+        "paired_t": 0.4798615833924817,
+        "paired_p": 0.6563859125139488,
+        "threshold": 0.053888848568140725,
+        "reportable": false
+      },
+      "mosei_sentiment_ccc": {
+        "mean_delta": 0.018600000000000005,
+        "paired_t": 1.1212003021853656,
+        "paired_p": 0.32496298195728923,
+        "threshold": 0.04916297794072283,
+        "reportable": false
+      },
+      "mosei_emotion_auc": {
+        "mean_delta": 0.002300000000000013,
+        "paired_t": 0.35566065320628526,
+        "paired_p": 0.7400582946367928,
+        "threshold": 0.016853248944936363,
+        "reportable": false
+      },
+      "fi_avg_ccc": {
+        "mean_delta": -0.07014000000000001,
+        "paired_t": -3.0870336652492423,
+        "paired_p": 0.03667988161258148,
+        "threshold": 0.06633195308446754,
+        "reportable": true
+      }
+    },
+    "V0_fixed_lambda": {
+      "daic_auroc": {
+        "mean_delta": 0.028220000000000002,
+        "paired_t": 5.083950265572044,
+        "paired_p": 0.007061213620806506,
+        "threshold": 0.06117347137444469,
+        "reportable": false
+      },
+      "mosei_sentiment_ccc": {
+        "mean_delta": -0.009400000000000009,
+        "paired_t": -0.35605166605553895,
+        "paired_p": 0.7397870179381063,
+        "threshold": 0.05786507063851214,
+        "reportable": false
+      },
+      "mosei_emotion_auc": {
+        "mean_delta": -0.01048,
+        "paired_t": -1.1362318008955101,
+        "paired_p": 0.31931535626092966,
+        "threshold": 0.020092864405056827,
+        "reportable": false
+      },
+      "fi_avg_ccc": {
+        "mean_delta": 0.020679999999999997,
+        "paired_t": 0.4634774440979523,
+        "paired_p": 0.6671187428296363,
+        "threshold": 0.10740815611488733,
+        "reportable": false
+      }
+    }
+  }
+}

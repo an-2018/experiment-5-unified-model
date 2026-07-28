@@ -33,7 +33,7 @@ import torch.nn as nn
 
 warnings.filterwarnings("ignore")
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path("/home/anilson/thesis/thesis-experiment-5-unified-model")
 sys.path.insert(0, str(ROOT / "src"))
 
 FEATURES_ROOT = ROOT / "data" / "features"
@@ -222,13 +222,14 @@ def get_label_key(entry):
 # Model loading
 # =============================================================================
 
-def build_and_load_model(device):
+def build_and_load_model(device, ckpt_path=None):
     model = UnifiedEmbeddingModel(
         text_dim=FEATURE_DIMS["text"],
         audio_dim=FEATURE_DIMS["audio"],
         video_dim=FEATURE_DIMS["video"],
     )
-    ckpt_path = ARTIFACTS_TABLES / "mmoe_ex_best.pt"
+    if ckpt_path is None:
+        ckpt_path = ARTIFACTS_TABLES / "mmoe_ex_best.pt"
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
     print(f"  Loading checkpoint: {ckpt_path}")
@@ -293,12 +294,12 @@ def extract_embeddings_for_split(manifest, all_labels, split, model, device):
 # KNN Weighted Voting
 # =============================================================================
 
-def run_knn_voting():
+def run_knn_voting(ckpt_path=None):
     from sklearn.neighbors import NearestNeighbors
 
     device = torch.device("cpu")
     print("[1/5] Loading model...")
-    model = build_and_load_model(device)
+    model = build_and_load_model(device, ckpt_path=ckpt_path)
 
     print("[2/5] Loading manifest and labels...")
     manifest = load_manifest()
@@ -508,26 +509,67 @@ def update_latex_table(metrics):
 # Main
 # =============================================================================
 
+CHECKPOINTS = {
+    "original": ARTIFACTS_TABLES / "mmoe_ex_best_original_seed_unknown.pt",
+    "seed17": ARTIFACTS_TABLES / "mmoe_ex_best_seed17.pt",
+    "seed42": ARTIFACTS_TABLES / "mmoe_ex_best_seed42.pt",
+    "seed1337": ARTIFACTS_TABLES / "mmoe_ex_best_seed1337.pt",
+    "seed2024": ARTIFACTS_TABLES / "mmoe_ex_best_seed2024.pt",
+    "seed31415": ARTIFACTS_TABLES / "mmoe_ex_best_seed31415.pt",
+}
+
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--all-seeds", action="store_true",
+                        help="Run across all 5 canonical seeds + original, aggregate, "
+                             "instead of the single default checkpoint.")
+    args = parser.parse_args()
+
+    if not args.all_seeds:
+        print("=" * 60)
+        print("Phase 13: KNN Voting Baseline (No Graph)")
+        print("=" * 60)
+        results = run_knn_voting()
+        print("\nEvaluating...")
+        metrics = evaluate_results(results)
+        print("\nSaving results...")
+        save_results_csv(metrics)
+        update_latex_table(metrics)
+        print("\nSummary:")
+        for key, val in sorted(metrics.items()):
+            if isinstance(val, (int, float)):
+                print(f"  {key}: {val:.4f}")
+        print("\nDone.")
+        return
+
     print("=" * 60)
-    print("Phase 13: KNN Voting Baseline (No Graph)")
+    print("Phase 13: KNN Voting Baseline (No Graph) — all 5 canonical seeds")
     print("=" * 60)
+    all_metrics = {}
+    for name, ckpt_path in CHECKPOINTS.items():
+        if not ckpt_path.exists():
+            print(f"Skipping {name}: {ckpt_path} not found")
+            continue
+        print(f"\n{'='*60}\n{name}\n{'='*60}")
+        results = run_knn_voting(ckpt_path=ckpt_path)
+        metrics = evaluate_results(results)
+        all_metrics[name] = metrics
 
-    results = run_knn_voting()
+    metric_names = ["daic_auroc", "mosei_sentiment_ccc", "mosei_emotion_auc", "fi_avg_ccc"]
+    canonical = ["seed17", "seed42", "seed1337", "seed2024", "seed31415"]
+    print(f"\n{'='*60}\nCROSS-SEED SUMMARY\n{'='*60}")
+    aggregate = {}
+    for m in metric_names:
+        vals = np.array([all_metrics[n][m] for n in canonical if n in all_metrics])
+        aggregate[m] = {"mean": float(vals.mean()), "std": float(vals.std()), "values": vals.tolist()}
+        print(f"  {m}: {vals.mean():.4f} +- {vals.std():.4f}")
 
-    print("\nEvaluating...")
-    metrics = evaluate_results(results)
-
-    print("\nSaving results...")
-    save_results_csv(metrics)
-    update_latex_table(metrics)
-
-    print("\nSummary:")
-    for key, val in sorted(metrics.items()):
-        if isinstance(val, (int, float)):
-            print(f"  {key}: {val:.4f}")
-
-    print("\nDone.")
+    out = {"per_seed": all_metrics, "aggregate": aggregate}
+    with open(ARTIFACTS_TABLES.parent / "stats" / "knn_voting_5seed.json", "w") as f:
+        json.dump(out, f, indent=2, default=float)
+    print(f"\nSaved: artifacts/stats/knn_voting_5seed.json")
 
 
 if __name__ == "__main__":

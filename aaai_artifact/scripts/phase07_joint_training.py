@@ -46,7 +46,7 @@ from torch_geometric.loader import DataLoader as PyGDataLoader
 
 warnings.filterwarnings("ignore")
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path("/home/anilson/thesis/thesis-experiment-5-unified-model")
 FEATURES_ROOT = ROOT / "data" / "features"
 MANIFEST_PATH = FEATURES_ROOT / "manifest.json"
 ARTIFACTS_FIGURES = ROOT / "artifacts" / "figures" / "phase_07_joint_training"
@@ -130,8 +130,6 @@ from data.graph_builder import (
     build_multimodal_graph, validate_graph_leakage, validate_graph_no_cross_split_leakage
 )
 from utils.seed import set_seed
-
-set_seed(42)
 
 # ---------------------------------------------------------------------------
 # Joint Training Pipeline with frozen projectors and progressive unfreezing
@@ -1379,7 +1377,13 @@ def main():
                         help="Suffix for results/checkpoint filenames, so multiple variants "
                              "can run concurrently (parallel processes) without clobbering "
                              "each other's artifacts/tables/phase07_results*.csv output.")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed (previously hardcoded at module import time via "
+                             "set_seed(42), so every V0-V4 run used the same seed regardless "
+                             "of --run_tag — moved here so multi-seed reruns are real.")
     args = parser.parse_args()
+
+    set_seed(args.seed)
 
     if args.quick_test:
         args.epochs = 3

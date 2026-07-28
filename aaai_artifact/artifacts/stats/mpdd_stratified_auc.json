@@ -1,0 +1,11 @@
+{
+  "naive_pooled_auroc": 0.8194444444444444,
+  "stratified_auroc": 0.8571428571428571,
+  "stratified_ci_95": [
+    0.6805288461538462,
+    1.0
+  ],
+  "n_within_track_pairs": 70,
+  "per_track_simple_average": 0.79585,
+  "between_track_contribution": -0.037698412698412676
+}

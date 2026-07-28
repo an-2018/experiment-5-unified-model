@@ -1,0 +1,90 @@
+{
+  "V0": {
+    "total_edges": 39040,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 350,
+      "metric": "label_agreement_fraction",
+      "real": 0.5743,
+      "random_baseline": 0.5457
+    },
+    "mosei": {
+      "n_edges": 18690,
+      "metric": "pearson_correlation",
+      "real": 0.1293,
+      "random_baseline": -0.0005
+    },
+    "fi": {
+      "n_edges": 15468,
+      "metric": "pearson_correlation",
+      "real": 0.338,
+      "random_baseline": -0.0144
+    }
+  },
+  "V1": {
+    "total_edges": 39040,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 350,
+      "metric": "label_agreement_fraction",
+      "real": 0.5686,
+      "random_baseline": 0.58
+    },
+    "mosei": {
+      "n_edges": 18690,
+      "metric": "pearson_correlation",
+      "real": 0.405,
+      "random_baseline": 0.0013
+    },
+    "fi": {
+      "n_edges": 14960,
+      "metric": "pearson_correlation",
+      "real": 0.2478,
+      "random_baseline": -0.0026
+    }
+  },
+  "V3": {
+    "total_edges": 58560,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 525,
+      "metric": "label_agreement_fraction",
+      "real": 0.5771,
+      "random_baseline": 0.5467
+    },
+    "mosei": {
+      "n_edges": 28035,
+      "metric": "pearson_correlation",
+      "real": 0.1183,
+      "random_baseline": -0.0161
+    },
+    "fi": {
+      "n_edges": 23018,
+      "metric": "pearson_correlation",
+      "real": 0.3025,
+      "random_baseline": 0.0033
+    }
+  },
+  "V4": {
+    "total_edges": 58560,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 525,
+      "metric": "label_agreement_fraction",
+      "real": 0.5524,
+      "random_baseline": 0.5486
+    },
+    "mosei": {
+      "n_edges": 28035,
+      "metric": "pearson_correlation",
+      "real": 0.3443,
+      "random_baseline": -0.0078
+    },
+    "fi": {
+      "n_edges": 22393,
+      "metric": "pearson_correlation",
+      "real": 0.2287,
+      "random_baseline": 0.0063
+    }
+  }
+}

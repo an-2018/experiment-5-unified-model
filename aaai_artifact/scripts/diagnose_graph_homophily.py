@@ -6,12 +6,13 @@ graph construction code path used by the real training runs.
 
 See context/graph_routing_improvement_review.md for motivation.
 """
+import argparse
 import sys
 from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path("/home/anilson/thesis/thesis-experiment-5-unified-model")
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
@@ -20,6 +21,7 @@ from phase07_joint_training import (
 )
 from phase05_mmoe_ex import load_all_labels, make_label_key
 from data.graph_builder import build_knn_graph, build_inductive_graph, build_split_local_graph
+from utils.seed import set_seed
 import torch
 
 FI_TRAITS = ["extraversion", "neuroticism", "agreeableness", "conscientiousness", "openness"]
@@ -116,7 +118,16 @@ def edge_agreement(edge_index, dataset_ids, index_map, split_ids, all_labels, se
 
 
 def main():
-    print("Loading real fused embeddings (this reuses the exact V0-V4 embedding pipeline)...")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Seeds the untrained GatedLateFusion projection used for graph "
+                             "construction. Previously unseeded (a different random projection "
+                             "every run, non-reproducible) -- fixed to match the seeding this "
+                             "project's actual V0-V4 training runs now use.")
+    args = parser.parse_args()
+    set_seed(args.seed)
+
+    print(f"Loading real fused embeddings (seed={args.seed}; this reuses the exact V0-V4 embedding pipeline)...")
     all_embs, all_meta = load_all_dataset_embeddings(torch.device("cpu"), HIDDEN_DIM)
     global_embeddings, dataset_ids, global_split_ids, global_task_ids, index_map = \
         concatenate_all_splits(all_embs, all_meta, HIDDEN_DIM)
@@ -149,6 +160,7 @@ def main():
     val_embs = global_embeddings[val_mask]
     n_train = len(train_embs)
 
+    all_results = {}
     for name, graph_type, k in variants:
         print(f"\n{'='*60}\n{name}: graph_type={graph_type} k={k}\n{'='*60}")
 
@@ -180,6 +192,15 @@ def main():
             else:
                 print(f"    {ds}: {r['metric']}: real={r['real']}  random_baseline={r['random_baseline']}  "
                       f"(n={r['n_edges']})")
+        all_results[name] = res
+
+    import json
+    out_dir = ROOT / "artifacts" / "stats"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"homophily_untrained_embedding_seed{args.seed}.json"
+    with open(out_path, "w") as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\nSaved: {out_path}")
 
 
 if __name__ == "__main__":

@@ -32,6 +32,7 @@ import json
 import math
 import os
 import pickle
+import random
 import sys
 import warnings
 from collections import defaultdict
@@ -46,7 +47,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 warnings.filterwarnings("ignore")
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path("/home/anilson/thesis/thesis-experiment-5-unified-model")
 FEATURES_ROOT = ROOT / "data" / "features"
 MANIFEST_PATH = FEATURES_ROOT / "manifest.json"
 ARTIFACTS_FIGURES = ROOT / "artifacts" / "figures" / "phase_05_mmoe_ex"
@@ -1036,16 +1037,32 @@ def main():
     parser.add_argument("--lr", type=float, default=LR_DEFAULT)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed. If set, checkpoint/results/predictions are "
+                             "written to seed-suffixed filenames (mmoe_ex_best_seed{N}.pt "
+                             "etc.) instead of the unsuffixed defaults, so multi-seed runs "
+                             "don't clobber each other or the original checkpoint.")
     args = parser.parse_args()
 
     os.makedirs(ARTIFACTS_FIGURES, exist_ok=True)
     os.makedirs(ARTIFACTS_TABLES, exist_ok=True)
+
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        torch.cuda.manual_seed_all(args.seed)
+
+    ckpt_name = "mmoe_ex_best.pt" if args.seed is None else f"mmoe_ex_best_seed{args.seed}.pt"
+    results_name = "mmoe_ex_results.csv" if args.seed is None else f"mmoe_ex_results_seed{args.seed}.csv"
+    preds_name = "predictions_L0.npz" if args.seed is None else f"predictions_L0_seed{args.seed}.npz"
 
     device = torch.device(args.device)
     print(f"\n{'='*60}")
     print(f"Phase 5: MMoEEx Joint Training (GatedLateFusion)")
     print(f"{'='*60}")
     print(f"Device: {device}")
+    print(f"Seed: {args.seed}")
     print(f"Epochs: {args.epochs}")
     print(f"Batch size: {args.batch_size}")
     print(f"Learning rate: {args.lr}")
@@ -1168,7 +1185,7 @@ def main():
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     patience_counter = 0
-                    ckpt_path = ARTIFACTS_TABLES / "mmoe_ex_best.pt"
+                    ckpt_path = ARTIFACTS_TABLES / ckpt_name
                     torch.save({
                         "model": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
@@ -1201,7 +1218,7 @@ def main():
             print(f"  FI Per-Trait: {final_results['fi']['per_trait']}")
 
         # Save results
-        results_path = ARTIFACTS_TABLES / "mmoe_ex_results.csv"
+        results_path = ARTIFACTS_TABLES / results_name
         with open(results_path, "w") as f:
             f.write("metric,value\n")
             f.write(f"daic_auroc,{final_results['daic']['auroc']:.4f}\n")
@@ -1222,13 +1239,13 @@ def main():
         predictions_dir = ROOT / "artifacts" / "predictions"
         predictions_dir.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
-            predictions_dir / "predictions_L0.npz",
+            predictions_dir / preds_name,
             daic_all_labels=np.array(final_results["daic"]["all_labels"]),
             daic_all_preds=np.array(final_results["daic"]["all_preds"]),
             mosei_sent_all_labels=np.array(final_results["mosei_sentiment"]["all_labels"]),
             mosei_sent_all_preds=np.array(final_results["mosei_sentiment"]["all_preds"]),
         )
-        print(f"  Per-sample predictions saved to {predictions_dir / 'predictions_L0.npz'}")
+        print(f"  Per-sample predictions saved to {predictions_dir / preds_name}")
 
         # Generate visualizations
         print("\n[5/5] Generating visualizations...")
