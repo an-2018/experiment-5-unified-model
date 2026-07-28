@@ -1,0 +1,200 @@
+# Citation Integrity Registry (SPEC-H9-01)
+#
+# One entry per bibliography key referenced in paper/references/references.bib.
+# `verified_by` and `located_at` are a HUMAN GATE (SPEC-H9-03) and are never
+# auto-populated by this tool or by an agent — an entry with either field
+# null is UNVERIFIED and must fail any citation-integrity build check
+# (SPEC-H9-03/H9-04) until a human opens the actual PDF and fills them in.
+#
+# Automated DOI/arXiv resolution against Crossref/arXiv (SPEC-H9-02) requires
+# network egress this sandbox does not have; `doi_resolved` records whether
+# that automated check has been run at all, separate from human verification.
+
+- key: wu2025cotfails
+  doi: null
+  title: "Why Chain of Thought Fails in Clinical Text Understanding"
+  authors: [Wu, Jiageng; Xie, Kevin; Gu, Bowen; Krüger, Nils; Lin, Kueiyu Joshua; Yang, Jie]
+  venue: "arXiv:2509.21933 (2025)"
+  supports_claim: "CoT unfaithfulness/reliability concerns in clinical XAI narratives"
+  status: added_2026-07-28
+  correction_note: >
+    Pre-existing gap found this session: cited 4x in supplementary.tex and
+    journal_paper.tex but never defined in references.bib. Not introduced by
+    this session's edits -- caught by the brace/citation sanity check run
+    after the routing-table rewrite. Resolved via WebFetch verification of
+    the arXiv abstract page.
+  doi_resolved: true
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: cardiffnlp2021twitter
+  doi: 10.18653/v1/2022.acl-demo.25
+  title: "TimeLMs: Diachronic Language Models from Twitter"
+  authors: [Loureiro, Daniel; Barbieri, Francesco; Neves, Leonardo; Espinosa Anke, Luis; Camacho-Collados, Jose]
+  venue: "ACL 2022 System Demonstrations"
+  supports_claim: "Off-the-shelf sentiment classifier used for the in-domain DAIC control (cardiffnlp/twitter-roberta-base-sentiment-latest)"
+  status: added_2026-07-27
+  doi_resolved: true
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: hartmann2022emotion
+  doi: null
+  title: "Emotion English DistilRoBERTa-base"
+  authors: [Hartmann, Jochen]
+  venue: "HuggingFace model card, 2022 (no peer-reviewed paper at time of citation)"
+  supports_claim: "Off-the-shelf emotion classifier used for the in-domain DAIC control (j-hartmann/emotion-english-distilroberta-base)"
+  status: added_2026-07-27
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: fu2025mpdd
+  doi: 10.1145/3746027.3762020
+  title: "The First MPDD Challenge: Multimodal Personality-aware Depression Detection"
+  authors: [Fu, Changzeng; Fu, Zelin; Zhang, Qi; Kuang, Xinhe; Dong, Jiacheng; Su, Kaifeng; Su, Yikai; Shi, Wenbo; Yao, Junfeng; Zhao, Yuliang; Zhao, Shiqi; Wang, Jiadong; Song, Siyang; Liu, Chaoran; Yoshikawa, Yuichiro; Schuller, Björn W.; Ishiguro, Hiroshi]
+  venue: "ACM Multimedia 2025 (Grand Challenge); arXiv:2505.10034"
+  supports_claim: "MPDD dataset citation (independent-corpus dissociation, Section method-mpdd)"
+  status: added_2026-07-27
+  correction_note: >
+    Author list and DOI resolved via WebSearch this session (network egress
+    is available in this sandbox, contrary to an earlier note in this file
+    assuming otherwise — SPEC-H9-02's automated Crossref/arXiv resolution can
+    actually be run here). Full author list confirmed from ACM DL and arXiv
+    search results, not just the loader docstring's "Fu et al." shorthand.
+  doi_resolved: true
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: aoki2021mmoeex
+  doi: 10.1109/TCBB.2022.3175456
+  title: "Heterogeneous Multi-Task Learning With Expert Diversity"
+  authors: [Aoki, Raquel; Tung, Frederick; Oliveira, Gabriel L.]
+  venue: "IEEE/ACM Transactions on Computational Biology and Bioinformatics (preprint at BIOKDD 2021)"
+  supports_claim: "MMoEEx expert exclusivity/orthogonality regularization — our expert bank baseline"
+  status: corrected_2026-07-27
+  correction_note: >
+    Previously miscited in paper/references/references.bib as deng2026moe
+    ("MoE-based multimodal alignment for vocal metaverse classrooms", Deng/Liu/Yang,
+    Scientific Reports 2026) — a real but unrelated paper. Replaced 2026-07-27.
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: vyalla2026psygat
+  doi: null
+  title: "PsyGAT: psychologically-grounded, interpretable graph model distinguishing personality-trait context from acute depression symptoms"
+  authors: [Vyalla, Rishitej Reddy; Prasad, Kritarth; Anand, Avinash; Cambria, Erik; Ji, Shaoxiong; Alamri, Faten S.; Wang, Zhengkui]
+  venue: "2026 (see paper/references/references.bib for existing entry)"
+  supports_claim: "Closest competing psychologically-grounded graph model on DAIC; motivates the multi-construct framing (Related Work)"
+  status: re-added_to_main-conference_2026-07-27
+  correction_note: >
+    Was cited in journal_paper.tex and supplementary.tex but absent from
+    main-conference.tex. Added to main-conference.tex Related Work
+    (Depression detection on DAIC-WOZ paragraph), 2026-07-27, with an
+    explicit disclosure that no direct numeric comparison is reported
+    (PsyGAT is not in artifacts/tables/soa_comparison.csv).
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: clark1991tripartite
+  doi: 10.1037/0021-843X.100.3.316
+  title: "Tripartite model of anxiety and depression: psychometric evidence and taxonomic implications"
+  authors: [Clark, Lee Anna; Watson, David]
+  venue: "Journal of Abnormal Psychology, 100(3):316-336"
+  supports_claim: "Psychology anchor for H-B (low-positive-affect specificity); theory anchor for the valence axis (SPEC-CM table 1.2)"
+  status: added_2026-07-27
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: kotov2010linking
+  doi: 10.1037/a0020327
+  title: "Linking \"big\" personality traits to anxiety, depressive, and substance use disorders: a meta-analysis"
+  authors: [Kotov, Roman; Gámez, Wakiza; Schmidt, Frank; Watson, David]
+  venue: "Psychological Bulletin, 136(5):768-821"
+  supports_claim: "Theory anchor for the trait axis (SPEC-CM table 1.2); measured-trait effect sizes referenced in E2 pre-registration (construct_signs.yaml), with the perceived-vs-measured gap disclosed per SPEC-CM-02"
+  status: added_2026-07-27
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: insel2010rdoc
+  doi: 10.1176/appi.ajp.2010.09091379
+  title: "Research domain criteria (RDoC): toward a new classification framework for research on mental disorders"
+  authors: [Insel, Thomas; Cuthbert, Bruce; Garvey, Marjorie; Heinssen, Robert; Pine, Daniel S.; Quinn, Kevin; Sanislow, Charles; Wang, Philip]
+  venue: "American Journal of Psychiatry, 167(7):748-751"
+  supports_claim: "RDoC Negative/Positive Valence Systems anchor for the valence axis (SPEC-CM table 1.2)"
+  status: added_2026-07-27
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: bylsma2008differential
+  doi: 10.1016/j.cpr.2007.10.001
+  title: "A meta-analysis of emotional reactivity in major depressive disorder"
+  authors: [Bylsma, Lauren M.; Morris, Bethany H.; Rottenberg, Jonathan]
+  venue: "Clinical Psychology Review, 28(4):676-691"
+  supports_claim: "Supporting anchor for H-B tripartite/low-positive-affect prediction (emotional reactivity blunting in depression)"
+  status: added_2026-07-27
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+# --- Entries flagged for re-verification per SPEC-H9-04 ("re-verify every
+# remaining 2026 entry against its PDF"). Not yet actioned — listed here so
+# the human gate has a concrete checklist rather than an open-ended scan.
+# Found via: awk over paper/references/references.bib for year = {2026}.
+
+- key: attali2026graphrewiring
+  status: needs_human_verification
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: matsumoto2026interaction
+  status: needs_human_verification
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: hua2026asym
+  status: needs_human_verification
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: xing2026gender
+  status: needs_human_verification
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: chen2026multimodal
+  status: needs_human_verification
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null
+
+- key: wang2026artificial
+  status: needs_human_verification
+  doi_resolved: false
+  located_at: null
+  verified_by: null
+  verified_date: null

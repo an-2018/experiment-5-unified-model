@@ -1,0 +1,12 @@
+metric,value
+daic_auroc,0.4819
+mosei_sentiment_ccc,0.4653
+mosei_emotion_auc,0.6875
+fi_avg_ccc,0.4925
+fi_extraversion_ccc,0.4919
+fi_neuroticism_ccc,0.4784
+fi_agreeableness_ccc,0.3913
+fi_conscientiousness_ccc,0.6270
+fi_openness_ccc,0.4737
+best_daic_auroc,0.4819
+total_regressions,51

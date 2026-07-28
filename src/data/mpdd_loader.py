@@ -198,25 +198,48 @@ class MPDDLoader:
                 # Load segment-level file list with feature paths
                 segment_files_raw = zf.read(segment_file).decode('utf-8')
                 segment_files = json.loads(segment_files_raw)
-                
-                # Determine split based on official ratios
+
+                # Subject-independent split assignment (fixes a leakage bug: the
+                # previous version split by row index within segment_files with
+                # no subject grouping, so a subject's segments could straddle a
+                # split boundary — confirmed to happen for 2 subjects in the
+                # Young track (077 in train+val, 093 in val+test) despite this
+                # loader's own docstring claiming subject-independent splits.
+                # Fix: assign whole subjects to a split, walking subjects in
+                # their first-appearance order and cutting at the closest
+                # segment-count boundary to the target ratios without ever
+                # splitting a subject's segments across two splits.
+                subject_order = []
+                seen_subjects = set()
+                segments_per_subject = {}
+                for seg in segment_files:
+                    sid = seg['audio_feature_path'].split('_')[0]
+                    if sid not in seen_subjects:
+                        seen_subjects.add(sid)
+                        subject_order.append(sid)
+                    segments_per_subject[sid] = segments_per_subject.get(sid, 0) + 1
+
                 n_samples = len(segment_files)
-                n_train = int(n_samples * self.TRAIN_RATIO)
-                n_val = int(n_samples * self.VAL_RATIO)
-                
-                for idx, seg in enumerate(segment_files):
-                    # Determine split
-                    if idx < n_train:
-                        split = "train"
-                    elif idx < n_train + n_val:
-                        split = "val"
+                target_train = n_samples * self.TRAIN_RATIO
+                target_train_val = n_samples * (self.TRAIN_RATIO + self.VAL_RATIO)
+
+                subject_to_split = {}
+                cumulative = 0
+                for sid in subject_order:
+                    if cumulative < target_train:
+                        subject_to_split[sid] = "train"
+                    elif cumulative < target_train_val:
+                        subject_to_split[sid] = "val"
                     else:
-                        split = "test"
-                    
+                        subject_to_split[sid] = "test"
+                    cumulative += segments_per_subject[sid]
+
+                for seg in segment_files:
                     # Extract subject ID from filename (e.g., "001_001" -> "001")
                     filename = seg['audio_feature_path']
                     subject_id_raw = filename.split('_')[0]
-                    
+                    split = subject_to_split[subject_id_raw]
+
                     # Normalize subject ID - try both with and without leading zeros
                     # Labels JSON uses "1", filename uses "001"
                     subject_label = subject_labels.get(subject_id_raw, {})

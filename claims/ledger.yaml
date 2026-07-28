@@ -1,0 +1,617 @@
+# Claim Ledger (SPEC-H8-01/H8-03), full version.
+#
+# Every numeric or quantified statement destined for the manuscript is
+# registered here, wired to the actual artifacts/stats/*.json files this
+# session produced. No hand-typed numerals in Results; every LaTeX macro
+# is generated from a `value`/`pointer` in this file, and `verify_claims.py`
+# must be green before a line of prose is written (H8-03).
+#
+# Kinds:
+#   scalar      - a single value, read from source/pointer, printed for the
+#                 LaTeX macro generator. May carry a `tolerance` to catch
+#                 upstream drift if the underlying artifact changes.
+#   interval    - a value + 95% CI, with an optional `requires` directional
+#                 check (e.g. entirely_below_zero, excludes_chance).
+#   assertion   - a named check function in verify_claims.py's CHECKS
+#                 registry (bespoke logic: sample-id consistency, checkpoint
+#                 freshness, textual hedging scans of the compiled .tex).
+#   quarantined - a literal number that is NOT a live claim. It may appear in
+#                 the manuscript ONLY inside the section named by
+#                 `required_label`; the linter fails the build if it's found
+#                 anywhere else (or found nowhere, meaning it was silently
+#                 dropped instead of disclosed).
+#
+# Blocking statuses: any entry with `status` set to a TODO_* value fails the
+# verifier regardless of its kind. This is deliberate — see C-DELTA-BOOTSTRAP,
+# C-MPDD-STRATIFIED (both resolved in this pass) and C-ROUTING-TABLE1 (still
+# blocked, needs a real ~25-run 5-seed rerun of the graph-routing ladder,
+# not yet done).
+
+# =====================================================================
+# SCALARS (17)
+# =====================================================================
+
+- id: C-SCALAR-PROFILE-NAIVE
+  kind: scalar
+  statement: "Naive 12-dim construct profile, mean test AUROC across 5 canonical seeds."
+  source: artifacts/stats/e1_naive_ladder_aggregate.json
+  pointer: $.aggregate.profile_auroc_mean
+  value: 0.5238095238095238
+  tolerance: 1e-6
+
+- id: C-SCALAR-RP-NAIVE
+  kind: scalar
+  statement: "Random 12-dim projection of the fused representation, mean test AUROC across 5 seeds."
+  source: artifacts/stats/e1_naive_ladder_aggregate.json
+  pointer: $.aggregate.rp_auroc_mean
+  value: 0.615974025974026
+  tolerance: 1e-6
+
+- id: C-SCALAR-TEXT-ONLY
+  kind: scalar
+  statement: >
+    Raw 768-dim RoBERTa text embedding, same LR-CV protocol as the rest of E1.
+    Deterministic — identical across all 5 checkpoints (verified).
+  source: artifacts/stats/e1_naive_ladder_aggregate.json
+  pointer: $.aggregate.text_only_auroc
+  value: 0.5844155844155844
+  tolerance: 1e-6
+  manuscript_location: "Replaces the retired 0.671 figure (see Q-PHASE03-0671)."
+
+- id: C-SCALAR-PCA12
+  kind: scalar
+  statement: "PCA-12 (unsupervised, variance-preserving projection), mean test AUROC across 5 seeds."
+  source: artifacts/stats/e1_pca_control.json
+  pointer: $.mean
+  value: 0.6094780219780219
+  tolerance: 1e-4
+
+- id: C-SCALAR-PROFILE-DEGEN
+  kind: scalar
+  headline: true
+  statement: "Degeneracy-controlled construct profile, mean test AUROC across 5 seeds (near-constant dims dropped per-seed on train-std alone)."
+  source: artifacts/stats/e1_degeneracy_controlled_summary.json
+  pointer: $.aggregate.auroc_reduced_mean
+  tolerance: 1e-6
+
+- id: C-SCALAR-RP-DEGEN
+  kind: scalar
+  headline: true
+  statement: "Matched-dimensionality random projection, mean test AUROC across 5 seeds (same reduced dims as C-SCALAR-PROFILE-DEGEN, per seed)."
+  source: artifacts/stats/e1_degeneracy_controlled_summary.json
+  pointer: $.aggregate.rp_matched_mean_mean
+  tolerance: 1e-6
+
+- id: C-SCALAR-SIGN-TEST-COUNT
+  kind: scalar
+  statement: "Number of seeds (of 5) where the degeneracy-controlled delta is negative."
+  source: artifacts/stats/e1_statistical_treatment.json
+  pointer: $.n_negative
+  value: 5
+  tolerance: 0
+
+- id: C-SCALAR-SIGN-TEST-P
+  kind: scalar
+  statement: "One-sided binomial sign-test p-value for 5/5 negative deltas."
+  source: artifacts/stats/e1_statistical_treatment.json
+  pointer: $.sign_test_p_one_sided
+  tolerance: 1e-4
+
+- id: C-SCALAR-PAIRED-T
+  kind: scalar
+  statement: "Paired t-statistic, 5 seed-level degeneracy-controlled deltas vs. 0."
+  source: artifacts/stats/e1_statistical_treatment.json
+  pointer: $.paired_ttest_t
+  tolerance: 1e-3
+
+- id: C-SCALAR-PAIRED-P
+  kind: scalar
+  statement: "Paired t-test p-value, 5 seed-level deltas vs. 0. NOTE: this is the training-randomness-only CI's p-value — see C-INTERVAL-DELTA-BOOTSTRAP for the subject-sampling-corrected headline statistic."
+  source: artifacts/stats/e1_statistical_treatment.json
+  pointer: $.paired_ttest_p
+  tolerance: 1e-4
+
+- id: C-SCALAR-DELONG-SIGRATE
+  kind: scalar
+  statement: >
+    Fraction of individual per-seed DeLong tests (profile vs. one of 20
+    random-projection draws) reaching p<0.05. Reported as an ACKNOWLEDGED
+    POWER LIMITATION (10/100 ~ 2x the 5% null expectation from
+    non-independent tests) — see A-DELONG-NOT-SUPPORT, which blocks this
+    number from being used as supporting evidence in prose.
+  source: artifacts/stats/e1_statistical_treatment.json
+  pointer: "sum(r.delong_n_significant for r in $.per_seed) / sum(r.delong_n_draws for r in $.per_seed)"
+  computed: true
+  value: 0.10
+  tolerance: 1e-6
+
+- id: C-SCALAR-INDOMAIN-PROFILE
+  kind: scalar
+  statement: >
+    RESOLVED 2026-07-28 (was single-checkpoint-only). In-domain DAIC profile
+    test AUROC, mean over 5 canonical seeds (1-3 gated dims per seed, not a
+    fixed set).
+  source: artifacts/stats/e1_indomain_control_5seed_aggregate.json
+  pointer: $.aggregate.profile_auroc_mean
+  value: 0.5800865800865801
+  tolerance: 1e-6
+
+- id: C-SCALAR-INDOMAIN-RP
+  kind: scalar
+  statement: "Matched-dim random-projection ensemble AUROC, in-domain control, mean over 5 canonical seeds."
+  source: artifacts/stats/e1_indomain_control_5seed_aggregate.json
+  pointer: $.aggregate.rp_auroc_mean
+  value: 0.6173160173160173
+  tolerance: 1e-6
+
+- id: C-SCALAR-INDOMAIN-DELTA-INCONCLUSIVE
+  kind: scalar
+  headline: true
+  statement: >
+    In-domain control delta (profile - matched RP), mean over 5 seeds. Sign
+    test on the 5 per-seed deltas (3 negative, 2 positive) gives one-sided
+    p=0.5 -- this control is INCONCLUSIVE, not corroborating, contrary to
+    the original single-checkpoint framing. See
+    artifacts/e1_indomain_control_report.md "Corrected interpretation".
+  source: artifacts/stats/e1_indomain_control_5seed_aggregate.json
+  pointer: $.aggregate.delta_mean
+  value: -0.03722943722943721
+  tolerance: 1e-6
+
+- id: C-SCALAR-INDOMAIN-GATE
+  kind: scalar
+  statement: >
+    In-domain dimensions passing the derived-feature validity gate, original
+    checkpoint only (2 of 7: sentiment, surprise). Across all 5 seeds this
+    varies (1-3 of 7 per seed, not a fixed set) -- see
+    e1_indomain_control_5seed_aggregate.json's n_passed_per_seed=[3,1,1,2,2].
+  source: artifacts/stats/e1_indomain_control_original.json
+  pointer: "$.n_passed / $.n_total"
+  computed: true
+  value: 0.2857142857142857
+  tolerance: 1e-6
+  manuscript_location: "Report as '2 of 7 (original checkpoint); 1-3 of 7 across seeds', not as a bare fraction."
+
+- id: C-SCALAR-MPDD-YOUNG
+  kind: scalar
+  statement: "MPDD-Young ground-truth Big-Five -> depression AUROC, subject-deduplicated, post leakage fix."
+  source: artifacts/stats/mpdd_groundtruth_traits_ci.json
+  pointer: $.young.auroc
+  value: 0.6666666666666667
+  tolerance: 1e-6
+
+- id: C-SCALAR-MPDD-ELDERLY
+  kind: scalar
+  statement: "MPDD-Elderly ground-truth Big-Five -> depression AUROC, subject-deduplicated, post leakage fix."
+  source: artifacts/stats/mpdd_groundtruth_traits_ci.json
+  pointer: $.elderly.auroc
+  value: 0.925
+  tolerance: 1e-6
+
+- id: C-SCALAR-MPDD-REGRESSOR-WORST-R2
+  kind: scalar
+  statement: >
+    Worst held-out R^2 among the 5 Big-Five trait regressors trained on
+    MPDD's own audio/video features (the failed-generalization arm of the
+    measurement-bottleneck dissociation), recomputed post subject-leakage fix.
+  source: artifacts/stats/mpdd_regressor_generalization.json
+  pointer: $.Extraversion.test_r2
+  value: -2.8648
+  tolerance: 0.01
+  manuscript_location: "Reproducibility appendix / documented failure mode section."
+
+# =====================================================================
+# INTERVALS (7)
+# =====================================================================
+
+- id: C-INTERVAL-DELTA-BOOTSTRAP
+  kind: interval
+  headline: true
+  statement: >
+    Subject-level bootstrap delta (degeneracy-controlled profile minus
+    matched-dim random projection, averaged across 5 seeds' fixed
+    predictions within each of 2000 resamples of the 47 test participants).
+    THIS is the headline inversion statistic: it propagates both
+    training-randomness (via the 5 seeds) and subject-sampling uncertainty
+    (via the bootstrap), unlike C-INTERVAL-DELTA-CROSSSEED-CI below.
+  compares: [construct_profile_degeneracy_controlled, random_projection_matched_dim]
+  control: degeneracy_controlled
+  source: artifacts/stats/e1_subject_bootstrap.json
+  pointer: $.mean_delta
+  ci_pointer: $.ci_95_subject_resampled
+  requires: entirely_below_zero
+  requires_pointer: $.entirely_below_zero
+  value: -0.07559623917654394
+  ci_value: [-0.11862446377152257, -0.03686688311688309]
+  tolerance: 1e-6
+
+- id: C-INTERVAL-DELTA-CROSSSEED-CI
+  kind: interval
+  statement: >
+    Paired t-test 95% CI on the 5 seed-level degeneracy-controlled deltas
+    against 0. Propagates training-randomness uncertainty ONLY (all 5 seeds
+    share the same 47 test subjects) — reported as a secondary statistic,
+    not the headline. See C-INTERVAL-DELTA-BOOTSTRAP for the corrected version.
+  compares: [construct_profile_degeneracy_controlled, random_projection_matched_dim]
+  control: degeneracy_controlled
+  source: artifacts/stats/e1_statistical_treatment.json
+  pointer: $.delta_mean
+  ci_pointer: $.delta_ci_95
+  tolerance: 1e-6
+
+- id: C-INTERVAL-INDOMAIN-PROFILE
+  kind: interval
+  statement: >
+    SUPERSEDED by C-SCALAR-INDOMAIN-DELTA-INCONCLUSIVE (5-seed). Retained as
+    historical single-checkpoint context: in-domain profile AUROC + CI
+    (original checkpoint, 2 gated dims -- other seeds gate 1-3 different
+    dims, see e1_indomain_control_5seed_aggregate.json).
+  source: artifacts/stats/e1_indomain_control_original.json
+  pointer: $.auroc_indomain_profile
+  ci_pointer: $.auroc_ci
+  tolerance: 1e-6
+  manuscript_location: "Not the manuscript's headline in-domain number as of the 5-seed extension; see C-SCALAR-INDOMAIN-DELTA-INCONCLUSIVE."
+
+- id: C-INTERVAL-INDOMAIN-RP
+  kind: interval
+  statement: >
+    SUPERSEDED by C-SCALAR-INDOMAIN-DELTA-INCONCLUSIVE (5-seed). Retained as
+    historical single-checkpoint context: matched-dim random-projection
+    ensemble AUROC + CI, original checkpoint only.
+  source: artifacts/stats/e1_indomain_control_original.json
+  pointer: $.matched_rp_ensemble_auroc
+  ci_pointer: $.matched_rp_ensemble_ci
+  tolerance: 1e-6
+
+- id: C-INTERVAL-MPDD-YOUNG
+  kind: interval
+  statement: "MPDD-Young ground-truth Big-Five AUROC + CI, n=13 test subjects. Wide enough to cross near-chance — report as uninformative alone."
+  source: artifacts/stats/mpdd_groundtruth_traits_ci.json
+  pointer: $.young.auroc
+  ci_pointer: $.young.ci_95
+  tolerance: 1e-6
+
+- id: C-INTERVAL-MPDD-ELDERLY
+  kind: interval
+  statement: "MPDD-Elderly ground-truth Big-Five AUROC + CI, n=13 test subjects."
+  source: artifacts/stats/mpdd_groundtruth_traits_ci.json
+  pointer: $.elderly.auroc
+  ci_pointer: $.elderly.ci_95
+  tolerance: 1e-6
+
+- id: C-INTERVAL-MPDD-STRATIFIED
+  kind: interval
+  headline: true
+  statement: >
+    Stratified (within-track pairs only) AUC for the pooled MPDD Young+Elderly
+    ground-truth Big-Five arm. This is the number to cite for "constructs are
+    genuinely informative" (framed as corroborating Kotov et al. 2010, not
+    standalone proof) — NOT the naive pooled 0.819, which lets between-track
+    pairs contribute to the ranking. See A-MPDD-STRATIFIED-NOT-NAIVE.
+  source: artifacts/stats/mpdd_stratified_auc.json
+  pointer: $.stratified_auroc
+  ci_pointer: $.stratified_ci_95
+  value: 0.8571428571428571
+  tolerance: 1e-6
+
+# =====================================================================
+# ASSERTIONS (13)
+# =====================================================================
+
+- id: A-CORE-SAME-SAMPLES
+  kind: assertion
+  check: same_sample_ids_across_arms
+  statement: >
+    All DAIC E1 arms (construct profile, random projection, PCA-12, raw text)
+    for a given checkpoint must be computed over the identical sample_id set
+    and split. This is the check that would have caught the phase03 mismatch
+    (Q-PHASE03-0671) before it reached the manuscript — now a permanent
+    regression test, not a one-time fix.
+  args:
+    profiles_dir: artifacts/profiles
+
+- id: A-INVERSION-ALL-SEEDS
+  kind: assertion
+  check: field_is_true
+  statement: "The degeneracy-controlled delta must be negative in all 5 seeds (direct analogue of the v2 'every variant exceeds baseline' error — checked mechanically here, not eyeballed)."
+  source: artifacts/stats/e1_degeneracy_controlled_summary.json
+  pointer: $.aggregate.all_negative
+
+- id: A-NAIVE-ALL-NEGATIVE
+  kind: assertion
+  check: field_is_true
+  statement: "The naive 12-dim delta must also be negative in all 5 seeds."
+  source: artifacts/stats/e1_naive_ladder_aggregate.json
+  pointer: $.aggregate.all_negative
+
+- id: A-PERMUTATION-NULL-HONEST
+  kind: assertion
+  check: field_is_true
+  statement: "All 5 seeds' permutation-null p-values must be > 0.05 (guards the 'profile doesn't decode depression' claim from later being overstated as significant)."
+  source: artifacts/stats/e1_naive_ladder_aggregate.json
+  pointer: $.aggregate.all_p_above_005
+
+- id: A-SUBJECT-BOOTSTRAP-ENTIRELY-NEGATIVE
+  kind: assertion
+  check: field_is_true
+  statement: "The subject-level bootstrap CI on the headline delta must be entirely below zero."
+  source: artifacts/stats/e1_subject_bootstrap.json
+  pointer: $.entirely_below_zero
+
+- id: A-MPDD-NO-LEAKAGE
+  kind: assertion
+  check: list_is_empty
+  statement: "MPDD train/test subject sets must not overlap, for both tracks (post loader fix)."
+  source: artifacts/stats/mpdd_groundtruth_traits_ci.json
+  pointer: ["$.young.train_test_subject_overlap", "$.elderly.train_test_subject_overlap"]
+
+- id: A-MPDD-STRATIFIED-NOT-NAIVE
+  kind: assertion
+  check: headline_points_to_stratified
+  statement: "The MPDD pooled headline claim (C-INTERVAL-MPDD-STRATIFIED) must be the stratified estimate, not the naive pooled 0.819 — guards against silent regression to the confounded number."
+  source: artifacts/stats/mpdd_stratified_auc.json
+  pointer: $.stratified_auroc
+
+- id: A-HOMOPHILY-FRESH
+  kind: assertion
+  check: file_exists
+  statement: >
+    RESOLVED 2026-07-28. Originally: the homophily diagnostic's checkpoint_sha
+    must match Table 1's current model, blocked pending the routing rerun.
+    Superseded once the rerun completed and a deeper issue was found:
+    scripts/diagnose_graph_homophily.py (and phase07_joint_training.py's real
+    graph construction) build the routing graph over a SEPARATE, untrained,
+    randomly-initialized fusion projection, not any trained checkpoint's own
+    representation -- so "freshness" in the original checkpoint-hash sense
+    doesn't apply to that path. Fixed instead: the untrained-embedding
+    diagnostic was unseeded (a different random draw every run); it now
+    accepts --seed and is averaged over the same 5 canonical seeds as
+    everything else (artifacts/stats/homophily_untrained_embedding_5seed_aggregate.json).
+    A supplementary diagnostic (artifacts/stats/homophily_trained_representation.json)
+    additionally recomputes the same metric on each trained checkpoint's own
+    representation, disclosed as a distinct, secondary analysis -- see
+    artifacts/homophily_methodology_report.md for the full account.
+  args:
+    paths:
+      - artifacts/stats/homophily_untrained_embedding_5seed_aggregate.json
+      - artifacts/stats/homophily_trained_representation.json
+      - artifacts/homophily_methodology_report.md
+
+- id: A-DELONG-NOT-SUPPORT
+  kind: assertion
+  check: tex_forbidden_phrase_near
+  statement: >
+    The compiled manuscript must not describe C-SCALAR-DELONG-SIGRATE
+    (10/100) as confirming or supporting the inversion — it must appear only
+    as an acknowledged power limitation.
+  args:
+    forbidden_phrases: ["DeLong.{0,80}(confirms|supports|establishes)", "(confirms|supports|establishes).{0,80}DeLong"]
+    tex_files: [paper/main-conference.tex, paper/supplementary.tex, paper/journal_paper.tex]
+
+- id: A-INDOMAIN-HEDGED
+  kind: assertion
+  check: tex_forbidden_phrase_near
+  statement: >
+    The compiled manuscript must not claim the in-domain control "rules out"
+    domain shift unhedged — C-INTERVAL-INDOMAIN-PROFILE and
+    C-INTERVAL-INDOMAIN-RP's CIs overlap substantially, so this is
+    corroborating evidence, not a standalone proof.
+  args:
+    forbidden_phrases: ["rules out domain shift", "eliminates domain shift as"]
+    tex_files: [paper/main-conference.tex, paper/supplementary.tex, paper/journal_paper.tex]
+
+- id: A-MPDD-HEDGED
+  kind: assertion
+  check: tex_forbidden_phrase_near
+  statement: "The compiled manuscript must not claim the MPDD arm 'proves' constructs are informative — framed as corroborating Kotov et al. 2010, not standalone proof."
+  args:
+    forbidden_phrases: ["MPDD.{0,120}proves", "proves.{0,120}MPDD"]
+    tex_files: [paper/main-conference.tex, paper/supplementary.tex, paper/journal_paper.tex]
+
+- id: A-NO-671-OUTSIDE-QUARANTINE
+  kind: assertion
+  check: quarantine_scan
+  gate: pre_submission
+  statement: >
+    0.671 may appear only in the section named by Q-PHASE03-0671's
+    required_label. RESOLVED 2026-07-28: journal_paper.tex has been rewritten
+    around the pivot (title/abstract/intro/method/results/discussion/
+    conclusion), the LLM/calibration/DA/XAI cluster consolidated into a
+    single-seed-exploratory section, and all 0.671/0.174 occurrences either
+    removed or placed under the quarantine's required LEDGER-SECTION markers.
+    Passes clean under `--pre-submission` as of this revision.
+  args:
+    quarantine_id: Q-PHASE03-0671
+
+- id: A-ROUTING-DAIC-NOT-REPORTABLE
+  kind: assertion
+  check: no_reportable_deltas
+  statement: >
+    None of the 5 graph-routing variants show a reportable DAIC AUROC delta
+    from the non-graph baseline (SPEC-H4-03), across the 5-seed rerun. Guards
+    the corrected claim (replacing the pre-rewrite "every variant underperforms
+    baseline on DAIC") against silently regressing back to an overclaim.
+  source: artifacts/stats/routing_table1_statistics.json
+  args:
+    metric: daic_auroc
+
+- id: A-ROUTING-MOSEI-NOT-REPORTABLE
+  kind: assertion
+  check: no_reportable_deltas
+  statement: >
+    None of the 5 graph-routing variants show a reportable MOSEI sentiment CCC
+    delta from baseline. Guards the corrected claim (replacing the pre-rewrite
+    "every variant exceeds baseline on MOSEI sentiment") against regressing.
+  source: artifacts/stats/routing_table1_statistics.json
+  args:
+    metric: mosei_sentiment_ccc
+
+- id: C-SCALAR-KNN-VOTING-DAIC-NOT-REPORTABLE
+  kind: scalar
+  statement: >
+    KNN-voting's DAIC AUROC advantage over the non-graph baseline (+0.083,
+    single-seed comparison previously read as "KNN voting reaches the best
+    DAIC AUROC in the ladder") is NOT reportable under 5-seed statistics
+    (paired p=0.087; reportability flag must be False/0). Guards against
+    regressing to the single-seed claim.
+  source: artifacts/stats/knn_voting_vs_baseline_statistics.json
+  pointer: $.daic_auroc.reportable
+  value: 0
+  tolerance: 0
+
+- id: C-SCALAR-KNN-VOTING-MOSEI-FI-DEGRADED
+  kind: scalar
+  statement: >
+    KNN-voting is reportably WORSE than the non-graph baseline on MOSEI
+    sentiment CCC (p=0.003) -- pinned as the min p-value across the 3
+    reportably-degraded metrics (MOSEI sentiment, MOSEI emotion, FI), to
+    guard against these findings being silently dropped.
+  source: artifacts/stats/knn_voting_vs_baseline_statistics.json
+  pointer: $.mosei_sentiment_ccc.paired_p
+  value: 0.0025
+  tolerance: 0.001
+
+- id: A-ROUTING-FI-DEGRADATION
+  kind: assertion
+  check: min_reportable_deltas
+  statement: >
+    At least 3 of the 5 graph-routing variants show a reportable NEGATIVE FI
+    personality CCC delta from baseline -- the one directionally robust
+    routing effect in this study.
+  source: artifacts/stats/routing_table1_statistics.json
+  args:
+    metric: fi_avg_ccc
+    min_count: 3
+    direction: negative
+
+- id: A-NO-0174-OUTSIDE-QUARANTINE
+  kind: assertion
+  check: quarantine_scan
+  statement: "0.174 may appear only in the section named by Q-MPDD-DISCARDED-0174's required_label."
+  args:
+    quarantine_id: Q-MPDD-DISCARDED-0174
+
+# =====================================================================
+# QUARANTINED (2)
+# =====================================================================
+
+- id: Q-MPDD-DISCARDED-0174
+  kind: quarantined
+  value: 0.174
+  required_label: "reproducibility-appendix-documented-failure-mode"
+  disambiguate:
+    require_near: ["MPDD", "profile", "discarded", "personality regressor"]
+    exclude_near: ["LLM", "ablation", "L0", "L1", "L2", "L3", "L4", "L5"]
+    window: 200
+  statement: >
+    The depression-decoding AUROC computed on the overfit (test R^2 < 0)
+    MPDD personality regressor, discarded before being reported as a result.
+    May appear ONLY in the reproducibility appendix's documented-failure-mode
+    subsection, explicitly labeled invalid — never as a sanity check or
+    supporting number anywhere else. NOTE: 0.174 collides with an unrelated,
+    legitimate v1-era LLM-ablation delta figure in journal_paper.tex (see
+    artifacts/journal_paper_v1_residue_audit.md) — disambiguate excludes that
+    occurrence from this quarantine's scope; it is tracked separately as a
+    content bug (stale/self-contradicting number), not a quarantine violation.
+
+- id: Q-PHASE03-0671
+  kind: quarantined
+  value: 0.671
+  required_label: "reproducibility-appendix-unresolved-discrepancy"
+  disambiguate:
+    require_near: ["text-only", "text only", "unimodal", "phase03", "phase 3", "discrepancy"]
+    exclude_near: []
+    window: 500
+  statement: >
+    The original (Phase 3, 2026-06) DAIC text-only AUROC, superseded by the
+    same-protocol recomputation (C-SCALAR-TEXT-ONLY, 0.584). Root cause of
+    the discrepancy could not be determined (see
+    artifacts/text_only_auroc_discrepancy_report.md) — including the finding
+    that phase03's own unmodified code no longer reproduces its own published
+    number on current features, itself a concrete instance of this paper's
+    subject matter. May appear ONLY in the reproducibility appendix's
+    unresolved-discrepancy subsection — never as a sanity anchor for any
+    other baseline (this is exactly how it was misused in the pre-pivot
+    manuscript draft).
+
+# =====================================================================
+# STILL BLOCKED — not yet resolved, not part of the 39 counted above
+# =====================================================================
+
+- id: C-ROUTING-TABLE1
+  kind: assertion
+  check: file_exists
+  statement: >
+    RESOLVED 2026-07-28. V0-V4 retrained across all 5 canonical seeds (25 runs)
+    plus a matched seed=42 non-graph baseline run (26 total), replacing the
+    stale single-seed v2 numbers. Reportability-gated (SPEC-H4-03) statistics
+    computed in analysis/routing_table1_statistics.py: 0/5 variants show a
+    reportable DAIC or MOSEI delta from baseline (both directional claims in
+    the pre-rewrite manuscript -- "every variant underperforms on DAIC",
+    "every variant exceeds baseline on MOSEI sentiment" -- do not survive
+    proper 5-seed statistical treatment and have been removed); FI personality
+    shows a reportable, robust NEGATIVE delta in 3/5 variants (borderline in
+    the other 2). This process also surfaced that the routing graphs
+    (V0-V4, all runs, historical and this rerun) are built over an untrained,
+    randomly-initialized embedding rather than the trained model's own
+    representation -- disclosed in Method/Results/Discussion rather than
+    silently carried forward; see artifacts/homophily_methodology_report.md.
+  args:
+    paths:
+      - artifacts/stats/routing_table1_5seed.json
+      - artifacts/stats/routing_table1_statistics.json
+
+- id: A-EXCLUSION-LLM-CALIB-DA-XAI
+  kind: assertion
+  check: file_exists
+  statement: >
+    RESOLVED 2026-07-28. Explicit scope decision, registered here as an
+    auditable exclusion rather than a silent omission: LLM-based encoders
+    (L0-L5), post-hoc calibration, cross-dataset domain adaptation, and
+    XAI/explainability case studies are EXCLUDED from the main paper's
+    claims entirely. Reason: none of the four touch the paper's three
+    evidenced claims (the construct-projection inversion, the MPDD
+    dissociation, or the localizability/homophily result), and every one of
+    them is single-seed-only work that was never extended to this paper's
+    5-seed protocol -- reporting six single-seed LLM levels (or single-seed
+    calibration/DA/XAI results) in a paper whose thesis is "single-seed
+    results mislead" would be self-refuting. In the pre-pivot manuscript,
+    every LLM-vs-classical DAIC comparison was already non-significant
+    (DeLong p>0.72). Handling: one sentence in the main paper's Limitations
+    (paper/main-conference.tex), one consolidated table in
+    paper/supplementary.tex under an explicit "no claims are made from this
+    section" banner (Section "Single-Seed Exploratory Material"), nothing
+    in the abstract or any claims table. The registered abstract's prior
+    LLM-comparison sentence is dropped rather than retained-and-caveated,
+    since those claims never reached significance to begin with.
+  args:
+    paths:
+      - paper/supplementary.tex
+
+- id: C-KSWEEP-LEARNED-LAMBDA-5SEED
+  kind: assertion
+  check: file_exists
+  statement: >
+    RESOLVED 2026-07-28. K-sensitivity sweep (K=5, K=20; K=10 and K=15 are
+    already V0/V3 in routing_table1_5seed.json) and learned per-task lambda
+    (V0learned), both named in the registered abstract, extended from
+    single-seed exploratory to the full 5-seed protocol (17, 42, 1337, 2024,
+    31415), computed by analysis/aggregate_ksweep_learned_lambda.py.
+    Reportability per SPEC-H4-03 against the same non-graph MMoEEx baseline
+    used for Table 1: neither K=5 (delta +0.0007, p=0.97) nor K=20 (delta
+    -0.0145, p=0.55) shows a reportable DAIC difference from baseline; K=5
+    shows a reportable negative FI delta (p=0.04), K=20's FI delta is
+    borderline (p=0.06). Learned lambda vs the fixed-lambda V0 baseline:
+    DAIC delta +0.028, NOT reportable under SPEC-H4-03 despite a low naive
+    paired-t p-value (p=0.007) -- the stricter cross-seed-variance threshold
+    is what makes the difference, and is exactly the point of the rule. This
+    is a SIXTH reversal-catalogue instance: an earlier single-seed comparison
+    read learned lambda as producing "a real gain on DAIC" (0.489 -> 0.525);
+    that claim does not survive 5-seed treatment. Updated in
+    paper/main-conference.tex (Results), paper/supplementary.tex (K-sensitivity
+    and learned-lambda figure captions, reversal catalogue table extended to
+    six rows), and paper/journal_paper.tex (matching updates).
+  args:
+    paths:
+      - artifacts/stats/ksweep_learned_lambda_5seed.json
+      - artifacts/stats/ksweep_learned_lambda_statistics.json

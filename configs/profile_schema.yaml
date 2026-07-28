@@ -1,0 +1,92 @@
+# Frozen 12-dimensional construct profile schema (SPEC-CM-01 / REQ-18).
+#
+# Column order is frozen: every artifact that writes or reads a profile
+# vector must use this exact order. Axis membership is a first-class field,
+# not inferred from column position, so downstream analyses (E1/E6/E7) can
+# select axis blocks by name.
+#
+# valence(1) + state(6) + trait(5) = 12 dims, matching Section 1.2 of the
+# AAAI resubmission plan (trait=perceived Big Five/ChaLearn FI, state=discrete
+# emotion/CMU-MOSEI, valence=continuous sentiment/CMU-MOSEI).
+
+version: "1.0"
+
+dimensions:
+  - name: sentiment
+    axis: valence
+    source_head: sentiment_head
+    source_dataset: mosei
+    range: [-3, 3]
+
+  - name: anger
+    axis: state
+    source_head: emotion_head
+    source_dataset: mosei
+    range: [0, 1]
+  - name: disgust
+    axis: state
+    source_head: emotion_head
+    source_dataset: mosei
+    range: [0, 1]
+  - name: fear
+    axis: state
+    source_head: emotion_head
+    source_dataset: mosei
+    range: [0, 1]
+  - name: happiness
+    axis: state
+    source_head: emotion_head
+    source_dataset: mosei
+    range: [0, 1]
+  - name: sadness
+    axis: state
+    source_head: emotion_head
+    source_dataset: mosei
+    range: [0, 1]
+  - name: surprise
+    axis: state
+    source_head: emotion_head
+    source_dataset: mosei
+    range: [0, 1]
+
+  - name: extraversion
+    axis: trait
+    source_head: personality_head
+    source_dataset: fi
+    range: [0, 1]
+  - name: neuroticism
+    axis: trait
+    source_head: personality_head
+    source_dataset: fi
+    range: [0, 1]
+  - name: agreeableness
+    axis: trait
+    source_head: personality_head
+    source_dataset: fi
+    range: [0, 1]
+  - name: conscientiousness
+    axis: trait
+    source_head: personality_head
+    source_dataset: fi
+    range: [0, 1]
+  - name: openness
+    axis: trait
+    source_head: personality_head
+    source_dataset: fi
+    range: [0, 1]
+
+axis_blocks:
+  valence: [sentiment]
+  state: [anger, disgust, fear, happiness, sadness, surprise]
+  trait: [extraversion, neuroticism, agreeableness, conscientiousness, openness]
+
+notes:
+  - "SPEC-CM-02: the trait axis is 'perceived' personality (ChaLearn FI annotator
+     first impressions from short clips), not self-reported or clinically
+     assessed Big Five. Never write 'personality trait' bare outside a citation."
+  - "emotion_head output order (anger, disgust, fear, happiness, sadness, surprise)
+     matches src/evaluation/inference.py EMOTION_LABELS exactly — do not reorder
+     without updating both."
+  - "personality_head output order (extraversion, neuroticism, agreeableness,
+     conscientiousness, openness) matches src/evaluation/inference.py FI_TRAITS
+     exactly."

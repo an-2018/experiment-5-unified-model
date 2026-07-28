@@ -1,0 +1,49 @@
+{
+  "per_seed": {
+    "original": {
+      "full_profile_auroc": 0.5562770562770563,
+      "random_projection_mean": 0.612012987012987,
+      "text_only_auroc": 0.5844155844155844,
+      "permutation_p_value": 0.344
+    },
+    "seed17": {
+      "full_profile_auroc": 0.5324675324675325,
+      "random_projection_mean": 0.6072510822510824,
+      "text_only_auroc": 0.5844155844155844,
+      "permutation_p_value": 0.322
+    },
+    "seed1337": {
+      "full_profile_auroc": 0.5216450216450217,
+      "random_projection_mean": 0.642965367965368,
+      "text_only_auroc": 0.5844155844155844,
+      "permutation_p_value": 0.461
+    },
+    "seed2024": {
+      "full_profile_auroc": 0.4502164502164501,
+      "random_projection_mean": 0.5916666666666667,
+      "text_only_auroc": 0.5844155844155844,
+      "permutation_p_value": 0.751
+    },
+    "seed31415": {
+      "full_profile_auroc": 0.5584415584415584,
+      "random_projection_mean": 0.625974025974026,
+      "text_only_auroc": 0.5844155844155844,
+      "permutation_p_value": 0.297
+    }
+  },
+  "aggregate": {
+    "n_seeds": 5,
+    "profile_auroc_mean": 0.5238095238095238,
+    "profile_auroc_std": 0.03936776638749667,
+    "rp_auroc_mean": 0.615974025974026,
+    "rp_auroc_std": 0.01738482002112853,
+    "text_only_auroc": 0.5844155844155844,
+    "text_only_identical_across_seeds": true,
+    "delta_mean": -0.0921645021645022,
+    "delta_std": 0.03321150503425629,
+    "all_negative": true,
+    "permutation_p_max": 0.751,
+    "permutation_p_min": 0.297,
+    "all_p_above_005": true
+  }
+}

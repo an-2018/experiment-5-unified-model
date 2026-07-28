@@ -1,0 +1,78 @@
+{
+  "per_seed": [
+    {
+      "checkpoint": "original",
+      "n_degenerate": 0,
+      "degenerate_dims": [],
+      "n_kept": 12,
+      "auroc_full12": 0.5562770562770563,
+      "auroc_reduced": 0.5562770562770563,
+      "rp_matched_mean": 0.6048701298701299,
+      "rp_matched_std": 0.037028015227099684,
+      "delta_reduced_vs_matched_rp": -0.04859307359307363
+    },
+    {
+      "checkpoint": "seed17",
+      "n_degenerate": 1,
+      "degenerate_dims": [
+        "happiness"
+      ],
+      "n_kept": 11,
+      "auroc_full12": 0.5324675324675325,
+      "auroc_reduced": 0.525974025974026,
+      "rp_matched_mean": 0.5801948051948052,
+      "rp_matched_std": 0.044635346344440635,
+      "delta_reduced_vs_matched_rp": -0.05422077922077917
+    },
+    {
+      "checkpoint": "seed1337",
+      "n_degenerate": 2,
+      "degenerate_dims": [
+        "fear",
+        "happiness"
+      ],
+      "n_kept": 10,
+      "auroc_full12": 0.5216450216450217,
+      "auroc_reduced": 0.5606060606060607,
+      "rp_matched_mean": 0.6384199134199133,
+      "rp_matched_std": 0.029563288466644758,
+      "delta_reduced_vs_matched_rp": -0.07781385281385267
+    },
+    {
+      "checkpoint": "seed2024",
+      "n_degenerate": 1,
+      "degenerate_dims": [
+        "happiness"
+      ],
+      "n_kept": 11,
+      "auroc_full12": 0.4502164502164501,
+      "auroc_reduced": 0.5194805194805194,
+      "rp_matched_mean": 0.5917748917748918,
+      "rp_matched_std": 0.03173340297150183,
+      "delta_reduced_vs_matched_rp": -0.07229437229437241
+    },
+    {
+      "checkpoint": "seed31415",
+      "n_degenerate": 0,
+      "degenerate_dims": [],
+      "n_kept": 12,
+      "auroc_full12": 0.5584415584415584,
+      "auroc_reduced": 0.5584415584415584,
+      "rp_matched_mean": 0.6206709956709957,
+      "rp_matched_std": 0.026885826731133097,
+      "delta_reduced_vs_matched_rp": -0.0622294372294373
+    }
+  ],
+  "aggregate": {
+    "n_seeds": 5,
+    "auroc_full12_mean": 0.5238095238095238,
+    "auroc_full12_std": 0.03936776638749667,
+    "auroc_reduced_mean": 0.5441558441558441,
+    "auroc_reduced_std": 0.017669551196500925,
+    "rp_matched_mean_mean": 0.607186147186147,
+    "rp_matched_mean_std": 0.02063391656403357,
+    "delta_mean": -0.06303030303030303,
+    "delta_std": 0.010872525126546571,
+    "all_negative": true
+  }
+}

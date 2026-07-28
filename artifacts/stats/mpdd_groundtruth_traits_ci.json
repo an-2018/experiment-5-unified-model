@@ -1,0 +1,22 @@
+{
+  "young": {
+    "n_train_subjects": 62,
+    "n_test_subjects": 13,
+    "train_test_subject_overlap": [],
+    "auroc": 0.6666666666666666,
+    "ci_95": [
+      0.2727272727272727,
+      1.0
+    ]
+  },
+  "elderly": {
+    "n_train_subjects": 63,
+    "n_test_subjects": 13,
+    "train_test_subject_overlap": [],
+    "auroc": 0.925,
+    "ci_95": [
+      0.7266414141414141,
+      1.0
+    ]
+  }
+}

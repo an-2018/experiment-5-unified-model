@@ -1,0 +1,34 @@
+{
+  "daic_auroc": {
+    "knn_mean": 0.6231884057971016,
+    "knn_std": 0.07118435762459603,
+    "baseline_mean": 0.54058,
+    "delta_mean": 0.08260840579710145,
+    "paired_p": 0.087392762430915,
+    "reportable": false
+  },
+  "mosei_sentiment_ccc": {
+    "knn_mean": 0.42749793146010157,
+    "knn_std": 0.020937205769606258,
+    "baseline_mean": 0.48182,
+    "delta_mean": -0.05432206853989842,
+    "paired_p": 0.0025028352191031962,
+    "reportable": true
+  },
+  "mosei_emotion_auc": {
+    "knn_mean": 0.6735276387408209,
+    "knn_std": 0.01273497753652316,
+    "baseline_mean": 0.7095,
+    "delta_mean": -0.03597236125917922,
+    "paired_p": 0.013493420771279898,
+    "reportable": true
+  },
+  "fi_avg_ccc": {
+    "knn_mean": 0.3731257579158366,
+    "knn_std": 0.011168965966558251,
+    "baseline_mean": 0.5708599999999999,
+    "delta_mean": -0.1977342420841634,
+    "paired_p": 1.0648230108325739e-06,
+    "reportable": true
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "checkpoint": "/home/anilson/thesis/thesis-experiment-5-unified-model/artifacts/tables/mmoe_ex_best_seed1337.pt",
+  "checkpoint_sha256": "7560128007250281266f58f4009e32856eaa2a080383f027c9f6caf6ebc65322",
+  "gate_results": {
+    "sentiment": {
+      "train_r2": 0.6611839201254941,
+      "test_r2": -0.13879112482702216,
+      "passed": false
+    },
+    "anger": {
+      "train_r2": 0.09275489503549328,
+      "test_r2": -0.12606466905012925,
+      "passed": false
+    },
+    "disgust": {
+      "train_r2": 0.29722412297475476,
+      "test_r2": -1.1892302607569727,
+      "passed": false
+    },
+    "fear": {
+      "train_r2": 0.021831943324991387,
+      "test_r2": -0.025484021088262532,
+      "passed": false
+    },
+    "happiness": {
+      "train_r2": 0.48811008295134817,
+      "test_r2": -0.04052346291120612,
+      "passed": false
+    },
+    "sadness": {
+      "train_r2": 0.20700461441211782,
+      "test_r2": -0.11207758604347329,
+      "passed": false
+    },
+    "surprise": {
+      "train_r2": 0.14294930751248913,
+      "test_r2": 0.08637101324539298,
+      "passed": true
+    }
+  },
+  "n_passed": 1,
+  "n_total": 7,
+  "kept_dims": [
+    "surprise"
+  ],
+  "auroc_indomain_profile": 0.4913419913419913,
+  "auroc_ci": [
+    0.3005025048875855,
+    0.6783797032326445
+  ],
+  "permutation_null_mean": 0.4998095238095238,
+  "permutation_p_value": 1.0,
+  "matched_rp_mean": 0.6087662337662338,
+  "matched_rp_std": 0.07093782288466623,
+  "matched_rp_ensemble_auroc": 0.6688311688311688,
+  "matched_rp_ensemble_ci": [
+    0.5075757575757576,
+    0.811783088235294
+  ],
+  "delta_indomain_vs_matched_rp": -0.11742424242424254,
+  "outcome": "evaluated"
+}

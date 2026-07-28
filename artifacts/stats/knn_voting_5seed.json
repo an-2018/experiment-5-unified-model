@@ -1,0 +1,116 @@
+{
+  "per_seed": {
+    "original": {
+      "daic_auroc": 0.7282608695652174,
+      "mosei_sentiment_ccc": 0.4370641954439585,
+      "mosei_emotion_auc": 0.6889672692920824,
+      "fi_avg_ccc": 0.3868595720251322,
+      "fi_extraversion_ccc": 0.39660297348766904,
+      "fi_neuroticism_ccc": 0.39450972418079655,
+      "fi_agreeableness_ccc": 0.3043049844992097,
+      "fi_conscientiousness_ccc": 0.45204912869513036,
+      "fi_openness_ccc": 0.3868310492628553
+    },
+    "seed17": {
+      "daic_auroc": 0.5797101449275361,
+      "mosei_sentiment_ccc": 0.4379409974564745,
+      "mosei_emotion_auc": 0.6789437293430759,
+      "fi_avg_ccc": 0.39018357037565693,
+      "fi_extraversion_ccc": 0.40762089741232405,
+      "fi_neuroticism_ccc": 0.3936750014819501,
+      "fi_agreeableness_ccc": 0.3086883596733417,
+      "fi_conscientiousness_ccc": 0.4540952105242963,
+      "fi_openness_ccc": 0.38683838278637234
+    },
+    "seed42": {
+      "daic_auroc": 0.5072463768115942,
+      "mosei_sentiment_ccc": 0.4029976500241575,
+      "mosei_emotion_auc": 0.6537659989115863,
+      "fi_avg_ccc": 0.3720758944651222,
+      "fi_extraversion_ccc": 0.3808455943219131,
+      "fi_neuroticism_ccc": 0.3677517149233135,
+      "fi_agreeableness_ccc": 0.28387242407970537,
+      "fi_conscientiousness_ccc": 0.4497693953102201,
+      "fi_openness_ccc": 0.3781403436904586
+    },
+    "seed1337": {
+      "daic_auroc": 0.6702898550724637,
+      "mosei_sentiment_ccc": 0.4026417536153758,
+      "mosei_emotion_auc": 0.6642776089780303,
+      "fi_avg_ccc": 0.37227431770490793,
+      "fi_extraversion_ccc": 0.3797393517646602,
+      "fi_neuroticism_ccc": 0.39010311515040547,
+      "fi_agreeableness_ccc": 0.2870404793998923,
+      "fi_conscientiousness_ccc": 0.4301295406456128,
+      "fi_openness_ccc": 0.3743591015639692
+    },
+    "seed2024": {
+      "daic_auroc": 0.7065217391304348,
+      "mosei_sentiment_ccc": 0.4542879712638402,
+      "mosei_emotion_auc": 0.6816441856749131,
+      "fi_avg_ccc": 0.37594156419397456,
+      "fi_extraversion_ccc": 0.38086458174368487,
+      "fi_neuroticism_ccc": 0.3881753151664845,
+      "fi_agreeableness_ccc": 0.2976084757045086,
+      "fi_conscientiousness_ccc": 0.43842124357609763,
+      "fi_openness_ccc": 0.37463820477909704
+    },
+    "seed31415": {
+      "daic_auroc": 0.6521739130434783,
+      "mosei_sentiment_ccc": 0.4396212849406599,
+      "mosei_emotion_auc": 0.6890066707964982,
+      "fi_avg_ccc": 0.3551534428395214,
+      "fi_extraversion_ccc": 0.3810566102227707,
+      "fi_neuroticism_ccc": 0.35459652789926827,
+      "fi_agreeableness_ccc": 0.25313933415597534,
+      "fi_conscientiousness_ccc": 0.42096713385755036,
+      "fi_openness_ccc": 0.36600760806204213
+    }
+  },
+  "aggregate": {
+    "daic_auroc": {
+      "mean": 0.6231884057971016,
+      "std": 0.07118435762459603,
+      "values": [
+        0.5797101449275361,
+        0.5072463768115942,
+        0.6702898550724637,
+        0.7065217391304348,
+        0.6521739130434783
+      ]
+    },
+    "mosei_sentiment_ccc": {
+      "mean": 0.42749793146010157,
+      "std": 0.020937205769606258,
+      "values": [
+        0.4379409974564745,
+        0.4029976500241575,
+        0.4026417536153758,
+        0.4542879712638402,
+        0.4396212849406599
+      ]
+    },
+    "mosei_emotion_auc": {
+      "mean": 0.6735276387408209,
+      "std": 0.01273497753652316,
+      "values": [
+        0.6789437293430759,
+        0.6537659989115863,
+        0.6642776089780303,
+        0.6816441856749131,
+        0.6890066707964982
+      ]
+    },
+    "fi_avg_ccc": {
+      "mean": 0.3731257579158366,
+      "std": 0.011168965966558251,
+      "values": [
+        0.39018357037565693,
+        0.3720758944651222,
+        0.37227431770490793,
+        0.37594156419397456,
+        0.3551534428395214
+      ]
+    }
+  }
+}

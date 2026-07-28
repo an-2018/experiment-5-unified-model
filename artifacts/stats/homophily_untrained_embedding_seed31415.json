@@ -1,0 +1,90 @@
+{
+  "V0": {
+    "total_edges": 39040,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 350,
+      "metric": "label_agreement_fraction",
+      "real": 0.5771,
+      "random_baseline": 0.56
+    },
+    "mosei": {
+      "n_edges": 18690,
+      "metric": "pearson_correlation",
+      "real": 0.1427,
+      "random_baseline": -0.0013
+    },
+    "fi": {
+      "n_edges": 15524,
+      "metric": "pearson_correlation",
+      "real": 0.3367,
+      "random_baseline": -0.002
+    }
+  },
+  "V1": {
+    "total_edges": 39040,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 350,
+      "metric": "label_agreement_fraction",
+      "real": 0.5714,
+      "random_baseline": 0.5429
+    },
+    "mosei": {
+      "n_edges": 18690,
+      "metric": "pearson_correlation",
+      "real": 0.4003,
+      "random_baseline": 0.0036
+    },
+    "fi": {
+      "n_edges": 15046,
+      "metric": "pearson_correlation",
+      "real": 0.2586,
+      "random_baseline": 0.0077
+    }
+  },
+  "V3": {
+    "total_edges": 58560,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 525,
+      "metric": "label_agreement_fraction",
+      "real": 0.5771,
+      "random_baseline": 0.5619
+    },
+    "mosei": {
+      "n_edges": 28035,
+      "metric": "pearson_correlation",
+      "real": 0.1289,
+      "random_baseline": -0.0061
+    },
+    "fi": {
+      "n_edges": 23038,
+      "metric": "pearson_correlation",
+      "real": 0.2977,
+      "random_baseline": 0.0127
+    }
+  },
+  "V4": {
+    "total_edges": 58560,
+    "cross_dataset_fraction": 0.0,
+    "daic": {
+      "n_edges": 525,
+      "metric": "label_agreement_fraction",
+      "real": 0.5562,
+      "random_baseline": 0.56
+    },
+    "mosei": {
+      "n_edges": 28035,
+      "metric": "pearson_correlation",
+      "real": 0.3395,
+      "random_baseline": -0.0028
+    },
+    "fi": {
+      "n_edges": 22451,
+      "metric": "pearson_correlation",
+      "real": 0.2411,
+      "random_baseline": -0.0028
+    }
+  }
+}
