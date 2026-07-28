@@ -465,6 +465,25 @@
   args:
     metric: mosei_sentiment_ccc
 
+- id: A-NO-ROUTING-MOSEI-GAIN-CLAIM
+  kind: assertion
+  check: tex_forbidden_phrase_near
+  statement: >
+    RESOLVED 2026-07-28. Guards a real regression: the Introduction described
+    routing results as "no improvement on DAIC and degradation on FI
+    personality, alongside a small gain on MOSEI" -- the v2-era MOSEI overclaim,
+    alive in Introduction prose, in a paper whose Contribution 5 is a harness
+    that makes such claims impossible. The ledger's existing MOSEI checks
+    (A-ROUTING-MOSEI-NOT-REPORTABLE) only read artifacts/stats/*.json and
+    never scanned manuscript prose outside the Results section for this
+    specific claim, so this survived undetected until manual review caught
+    it a second time. Scoped to routing/graph context specifically so it
+    does not false-positive on the exploratory section's (correctly hedged,
+    single-seed-labeled) LLM-ablation MOSEI gain numbers.
+  args:
+    forbidden_phrases: ["routing.{0,150}gain on MOSEI", "gain on MOSEI.{0,150}routing", "graph.{0,100}gain on MOSEI", "alongside a small gain on MOSEI"]
+    tex_files: [paper/main-conference.tex, paper/supplementary.tex, paper/journal_paper.tex]
+
 - id: C-SCALAR-KNN-VOTING-DAIC-NOT-REPORTABLE
   kind: scalar
   statement: >
