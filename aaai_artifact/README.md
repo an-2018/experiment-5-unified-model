@@ -1,6 +1,6 @@
 # Graph-Guided Mixture-of-Experts for Unified Multimodal Mental Health Assessment
 
-Code and results artifact accompanying the AAAI 2027 submission of the same name (`paper/main-conference.pdf`; extended results in `paper/supplementary.pdf`).
+Code and results artifact accompanying the AAAI 2027 submission of the same name
 
 This paper investigates whether graph-guided mixture-of-experts (MoE) routing improves unified multimodal mental health assessment across three public benchmarks — DAIC-WOZ (depression), CMU-MOSEI (sentiment/emotion), and ChaLearn First Impressions (personality) — under a single model with modality-specific encoders, gated late fusion, an MMoEEx expert bank, and a leakage-safe KNN-graph GraphSAGE/GAT router. The central finding is a rigorously investigated **negative result**: graph-based routing does not improve over a non-graph MMoEEx baseline, and a homophily diagnostic explains why. Separately, LLM-based encoders are the largest performance driver observed, and the model's transparency mechanisms (multi-construct characterization, graph-based explanation) are evaluated for faithfulness, not just implemented.
 
@@ -147,4 +147,4 @@ See `LICENSE` in this directory. This covers the code in `src/` and `scripts/` o
 
 ## Citation
 
-If you use this code, please cite the paper (see `paper/main-conference.pdf` for the full citation once published).
+If you use this code, please cite the paper once published.
