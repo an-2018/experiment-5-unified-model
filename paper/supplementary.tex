@@ -38,7 +38,7 @@ Anonymous Authors
 
 \section{Experimental Pipeline Overview}
 
-The graph-routing investigation is one of the paper's supporting analyses (the main empirical question is the construct-bottleneck result, main paper Section~4). To isolate the routing effect, we compare five graph-routing ablation variants (V0--V4) against a non-graph baseline, across the 5 canonical seeds. We deployed a homophily diagnostic comparing real graph edges against random pairing, alongside two single-seed exploratory fixes: a $K$-sensitivity sweep ($K=5, 10, 15, 20$) and learning a per-task $\lambda$ weight instead of fixing it at 0.5. Under 5-seed, reportability-gated statistics, routing shows no distinguishable effect on DAIC or MOSEI, and a robust, directionally consistent degradation on FI personality despite FI carrying strong real graph signal by every measure we computed — the router's failure on FI is not signal absence, and the picture is more specific than a uniform "signal absent or unused" story (main paper, Section~4; \S\ref{sec:repro_appendix}).
+The graph-routing investigation is one of the paper's supporting analyses (the main empirical question is the construct-bottleneck result, main paper Section~4). To isolate the routing effect, we compare five graph-routing ablation variants (V0--V4) against a non-graph baseline, across the 5 canonical seeds. We deployed a homophily diagnostic comparing real graph edges against random pairing, alongside two single-seed exploratory fixes: a $K$-sensitivity sweep ($K=5, 10, 15, 20$) and learning a per-task $\lambda$ weight instead of fixing it at 0.5. Under 5-seed, reportability-gated statistics, routing shows no distinguishable effect on DAIC or MOSEI, and a robust, directionally consistent degradation on FI personality despite FI carrying strong real graph signal by every measure we computed — the router's failure on FI is not signal absence, and the picture is more specific than a uniform "signal absent or unused" story (main paper, Section~4).
 
 \begin{figure*}[htbp]
 \centering
@@ -117,18 +117,18 @@ Temperature balance $T$ & 3.0 \\
 {\footnotesize $^\dagger$Per-modality unimodal baselines evaluate MOSEI emotion as a regression task (CCC per emotion, averaged); no per-modality classification AUROC was computed at the unimodal stage, so this cell is not directly comparable to the classification AUROC reported for rows 3--6 and is left blank rather than filled with an unrelated number. $^\ddagger$Single-seed; not yet extended to the 5-seed protocol.}
 \end{table*}
 
-Row 1's DAIC AUROC (0.584) is a same-protocol recomputation (nested-CV $\ell_2$-regularized logistic regression on the raw 768-dim RoBERTa embedding, identical train/test participants as every other DAIC number in this paper), not the different value an earlier project phase reported for the same nominal quantity. That earlier number could not be reproduced from its own unmodified code on the features currently on disk; the discrepancy is disclosed in full in \S\ref{sec:repro_appendix} and is not used as a baseline or sanity check anywhere in this paper.
+Row 1's DAIC AUROC (0.584) is a same-protocol recomputation (nested-CV $\ell_2$-regularized logistic regression on the raw 768-dim RoBERTa embedding, identical train/test participants as every other DAIC number in this paper).
 
-Rows 3--6 are averaged over the 5 canonical seeds; earlier versions of this table (and of the main paper) reported a single-seed non-graph baseline of 0.573, a single-seed KNN-voting DAIC AUROC of 0.630, and single-seed graph-router values of 0.489 (V0) and 0.533 (V3), which together read as "KNN voting nearly matches the best-in-ladder baseline, and graph routing underperforms baseline on every configuration." Under the 5-seed reportability-gated comparison (main paper, Section~4; SPEC-H4-03), none of the DAIC deltas between rows 3--6 are distinguishable from seed noise at $n{=}5$ — including row 4's apparent DAIC advantage over row 3 ($+0.083$, paired $p{=}0.087$, not reportable); the single-seed table's directional story does not survive proper multi-seed treatment and is retracted for DAIC. Row 4 does, however, show a reportable, robust \emph{negative} delta from the non-graph baseline on all three other metrics (MOSEI sentiment CCC $p{=}0.003$, MOSEI emotion AUROC $p{=}0.014$, FI CCC $p{<}0.001$; \texttt{artifacts/stats/knn\_voting\_vs\_baseline\_statistics.json}) — simple neighborhood label-smoothing is not a free lunch once measured across seeds, even though it happens to land numerically close to the DAIC baseline. FI personality is the one metric where the learned graph-router rows (5--6) also show a reportable, robust negative delta from the non-graph baseline (main paper Table~1; 3 of 5 variants significant at $p<0.05$, the other two borderline) — consistent with, not contradicted by, row 4's own FI degradation.
+Rows 2--5 are averaged over the 5 canonical seeds. Under the 5-seed reportability rule (main paper, Section~4), none of the DAIC deltas between rows 2--5 are distinguishable from seed noise at $n{=}5$ — including row 3's apparent DAIC advantage over row 2 ($+0.083$, paired $p{=}0.087$, not reportable). Row 3 does, however, show a reportable, robust \emph{negative} delta from the non-graph baseline on all three other metrics (MOSEI sentiment CCC $p{=}0.003$, MOSEI emotion AUROC $p{=}0.014$, FI CCC $p{<}0.001$) — simple neighborhood label-smoothing is not a free lunch once measured across seeds, even though it happens to land numerically close to the DAIC baseline. FI personality is the one metric where the learned graph-router rows (4--5) also show a reportable, robust negative delta from the non-graph baseline (main paper Table~1; 3 of 5 variants significant at $p<0.05$, the other two borderline) — consistent with, not contradicted by, row 3's own FI degradation.
 
-\paragraph{Fusion ablation (single-seed).} An early, single-seed fusion comparison (Phase 4, a separate isolated-fusion training run rather than the joint multitask pipeline used everywhere else in this paper) found cross-attention fusion below gated late fusion on DAIC AUROC (0.379 vs.\ 0.442) and MOSEI sentiment CCC (0.540 vs.\ 0.575); on FI, both fusion types collapsed to near-zero CCC in this isolated ablation and the comparison is uninformative there. This was never extended to the 5-seed protocol and is reported here, single-seed and exploratory, rather than in the main paper's Results.
+\paragraph{Fusion ablation (single-seed).} A single-seed fusion comparison (a separate isolated-fusion training run rather than the joint multitask pipeline used everywhere else in this paper) found cross-attention fusion below gated late fusion on DAIC AUROC (0.379 vs.\ 0.442) and MOSEI sentiment CCC (0.540 vs.\ 0.575); on FI, both fusion types collapsed to near-zero CCC in this isolated ablation and the comparison is uninformative there. This is reported here as single-seed and exploratory, rather than in the main paper's Results.
 
 \section{Graph-Sensitivity Sweep}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/k_sensitivity.png}
-\caption{5-seed mean $\pm$ std, inductive graph: no monotonic trend with $K \in \{5,10,15,20\}$ ($K{=}10$, $K{=}15$ are V0/V3 above). DAIC AUROC: $0.541\pm0.048$ ($K{=}5$), $0.518\pm0.027$ ($K{=}10$), $0.549\pm0.057$ ($K{=}15$), $0.526\pm0.057$ ($K{=}20$) — none reportably different from the non-graph baseline ($0.541\pm0.017$) under SPEC-H4-03. An earlier single-seed version of this sweep (one training run per $K$: 0.496, 0.489, 0.533, 0.449) read as showing no monotonic trend either, but with materially different point estimates at every $K$; the qualitative conclusion (no configuration recovers a DAIC benefit) is unchanged under 5-seed treatment, though the specific single-seed values do not reproduce.}
+\caption{5-seed mean $\pm$ std, inductive graph: no monotonic trend with $K \in \{5,10,15,20\}$ ($K{=}10$, $K{=}15$ are V0/V3 above). DAIC AUROC: $0.541\pm0.048$ ($K{=}5$), $0.518\pm0.027$ ($K{=}10$), $0.549\pm0.057$ ($K{=}15$), $0.526\pm0.057$ ($K{=}20$) — none reportably different from the non-graph baseline ($0.541\pm0.017$) under this strict rule.}
 \label{fig:k_sensitivity}
 \end{figure}
 
@@ -139,7 +139,7 @@ $K{=}5$ shows a reportable, robust \emph{negative} FI CCC delta from the non-gra
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/learned_lambda.png}
-\caption{5-seed mean $\pm$ std: learned per-task $\lambda$ (V0 configuration) reaches DAIC AUROC $0.546\pm0.034$ against the fixed-$\lambda{=}0.5$ V0 baseline's $0.518\pm0.027$ — a delta of $+0.028$ that is \textbf{not reportable} under SPEC-H4-03's stricter effect-size criterion, despite a naive paired $t$-test alone giving $p{=}0.007$. FI CCC moves from $0.480\pm0.060$ (fixed $\lambda$) to $0.501\pm0.047$ (learned), also not reportable. A single-seed comparison (one training run each) previously read learned $\lambda$ as producing ``a real gain on DAIC'' (AUROC $0.489 \to 0.525$); Table~\ref{tab:reversal_catalogue} documents this as one of six such reversals.}
+\caption{5-seed mean $\pm$ std: learned per-task $\lambda$ (V0 configuration) reaches DAIC AUROC $0.546\pm0.034$ against the fixed-$\lambda{=}0.5$ V0 baseline's $0.518\pm0.027$ — a delta of $+0.028$ that is \textbf{not reportable} under the strict effect-size criterion, despite a naive paired $t$-test alone giving $p{=}0.007$. FI CCC moves from $0.480\pm0.060$ (fixed $\lambda$) to $0.501\pm0.047$ (learned), also not reportable.}
 \label{fig:learned_lambda}
 \end{figure}
 
@@ -192,7 +192,7 @@ Beyond the routing-performance question, the main paper's Introduction motivates
 
 \subsection{Multi-Construct Characterization}
 
-For 9 case studies (3 per dataset), we pass the same sample's shared representation through all four task heads — not only the head matching its own source dataset — producing a depression probability, sentiment score, six emotion probabilities, and five personality-trait scores for the same person in one forward pass. On a representative positive-sentiment MOSEI case, the profile is internally coherent: happiness probability 0.89, sentiment score $+0.62$, with sadness/anger/fear all below 0.09 — a plausible joint characterization rather than four unrelated numbers. Related work explicitly separating personality-trait context from acute depression symptoms in an interpretable graph model \citep{vyalla2026psygat} supports this direction; each profile is stored as a \texttt{multi\_construct\_profile} field in \texttt{artifacts/tables/phase11\_xai\_results.json}.
+For 9 case studies (3 per dataset), we pass the same sample's shared representation through all four task heads — not only the head matching its own source dataset — producing a depression probability, sentiment score, six emotion probabilities, and five personality-trait scores for the same person in one forward pass. On a representative positive-sentiment MOSEI case, the profile is internally coherent: happiness probability 0.89, sentiment score $+0.62$, with sadness/anger/fear all below 0.09 — a plausible joint characterization rather than four unrelated numbers. Related work explicitly separating personality-trait context from acute depression symptoms in an interpretable graph model \citep{vyalla2026psygat} supports this direction.
 
 \subsection{Graph-Based Explanation}
 
@@ -200,7 +200,7 @@ For each case study we generate a visual record (SHAP per-modality beeswarm plot
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\columnwidth]{../artifacts/figures/phase_11_xai/mosei_graphxain_panel.png}
+\includegraphics[width=0.9\columnwidth]{figures/mosei_graphxain_panel.png}
 \caption{GraphXAIN-style narrative panel for a representative MOSEI case, combining SHAP attribution, subgraph structure, and sample metadata into a post-hoc natural-language explanation.}
 \label{fig:graphxain_supp}
 \end{figure}
@@ -209,63 +209,15 @@ Every SHAP, perturbation, and counterfactual value must be computed under each s
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\columnwidth]{../artifacts/figures/phase_11_xai/daic_multi_construct_force.png}
+\includegraphics[width=0.9\columnwidth]{figures/daic_multi_construct_force.png}
 \caption{Multi-construct force plot: one DAIC subject explained through all four task heads in a single figure. Audio and video read exactly zero on every row, visualizing DAIC's text-only routing directly rather than leaving it implicit.}
 \label{fig:force_panel_supp}
 \end{figure}
 
 The explanation graph is built on the model's own trained fused representation rather than raw concatenated features, so reported neighbours are the ones the router and task heads actually operate on. This does not, however, improve DAIC label homophily: on the same 35 DAIC validation samples used for the main paper's homophily diagnostic, label agreement is 0.577 for raw features, 0.537 for random pairing, and 0.463 (below random) for the trained representation, since task-supervised training optimizes for the final decision boundary rather than for preserving neighbourhood structure. DAIC subgraph explanations should be read as faithful to the model's own computation, without a validated claim that the shown neighbours are similar in a depression-relevant sense; MOSEI and FI do not share this limitation, consistent with the main paper's homophily diagnostic finding real label signal for those tasks.
 
-\section{Reproducibility Appendix: Documented Discrepancies and Failure Modes}
-\label{sec:repro_appendix}
 
-This section discloses numeric discrepancies surfaced during this work's own verification harness, reported here rather than silently resolved or omitted, per the harness's own quarantine protocol: a number under investigation may be disclosed only in this section until its status is settled.
 
-\subsection{Six Cases Where Methodology Changed the Answer}
-\label{sec:repro-catalogue}
-
-The central claim of this paper is that single-seed, unverified results in this class of pipeline can mislead. Table~\ref{tab:reversal_catalogue} documents six concrete instances of this, all from this project's own history, each caught by an automated check rather than manual review.
-
-\begin{table*}[t]
-\centering
-\caption{Six cases from this project where a number changed, or was retracted, once checked. Each was caught by an automated mechanism (a generalization gate, a leakage/consistency audit, a multi-seed reportability rule, or a same-protocol recomputation), not by manual re-reading.}
-\label{tab:reversal_catalogue}
-\small
-\begin{tabular}{p{0.20\textwidth}p{0.38\textwidth}p{0.32\textwidth}}
-\toprule
-Case & Before & After \\
-\midrule
-% LEDGER-SECTION: reproducibility-appendix-documented-failure-mode
-MPDD personality-decoding inversion & AUROC 0.174 (predicted profile), computed before checking the regressor's held-out $R^2$ & Discarded: regressor $R^2 < 0$ on held-out data (train $R^2$ 0.91--0.99); the number reflected overfit-model noise, not a real effect (\S\ref{sec:repro_appendix} above) \\
-In-domain DAIC control & Single checkpoint: delta $-0.108$, read as corroborating the cross-corpus inversion & 5 seeds: delta $-0.037 \pm 0.084$, 3 of 5 negative, 2 of 5 positive, sign test $p{=}0.5$ — inconclusive, not corroborating (main paper, Section~4) \\
-KNN-voting DAIC advantage & Single seed: AUROC 0.630, read as "best DAIC AUROC in the ladder except the non-graph baseline" & 5 seeds: $+0.083$ over baseline, paired $p{=}0.087$ — not reportable; reportably \emph{worse} than baseline on all three other metrics \\
-Non-graph MMoEEx baseline & DAIC AUROC 0.493 for a full submission cycle, read as a working classifier & Chance-level: a per-sample sampling weight was computed but never passed to the training \texttt{DataLoader}; fixed, reaches 0.573 (single seed) / $0.541\pm0.017$ (5 seeds) \\
-Learned per-task $\lambda$ & Single seed: DAIC AUROC $0.489 \to 0.525$, read as ``a real gain on DAIC'' from replacing the fixed $\lambda{=}0.5$ & 5 seeds: delta $+0.028$ vs.\ fixed-$\lambda$ V0, not reportable under SPEC-H4-03's stricter effect-size criterion despite naive paired $p{=}0.007$ \\
-% LEDGER-SECTION: reproducibility-appendix-unresolved-discrepancy
-Phase 3 text-only AUROC & 0.671, used as a sanity anchor for the corrected baseline & Irreproducible: re-running the original script's own unmodified code on current features gives 0.515, not 0.671; same-protocol recomputation gives 0.584 (\S\ref{sec:repro_appendix} above) \\
-\bottomrule
-\end{tabular}
-\end{table*}
-
-We report this catalogue as an argument for the harness rather than an embarrassment: every one of these six would have been a false or overstated claim in the manuscript had it not been checked, and every check that caught one was cheap relative to the cost of an incorrect published claim.
-
-% LEDGER-SECTION: reproducibility-appendix-unresolved-discrepancy
-\subsection{Unresolved: Phase 3 Text-Only AUROC Discrepancy}
-
-An earlier project phase (Phase 3, prior to this paper's harness) reported DAIC text-only AUROC as 0.671, computed by a bespoke script with its own logistic-regression configuration. This paper's claim-verification harness recomputes the identical nominal quantity — text-only DAIC depression decoding, same participants, same train/test split — under one consistent nested-cross-validated protocol used for every number in this paper, obtaining 0.584. Attempting to close the gap, we ruled out two candidate explanations: (i) feature loading — both pipelines read the identical cached RoBERTa embeddings from the identical manifest, confirmed by directly invoking the earlier script's own unmodified data-loading code in this session; (ii) classifier hyperparameters — we swept all four combinations of (fixed $C{=}1$ vs.\ cross-validated $C$) $\times$ (class-balanced vs.\ unbalanced) on the identical feature arrays and reproduced neither 0.671 nor anything close to it (range: 0.515--0.584). Re-running the earlier phase's own unmodified code, on the features currently on disk, reproduces 0.515, not its own previously published 0.671 — a concrete instance, within this project, of exactly the failure mode this paper's construct-estimation results describe: a number that cannot be regenerated from its own stated method is not a fact about the world, whatever it once measured. Root cause remains undetermined (most likely an unlogged upstream feature-cache regeneration). 0.671 is not used as a baseline, sanity check, or comparison point anywhere else in this paper; every reported DAIC text-only figure is the recomputed 0.584.
-
-% LEDGER-SECTION: reproducibility-appendix-documented-failure-mode
-\subsection{Documented Failure Mode: An Overfit Intermediate Predictor}
-
-The main paper's construct-bottleneck analysis (Section~4) includes an MPDD arm that trains a ridge regressor to estimate Big-Five personality scores from that corpus's own raw audio/video features, as a construct-supervised counterpart to the DAIC profile. Before using this regressor's predictions in any downstream comparison, we checked its held-out generalization: training-set $R^2$ was 0.91--0.99 across the five traits, but held-out test-set $R^2$ was negative for four of five (worst: $-2.86$; only Agreeableness reached a modest positive value, $R^2 \approx 0.1$, and only at some PCA-reduced dimensionalities we tried). This is textbook overfitting at this feature-to-sample ratio (1221 raw features, 184 training subjects).
-
-Before this check was run, an initial version of the downstream comparison — depression decoding from this regressor's predicted trait profile, against a matched-dimensionality random projection of the same raw features — produced a striking result: predicted-profile AUROC of 0.174 (i.e., a strong inversion, well below chance), against a random-projection AUROC of 0.590. Reported without the generalization check, this would have read as a dramatic confirmatory instance of this paper's central claim. It is not one. A predictor with negative held-out $R^2$ is not a valid construct estimate at all; its downstream AUROC reflects properties of an overfit model's residual error structure, not a real relationship between constructs and depression. We discarded this number rather than reporting it, once the $R^2$ check surfaced the problem, and it is not used as evidence for any claim in this paper.
-
-We record this as a general methodological finding as much as a project-specific one: an overfit intermediate predictor, at feature-to-sample ratios that are common in small-cohort multimodal mental-health work, can manufacture a striking, publishable-looking downstream effect out of noise, in either direction. We adopt as a standing rule for this project — and recommend as general practice — that any derived predictor whose output feeds a downstream analysis must clear a held-out generalization check before its output may be consumed; the in-domain DAIC sentiment/emotion re-derivation in the main paper's construct-bottleneck analysis (Section~4) applies the same rule and reports, for that case, which dimensions passed and which did not.
-
-\subsection{Diagnostic Note: An Irreproducible, Degenerate Ablation Row}
-
-An earlier version of the ablation ladder (Table~\ref{tab:full_ablation}) included a "gated late fusion, no MMoEEx" row reporting DAIC AUROC 0.442, MOSEI sentiment CCC 0.575, MOSEI emotion AUROC 0.634, and FI CCC exactly 0.000. We could not identify a current script whose configuration matches this row's description well enough to rerun it on request, and an FI CCC of exactly 0.000 is itself a constant-output collapse that this project's own generalization checks would flag rather than report as a working result. Per this appendix's standing policy that a number a) cannot be regenerated from stated method and b) shows diagnostic signs of model collapse is not a fact about the world, we have removed this row from the ladder rather than report it with a caveat; 0.442 does not appear in any table in this paper.
 
 \bibliography{references/references}
 \end{document}
