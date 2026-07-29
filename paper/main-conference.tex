@@ -225,7 +225,7 @@ A homophily diagnostic (same-dataset edge label agreement/correlation vs.\ rando
 \begin{table}[t]
     \centering
     \footnotesize
-    \caption{Real graph neighbours vs.\ random pairing. "Untrained embedding" is the representation used to build every V0--V4 routing graph (random projection of raw features, averaged over the 4 leakage-safe variants). "Trained representation" recomputes the same diagnostic on the corresponding checkpoint's fused representation (mean over 6 checkpoints -- the 5 canonical seeds plus one checkpoint retained from before the canonical-seed protocol was adopted -- $\times$ 4 variants; DAIC split by graph topology, Section~\ref{sec:routing-ablation}).}
+    \caption{DAIC test-split graph neighbours vs.\ random pairing. "Untrained embedding" is the representation used to build every V0--V4 routing graph (random projection of raw features, averaged over the 4 leakage-safe variants, 5-seed mean). "Trained representation" recomputes the same diagnostic on the 5 canonical-seed checkpoints' own fused representation (mean over 5 seeds $\times$ 4 variants; DAIC split by graph topology, Section~\ref{sec:routing-ablation}).}
     \label{tab:homophily}
     \resizebox{\columnwidth}{!}{%
         \begin{tabular}{lcc}
@@ -233,12 +233,12 @@ A homophily diagnostic (same-dataset edge label agreement/correlation vs.\ rando
             Task (representation)                     & Real graph & Random   \\
             \midrule
             DAIC, untrained embedding (5-seed mean)   & 0.564      & 0.561    \\
-            DAIC, trained repr.\ (inductive: V0/V3)   & 0.619      & 0.566    \\
-            DAIC, trained repr.\ (split-local: V1/V4) & 0.555      & 0.562    \\
+            DAIC, trained repr.\ (inductive: V0/V3)   & 0.618      & 0.566    \\
+            DAIC, trained repr.\ (split-local: V1/V4) & 0.553      & 0.561    \\
             MOSEI, untrained embedding (5-seed mean)  & 0.249      & $-$0.001 \\
-            MOSEI, trained repr.\ (correlation)       & 0.485      & 0.000    \\
+            MOSEI, trained repr.\ (correlation)       & 0.484      & $-$0.002 \\
             FI, untrained embedding (5-seed mean)     & 0.289      & $-$0.000 \\
-            FI, trained repr.\ (correlation)          & 0.423      & $-$0.001 \\
+            FI, trained repr.\ (correlation)          & 0.424      & $-$0.002 \\
             \bottomrule
         \end{tabular}%
     }

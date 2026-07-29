@@ -1,0 +1,27 @@
+{
+  "note": "Recomputes the trained-representation homophily diagnostic (analysis/homophily_trained_representation.py) using only the 5 canonical seeds (17, 42, 1337, 2024, 31415), dropping the 'original' pre-protocol checkpoint that the earlier 6-checkpoint aggregate in homophily_trained_representation.json included.",
+  "source": "artifacts/stats/homophily_trained_representation.json",
+  "checkpoints_used": [
+    "seed17",
+    "seed42",
+    "seed1337",
+    "seed2024",
+    "seed31415"
+  ],
+  "daic_inductive_V0_V3": {
+    "real": 0.6183,
+    "random": 0.5663
+  },
+  "daic_splitlocal_V1_V4": {
+    "real": 0.553,
+    "random": 0.5606
+  },
+  "mosei_V0_V1_V3_V4": {
+    "real": 0.484,
+    "random": -0.0021
+  },
+  "fi_V0_V1_V3_V4": {
+    "real": 0.4239,
+    "random": -0.002
+  }
+}
