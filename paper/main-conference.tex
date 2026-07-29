@@ -129,7 +129,6 @@ Three controls accompany this: a label-permutation null (1000 permutations) esta
 
 MPDD \citep{fu2025mpdd} provides real Big-Five scores and binary depression labels for two age tracks (Young, Elderly; pre-extracted Wav2Vec audio and OpenFace video, no text). Since MPDD's encoders differ entirely from DAIC's, we do not transfer the unified model but ask the same question natively: depression decoding from \emph{ground-truth} Big-Five scores vs.\ from scores \emph{estimated} by a ridge regressor on MPDD's own features (same generalization gate applies). Evaluation is subject-level (scores/labels are subject-level constants; segment-level scoring would duplicate each subject 3--4$\times$). For pooled Young+Elderly, we report a \emph{stratified} AUC (concordant pairs counted only within-track) since a naive pooled ranking lets between-track differences contribute spuriously.
 
-
 \section{Experimental Setup}
 
 \subsection{Datasets}
@@ -158,21 +157,21 @@ Across 5 independently trained seeds of the non-graph MMoEEx baseline, the 12-di
     \caption{DAIC test AUROC, mean $\pm$ std over 5 seeds, projections of the identical fused representation and fitting protocol. Top: full 12 dimensions. Middle: matched dimensionality after dropping per-seed near-constant profile dimensions (PCA reported at full dimensionality only, having no analogous issue). Bottom: matched-dimension delta, as a cross-seed statistic and a subject-level bootstrap (2000 resamples) propagating training and test-sampling uncertainty.}
     \label{tab:construct_ladder}
     \resizebox{\columnwidth}{!}{%
-    \begin{tabular}{lc}
-        \toprule
-        Representation                             & DAIC AUROC                  \\
-        \midrule
-        Construct profile (full 12-dim)            & $0.524 \pm 0.039$           \\
-        Random projection (full 12-dim)            & $0.616 \pm 0.017$           \\
-        PCA-12 (full 12-dim)                       & $0.610 \pm 0.040$           \\
-        \midrule
-        Construct profile (matched dim.)           & $0.544 \pm 0.018$           \\
-        Random projection (matched dim.)           & $0.607 \pm 0.021$           \\
-        \midrule
-        $\Delta$, matched dim.\ (cross-seed)       & $-0.063 \pm 0.011$          \\
-        $\Delta$, subject-bootstrap mean (95\% CI) & $-0.076$ $[-0.119, -0.037]$ \\
-        \bottomrule
-    \end{tabular}%
+        \begin{tabular}{lc}
+            \toprule
+            Representation                             & DAIC AUROC                  \\
+            \midrule
+            Construct profile (full 12-dim)            & $0.524 \pm 0.039$           \\
+            Random projection (full 12-dim)            & $0.616 \pm 0.017$           \\
+            PCA-12 (full 12-dim)                       & $0.610 \pm 0.040$           \\
+            \midrule
+            Construct profile (matched dim.)           & $0.544 \pm 0.018$           \\
+            Random projection (matched dim.)           & $0.607 \pm 0.021$           \\
+            \midrule
+            $\Delta$, matched dim.\ (cross-seed)       & $-0.063 \pm 0.011$          \\
+            $\Delta$, subject-bootstrap mean (95\% CI) & $-0.076$ $[-0.119, -0.037]$ \\
+            \bottomrule
+        \end{tabular}%
     }
 \end{table}
 
